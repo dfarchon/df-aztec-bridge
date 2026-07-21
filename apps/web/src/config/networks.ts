@@ -88,4 +88,4 @@ export function listNetworkIds(): string[] {
   return Object.keys(NETWORKS_BASE);
 }
 
-export const DEFAULT_NETWORK_ID = "testnet";
+export const DEFAULT_NETWORK_ID = "mainnet";

@@ -25,6 +25,12 @@ import {
   type WebNetworkConfig,
 } from "./config/networks.js";
 import { readAccountFile, type ImportedAztecAccount } from "./lib/account-import.js";
+import {
+  getRpcOverrides,
+  hasRpcOverrides,
+  setRpcOverrides,
+  type RpcOverrides,
+} from "./lib/rpc-overrides.js";
 
 type NetworkMeta = WebNetworkConfig;
 
@@ -43,12 +49,29 @@ function downloadJson(filename: string, value: unknown) {
   URL.revokeObjectURL(url);
 }
 
+function withRpcOverrides(networkId: string, overrides: RpcOverrides): NetworkMeta {
+  const base = getNetwork(networkId);
+  return {
+    ...base,
+    aztecNodeUrl: overrides.aztecNodeUrl?.trim() || base.aztecNodeUrl,
+    l1RpcUrl: overrides.l1RpcUrl?.trim() || base.l1RpcUrl,
+  };
+}
+
 export function App() {
   const [networks] = useState(() => listNetworkIds());
   const [networkId, setNetworkId] = useState(DEFAULT_NETWORK_ID);
   /** UI default portal; selector disabled for now. */
   const [l1Backend, setL1Backend] = useState<L1BridgeBackend>("portal");
-  const [networkMeta, setNetworkMeta] = useState<NetworkMeta | null>(() => getNetwork(DEFAULT_NETWORK_ID));
+  const [rpcOverrides, setRpcOverridesState] = useState<RpcOverrides>(() =>
+    getRpcOverrides(DEFAULT_NETWORK_ID),
+  );
+  const [networkMeta, setNetworkMeta] = useState<NetworkMeta | null>(() =>
+    withRpcOverrides(DEFAULT_NETWORK_ID, getRpcOverrides(DEFAULT_NETWORK_ID)),
+  );
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [draftAztecUrl, setDraftAztecUrl] = useState("");
+  const [draftL1RpcUrl, setDraftL1RpcUrl] = useState("");
   const [availableWallets, setAvailableWallets] = useState<EIP6963ProviderDetail[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [wcUri, setWcUri] = useState<string | null>(null);
@@ -59,6 +82,7 @@ export function App() {
   const [autoClaim, setAutoClaim] = useState(false);
   const [l2Secret, setL2Secret] = useState("");
   const [l2Salt, setL2Salt] = useState("");
+  const [showL2Secret, setShowL2Secret] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bridgePhase, setBridgePhase] = useState<string | null>(null);
@@ -73,6 +97,7 @@ export function App() {
   const [importedAccounts, setImportedAccounts] = useState<ImportedAztecAccount[]>([]);
   const [importedIndex, setImportedIndex] = useState(0);
   const [importName, setImportName] = useState<string | null>(null);
+  const [importDragOver, setImportDragOver] = useState(false);
 
   const applyImportedAccount = useCallback((account: ImportedAztecAccount) => {
     setRecipient(account.address);
@@ -86,6 +111,9 @@ export function App() {
       if (!file) return;
       setError(null);
       try {
+        if (!file.name.toLowerCase().endsWith(".json") && file.type && file.type !== "application/json") {
+          throw new Error("Please upload a .json account file");
+        }
         const accounts = await readAccountFile(file);
         setImportedAccounts(accounts);
         setImportedIndex(0);
@@ -136,12 +164,46 @@ export function App() {
 
   useEffect(() => {
     try {
-      setNetworkMeta(getNetwork(networkId));
+      const overrides = getRpcOverrides(networkId);
+      setRpcOverridesState(overrides);
+      setNetworkMeta(withRpcOverrides(networkId, overrides));
       setError(null);
     } catch (e: unknown) {
       setNetworkMeta(null);
       setError(e instanceof Error ? e.message : String(e));
     }
+  }, [networkId]);
+
+  const openSettings = useCallback(() => {
+    const overrides = getRpcOverrides(networkId);
+    const defaults = getNetwork(networkId);
+    setDraftAztecUrl(overrides.aztecNodeUrl ?? defaults.aztecNodeUrl);
+    setDraftL1RpcUrl(overrides.l1RpcUrl ?? defaults.l1RpcUrl);
+    setSettingsOpen(true);
+  }, [networkId]);
+
+  const saveSettings = useCallback(() => {
+    const defaults = getNetwork(networkId);
+    const next: RpcOverrides = {
+      aztecNodeUrl:
+        draftAztecUrl.trim() && draftAztecUrl.trim() !== defaults.aztecNodeUrl
+          ? draftAztecUrl.trim()
+          : undefined,
+      l1RpcUrl:
+        draftL1RpcUrl.trim() && draftL1RpcUrl.trim() !== defaults.l1RpcUrl
+          ? draftL1RpcUrl.trim()
+          : undefined,
+    };
+    setRpcOverrides(networkId, next);
+    setRpcOverridesState(next);
+    setNetworkMeta(withRpcOverrides(networkId, next));
+    setSettingsOpen(false);
+  }, [networkId, draftAztecUrl, draftL1RpcUrl]);
+
+  const resetSettingsDraft = useCallback(() => {
+    const defaults = getNetwork(networkId);
+    setDraftAztecUrl(defaults.aztecNodeUrl);
+    setDraftL1RpcUrl(defaults.l1RpcUrl);
   }, [networkId]);
 
   // Auto-update address / chain when user switches in the wallet extension
@@ -487,16 +549,104 @@ export function App() {
 
   return (
     <main>
-      <h1>Fee Juice Bridge</h1>
-      <p>
-        Connect a wallet, enter the Aztec address to fund, and bridge on L1. L2 claim is optional —
-        leave it off if you only need the deposit + credentials.
-      </p>
+      <header className="app-header">
+        <div>
+          <h1>Fee Juice Bridge</h1>
+          <p>
+            Connect a wallet, enter the Aztec address to fund, and bridge on L1. L2 claim is optional —
+            leave it off if you only need the deposit + credentials.
+          </p>
+        </div>
+        <button
+          type="button"
+          className={`icon-btn settings-btn${hasRpcOverrides(rpcOverrides) ? " active" : ""}`}
+          aria-label="RPC settings"
+          title="RPC settings"
+          onClick={openSettings}
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.07 7.07 0 0 0-1.62-.94l-.36-2.54A.48.48 0 0 0 14 2h-4a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.13.55-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.65 8.87a.49.49 0 0 0 .12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.77 14.5a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.3.59.22l2.39-.96c.5.39 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h4c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.55 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"
+            />
+          </svg>
+        </button>
+      </header>
+
+      {settingsOpen ? (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSettingsOpen(false);
+          }}
+        >
+          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="rpc-settings-title">
+            <div className="modal-header">
+              <strong id="rpc-settings-title">RPC settings</strong>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Close"
+                title="Close"
+                onClick={() => setSettingsOpen(false)}
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.3 19.71 2.89 18.3 9.17 12 2.89 5.71 4.3 4.29l6.29 6.3 6.3-6.3z"
+                  />
+                </svg>
+              </button>
+            </div>
+            <p className="hint">
+              Overrides for <span className="mono">{networkId}</span>. Saved in this browser only.
+              Leave as defaults or clear and save to reset.
+            </p>
+            <label>
+              AZTEC_NODE_URL
+              <input
+                value={draftAztecUrl}
+                onChange={(e) => setDraftAztecUrl(e.target.value)}
+                placeholder={getNetwork(networkId).aztecNodeUrl}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </label>
+            <label>
+              L1_RPC_URL
+              <input
+                value={draftL1RpcUrl}
+                onChange={(e) => setDraftL1RpcUrl(e.target.value)}
+                placeholder={getNetwork(networkId).l1RpcUrl}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </label>
+            <div className="modal-actions">
+              <button type="button" className="ghost" onClick={resetSettingsDraft}>
+                Reset defaults
+              </button>
+              <button type="button" className="ghost" onClick={() => setSettingsOpen(false)}>
+                Cancel
+              </button>
+              <button type="button" onClick={saveSettings}>
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="network-row">
         <label>
           Network
-          <select value={networkId} onChange={(e) => setNetworkId(e.target.value)}>
+          <select
+            value={networkId}
+            disabled
+            title="Locked to mainnet for now"
+            onChange={(e) => setNetworkId(e.target.value)}
+          >
             {networks.map((id) => (
               <option key={id} value={id}>
                 {id}
@@ -518,8 +668,9 @@ export function App() {
         </label>
       </div>
       <p className="hint">
-        L1 backend is fixed to <span className="mono">portal</span> (official FeeJuicePortal — no
-        GoBridge deploy). Networks &amp; L1 addresses are baked into the frontend config.
+        Network locked to <span className="mono">mainnet</span>; L1 backend locked to{" "}
+        <span className="mono">portal</span>. Addresses are baked into the frontend config.
+        {hasRpcOverrides(rpcOverrides) ? " Custom RPC overrides active (gear)." : null}
       </p>
 
       <button type="button" onClick={() => void onConnect()} disabled={busy}>
@@ -653,19 +804,50 @@ export function App() {
           <span className="mono">address / secretKey / salt</span> (and optional signingKey). Fills
           the form below.
         </p>
-        <label className="file-label">
-          Choose JSON file
-          <input
-            type="file"
-            accept="application/json,.json"
-            disabled={busy}
-            onChange={(e) => {
-              const f = e.target.files?.[0] ?? null;
-              void onAccountFile(f);
-              e.target.value = "";
-            }}
-          />
-        </label>
+        <div
+          className={`dropzone${importDragOver ? " drag-over" : ""}${busy ? " disabled" : ""}`}
+          onDragEnter={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!busy) setImportDragOver(true);
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!busy) setImportDragOver(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.currentTarget === e.target) setImportDragOver(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setImportDragOver(false);
+            if (busy) return;
+            const f = e.dataTransfer.files?.[0] ?? null;
+            void onAccountFile(f);
+          }}
+        >
+          <p className="dropzone-title">
+            {importDragOver ? "Release to upload" : "Drag & drop JSON here"}
+          </p>
+          <p className="hint">or click to choose a file</p>
+          <label className="file-label">
+            <span className="sr-only">Choose JSON file</span>
+            <input
+              type="file"
+              accept="application/json,.json"
+              disabled={busy}
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                void onAccountFile(f);
+                e.target.value = "";
+              }}
+            />
+          </label>
+        </div>
         {importName ? (
           <p className="hint">
             Loaded <span className="mono">{importName}</span>
@@ -731,13 +913,43 @@ export function App() {
           </p>
           <label>
             L2 secret
-            <input
-              value={l2Secret}
-              onChange={(e) => setL2Secret(e.target.value)}
-              placeholder="0x…"
-              type="password"
-              autoComplete="off"
-            />
+            <div className="secret-field">
+              <input
+                value={l2Secret}
+                onChange={(e) => setL2Secret(e.target.value)}
+                placeholder="0x…"
+                type={showL2Secret ? "text" : "password"}
+                autoComplete="off"
+              />
+              <button
+                type="button"
+                className="ghost secret-toggle"
+                disabled={!l2Secret}
+                aria-label={showL2Secret ? "隐藏 L2 secret" : "显示 L2 secret"}
+                title={showL2Secret ? "隐藏" : "显示"}
+                onClick={() => setShowL2Secret((v) => !v)}
+              >
+                {showL2Secret ? (
+                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                    <path
+                      fill="currentColor"
+                      d="M12 6a9.77 9.77 0 0 1 8.94 5.5 9.77 9.77 0 0 1-17.88 0A9.77 9.77 0 0 1 12 6m0-2C7 4 2.73 7.11 1 11.5 2.73 15.89 7 19 12 19s9.27-3.11 11-7.5C21.27 7.11 17 4 12 4zm0 5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"
+                    />
+                    <path
+                      fill="currentColor"
+                      d="M3.27 2 2 3.27 5.11 6.4A12.4 12.4 0 0 0 1 11.5C2.73 15.89 7 19 12 19c1.85 0 3.58-.45 5.12-1.23L19.73 21 21 19.73 3.27 2zM12 17c-3.53 0-6.43-2.07-8-5.5a9.9 9.9 0 0 1 2.55-3.36l1.58 1.58A2.5 2.5 0 0 0 12 14.5c.4 0 .78-.1 1.12-.26l1.58 1.58A8.2 8.2 0 0 1 12 17z"
+                    />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                    <path
+                      fill="currentColor"
+                      d="M12 4C7 4 2.73 7.11 1 11.5 2.73 15.89 7 19 12 19s9.27-3.11 11-7.5C21.27 7.11 17 4 12 4zm0 12.5A2.5 2.5 0 1 1 12 9a2.5 2.5 0 0 1 0 5.5zM12 7c-2.48 0-4.5 2.02-4.5 4.5S9.52 16 12 16s4.5-2.02 4.5-4.5S14.48 7 12 7z"
+                    />
+                  </svg>
+                )}
+              </button>
+            </div>
           </label>
           <label>
             Salt (optional, default 0)
@@ -796,13 +1008,43 @@ export function App() {
               <p className="hint">Optional: claim now in the browser (requires L2 secret).</p>
               <label>
                 L2 secret
-                <input
-                  value={l2Secret}
-                  onChange={(e) => setL2Secret(e.target.value)}
-                  placeholder="0x…"
-                  type="password"
-                  autoComplete="off"
-                />
+                <div className="secret-field">
+                  <input
+                    value={l2Secret}
+                    onChange={(e) => setL2Secret(e.target.value)}
+                    placeholder="0x…"
+                    type={showL2Secret ? "text" : "password"}
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    className="ghost secret-toggle"
+                    disabled={!l2Secret}
+                    aria-label={showL2Secret ? "隐藏 L2 secret" : "显示 L2 secret"}
+                    title={showL2Secret ? "隐藏" : "显示"}
+                    onClick={() => setShowL2Secret((v) => !v)}
+                  >
+                    {showL2Secret ? (
+                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                        <path
+                          fill="currentColor"
+                          d="M12 6a9.77 9.77 0 0 1 8.94 5.5 9.77 9.77 0 0 1-17.88 0A9.77 9.77 0 0 1 12 6m0-2C7 4 2.73 7.11 1 11.5 2.73 15.89 7 19 12 19s9.27-3.11 11-7.5C21.27 7.11 17 4 12 4zm0 5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"
+                        />
+                        <path
+                          fill="currentColor"
+                          d="M3.27 2 2 3.27 5.11 6.4A12.4 12.4 0 0 0 1 11.5C2.73 15.89 7 19 12 19c1.85 0 3.58-.45 5.12-1.23L19.73 21 21 19.73 3.27 2zM12 17c-3.53 0-6.43-2.07-8-5.5a9.9 9.9 0 0 1 2.55-3.36l1.58 1.58A2.5 2.5 0 0 0 12 14.5c.4 0 .78-.1 1.12-.26l1.58 1.58A8.2 8.2 0 0 1 12 17z"
+                        />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                        <path
+                          fill="currentColor"
+                          d="M12 4C7 4 2.73 7.11 1 11.5 2.73 15.89 7 19 12 19s9.27-3.11 11-7.5C21.27 7.11 17 4 12 4zm0 12.5A2.5 2.5 0 1 1 12 9a2.5 2.5 0 0 1 0 5.5zM12 7c-2.48 0-4.5 2.02-4.5 4.5S9.52 16 12 16s4.5-2.02 4.5-4.5S14.48 7 12 7z"
+                        />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </label>
               <label>
                 Salt (optional)
