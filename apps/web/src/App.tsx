@@ -691,10 +691,10 @@ export function App() {
                 : ""}
             </p>
             <p className="hint">
-              跨链从 L1 扣下方余额。
+              Bridging deducts from the L1 balance below.
               {networkMeta?.l1Addresses.feeAssetHandler
-                ? " Testnet 可用 faucet 铸造，可不持有代币。"
-                : " 主网需自备 L1 AZTEC + ETH gas。"}
+                ? " Testnet can mint via faucet if you have no tokens."
+                : " Mainnet requires L1 AZTEC + ETH for gas."}
             </p>
           </div>
           <div className="wallet-status-balance">
@@ -708,14 +708,14 @@ export function App() {
                 </span>
               ) : (
                 <span className={`balance-amount hint ${balanceError ? "error" : ""}`}>
-                  {balanceError ? "查询失败" : "查询中…"}
+                  {balanceError ? "Failed" : "Loading…"}
                 </span>
               )}
               <button
                 type="button"
                 className={`icon-btn${balanceRefreshing ? " spinning" : ""}`}
-                aria-label="刷新余额"
-                title="刷新余额"
+                aria-label="Refresh balance"
+                title="Refresh balance"
                 disabled={busy || !networkMeta || balanceRefreshing}
                 onClick={() => {
                   if (wallet && networkMeta) {
@@ -925,8 +925,8 @@ export function App() {
                 type="button"
                 className="ghost secret-toggle"
                 disabled={!l2Secret}
-                aria-label={showL2Secret ? "隐藏 L2 secret" : "显示 L2 secret"}
-                title={showL2Secret ? "隐藏" : "显示"}
+                aria-label={showL2Secret ? "Hide L2 secret" : "Show L2 secret"}
+                title={showL2Secret ? "Hide" : "Show"}
                 onClick={() => setShowL2Secret((v) => !v)}
               >
                 {showL2Secret ? (
@@ -1020,8 +1020,8 @@ export function App() {
                     type="button"
                     className="ghost secret-toggle"
                     disabled={!l2Secret}
-                    aria-label={showL2Secret ? "隐藏 L2 secret" : "显示 L2 secret"}
-                    title={showL2Secret ? "隐藏" : "显示"}
+                    aria-label={showL2Secret ? "Hide L2 secret" : "Show L2 secret"}
+                    title={showL2Secret ? "Hide" : "Show"}
                     onClick={() => setShowL2Secret((v) => !v)}
                   >
                     {showL2Secret ? (
