@@ -33,5 +33,10 @@ export {
   watchProviderSession,
   type FeeJuiceBalance,
 } from "./clients.js";
-export { loadBrowserClaim, type WaitAndClaimInBrowser, type BrowserClaimProgress } from "./claim-lazy.js";
+export {
+  loadBrowserClaim,
+  type WaitAndClaimInBrowser,
+  type WarmupBrowserClaim,
+  type BrowserClaimProgress,
+} from "./claim-lazy.js";
 export { getBridgeAddress } from "./vendor/gobridge/deterministic.js";

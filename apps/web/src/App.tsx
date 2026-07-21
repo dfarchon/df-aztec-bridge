@@ -206,6 +206,30 @@ export function App() {
     setDraftL1RpcUrl(defaults.l1RpcUrl);
   }, [networkId]);
 
+  // Keep PXE warm for the active Aztec node (boot already warms the default).
+  useEffect(() => {
+    if (!BROWSER_CLAIM || !networkMeta?.aztecNodeUrl) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { loadBrowserClaim } = await import("@df-bridge/browser-sdk/claim-lazy");
+        const { warmupBrowserClaim } = await loadBrowserClaim();
+        if (cancelled) return;
+        await warmupBrowserClaim({
+          networkId: networkMeta.id,
+          aztecNodeUrl: networkMeta.aztecNodeUrl,
+        });
+      } catch (e: unknown) {
+        if (!cancelled) {
+          console.warn("[web] PXE re-warmup failed", e);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [networkMeta?.id, networkMeta?.aztecNodeUrl]);
+
   // Auto-update address / chain when user switches in the wallet extension
   useEffect(() => {
     if (!wallet) return;
@@ -386,24 +410,40 @@ export function App() {
         setClaimStatus("running");
         setL2TxHash(null);
         setBridgePhase("Loading browser PXE (first time may download a large chunk)…");
-        const { loadBrowserClaim } = await import("@df-bridge/browser-sdk/claim-lazy");
-        const { waitAndClaimInBrowser } = await loadBrowserClaim();
-        const { l2TxHash: hash } = await waitAndClaimInBrowser({
-          aztecNodeUrl: networkMeta.aztecNodeUrl,
-          networkId: networkMeta.id,
-          credentials: creds,
-          l2SecretKey: secret,
-          salt,
-          onProgress: (phase, detail) => {
-            setClaimStatus(phase);
-            if (detail) setBridgePhase(`[${phase}] ${detail}`);
-            else setBridgePhase(phase);
-          },
-        });
-        setL2TxHash(hash);
-        setClaimStatus("succeeded");
-        setBridgePhase("L2 claim complete (browser)");
-        return;
+
+        let heartbeat: ReturnType<typeof setInterval> | undefined;
+        const startedAt = Date.now();
+        const tickHeartbeat = (label: string) => {
+          const secs = Math.floor((Date.now() - startedAt) / 1000);
+          setBridgePhase(`${label} (${secs}s)`);
+        };
+
+        try {
+          const { loadBrowserClaim } = await import("@df-bridge/browser-sdk/claim-lazy");
+          const { waitAndClaimInBrowser } = await loadBrowserClaim();
+          heartbeat = setInterval(() => {
+            tickHeartbeat("Still working on L2 claim — PXE / wait / prove can take several minutes");
+          }, 5_000);
+          const { l2TxHash: hash } = await waitAndClaimInBrowser({
+            aztecNodeUrl: networkMeta.aztecNodeUrl,
+            networkId: networkMeta.id,
+            credentials: creds,
+            l2SecretKey: secret,
+            salt,
+            onProgress: (phase, detail) => {
+              setClaimStatus(phase);
+              const base = detail ? `[${phase}] ${detail}` : `[${phase}]`;
+              const secs = Math.floor((Date.now() - startedAt) / 1000);
+              setBridgePhase(`${base} (${secs}s)`);
+            },
+          });
+          setL2TxHash(hash);
+          setClaimStatus("succeeded");
+          setBridgePhase(`L2 claim complete — ${hash}`);
+          return;
+        } finally {
+          if (heartbeat) clearInterval(heartbeat);
+        }
       }
 
       const res = await fetch(`${API_BASE}/v1/claim`, {
@@ -498,9 +538,12 @@ export function App() {
       setBridgePhase("L1 bridge complete");
 
       if (autoClaim) {
-        setBridgePhase("Starting L2 claim job…");
+        setBridgePhase("Starting L2 claim…");
         await startClaimJob(result.credentials, l2Secret.trim(), l2Salt);
-        setBridgePhase("L2 claim job queued");
+        // Browser claim already set the final phase / L2 tx; API claim stays "queued".
+        if (!BROWSER_CLAIM) {
+          setBridgePhase("L2 claim job queued — polling status…");
+        }
       }
     } catch (e: unknown) {
       setError(formatWalletError(e));
