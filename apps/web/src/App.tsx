@@ -551,7 +551,7 @@ export function App() {
     <main>
       <header className="app-header">
         <div>
-          <h1>Fee Juice Bridge</h1>
+          <h1>DF Aztec Bridge</h1>
           <p>
             Connect a wallet, enter the Aztec address to fund, and bridge on L1. L2 claim is optional —
             leave it off if you only need the deposit + credentials.
