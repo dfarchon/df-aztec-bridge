@@ -5,5 +5,5 @@
   "l1RpcUrl": "http://localhost:8545",
   "l1ChainId": 31337,
   "bridgeTiming": "warp",
-  "l1Backend": "gobridge"
+  "l1Backend": "portal"
 }

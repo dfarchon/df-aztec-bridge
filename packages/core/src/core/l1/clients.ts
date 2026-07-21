@@ -117,25 +117,41 @@ export async function waitForTransactionReceiptWithRetry(
   options?: {
     maxAttempts?: number;
     initialBackoffMs?: number;
+    timeoutMs?: number;
+    pollingIntervalMs?: number;
   },
 ): Promise<TransactionReceipt> {
-  const maxAttempts = options?.maxAttempts ?? 8;
-  const initialBackoffMs = options?.initialBackoffMs ?? 1_500;
+  const maxAttempts = options?.maxAttempts ?? 6;
+  const initialBackoffMs = options?.initialBackoffMs ?? 2_000;
+  const timeoutMs = options?.timeoutMs ?? 180_000;
+  const pollingIntervalMs = options?.pollingIntervalMs ?? 4_000;
 
+  let lastError: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      return await publicClient.waitForTransactionReceipt({ hash });
-    } catch (error) {
-      if (!isRateLimitError(error) || attempt === maxAttempts) {
-        throw error;
-      }
+      const existing = await publicClient.getTransactionReceipt({ hash }).catch(() => null);
+      if (existing) return existing;
 
-      const backoffMs = initialBackoffMs * 2 ** (attempt - 1);
-      await sleep(backoffMs);
+      return await publicClient.waitForTransactionReceipt({
+        hash,
+        timeout: timeoutMs,
+        pollingInterval: pollingIntervalMs,
+      });
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      const retryable =
+        isRateLimitError(error) ||
+        message.includes("Timed out while waiting for transaction") ||
+        message.includes("WaitForTransactionReceiptTimeoutError");
+      if (!retryable || attempt === maxAttempts) throw error;
+      await sleep(initialBackoffMs * 2 ** (attempt - 1));
     }
   }
 
-  throw new Error(`Timed out while waiting for transaction receipt: ${hash}`);
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`Timed out while waiting for transaction receipt: ${hash}`);
 }
 
 const depositEventAbi = parseAbi([

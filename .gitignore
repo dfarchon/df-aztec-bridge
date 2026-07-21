@@ -1,6 +1,36 @@
+# Dependencies (pnpm hardlinks/symlinks into root store; still ignore every package's folder)
 node_modules/
+
+# Build outputs
 dist/
+**/dist/
+*.tsbuildinfo
+
+# Env / secrets
 .env
-.env.local
+.env.*
+!.env.example
+
+# Runtime / local data
 data/
+**/data/
+
+# Logs & caches
 *.log
+npm-debug.log*
+pnpm-debug.log*
+.turbo/
+.cache/
+**/.vite/
+coverage/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Accidental empty / junk files
+df-aztec-bridge-kit@0.1.0
+/node

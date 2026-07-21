@@ -33,6 +33,8 @@ export interface BridgeJobResult {
   l2TxHash?: string;
   aztecAddress?: string;
   l2SecretKey?: string;
+  /** Account salt used with l2SecretKey (default 0). */
+  salt?: string;
 }
 
 export interface RuntimeSecrets {

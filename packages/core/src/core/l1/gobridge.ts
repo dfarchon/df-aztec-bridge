@@ -43,6 +43,14 @@ export async function bridgeFeeJuiceViaGoBridge(params: {
   const recipientHex = aztecRecipientToBytes32(aztecRecipient);
   const bridgeAddr = getBridgeAddress();
 
+  const bridgeCode = await publicClient.getCode({ address: bridgeAddr });
+  if (!bridgeCode || bridgeCode === "0x") {
+    throw new Error(
+      `GoBridge is not deployed on chain ${chainId} at ${bridgeAddr}. ` +
+        `Deploy with: DEPLOYER_KEY=0x… pnpm deploy-l1-bridge mainnet`,
+    );
+  }
+
   let hash: Hex;
 
   if (mint && addresses.feeAssetHandler) {

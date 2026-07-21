@@ -4,7 +4,8 @@ import { fileURLToPath } from "node:url";
 import type { NetworkConfig, RuntimeSecrets, L1Backend } from "../core/types.js";
 import type { Hex } from "viem";
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+/** Monorepo root (`config/networks` lives here). */
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const NETWORKS_DIR = join(ROOT, "config", "networks");
 
 function resolveEnvPlaceholders<T>(value: T): T {
@@ -22,6 +23,24 @@ function resolveEnvPlaceholders<T>(value: T): T {
   return value;
 }
 
+/** e.g. testnet → TESTNET_L1_RPC_URL */
+function networkEnv(networkId: string, suffix: string): string | undefined {
+  const key = `${networkId.toUpperCase().replace(/-/g, "_")}_${suffix}`;
+  const v = process.env[key]?.trim();
+  return v || undefined;
+}
+
+/**
+ * Global env (L1_RPC_URL, …) only applies when loading the active NETWORK preset,
+ * so selecting mainnet in the UI is not forced onto Sepolia RPC from .env.
+ */
+function globalEnvIfActive(networkId: string, key: string): string | undefined {
+  const active = process.env.NETWORK?.trim() || "testnet";
+  if (active !== networkId) return undefined;
+  const v = process.env[key]?.trim();
+  return v || undefined;
+}
+
 export function listNetworkIds(): string[] {
   return readdirSync(NETWORKS_DIR)
     .filter((f) => f.endsWith(".json"))
@@ -33,19 +52,28 @@ export function loadNetworkConfig(networkId: string): NetworkConfig {
   const raw = JSON.parse(readFileSync(path, "utf8")) as NetworkConfig;
   const config = resolveEnvPlaceholders(raw);
 
-  if (process.env.AZTEC_NODE_URL) config.aztecNodeUrl = process.env.AZTEC_NODE_URL;
-  if (process.env.L1_RPC_URL) config.l1RpcUrl = process.env.L1_RPC_URL;
-  if (process.env.L1_CHAIN_ID) config.l1ChainId = Number(process.env.L1_CHAIN_ID);
-  if (process.env.AZTEC_API_KEY) config.apiKey = process.env.AZTEC_API_KEY;
-  if (process.env.L1_BACKEND === "portal" || process.env.L1_BACKEND === "gobridge") {
-    config.l1Backend = process.env.L1_BACKEND;
+  const aztecNode =
+    networkEnv(networkId, "AZTEC_NODE_URL") ?? globalEnvIfActive(networkId, "AZTEC_NODE_URL");
+  const l1Rpc = networkEnv(networkId, "L1_RPC_URL") ?? globalEnvIfActive(networkId, "L1_RPC_URL");
+  const l1Chain =
+    networkEnv(networkId, "L1_CHAIN_ID") ?? globalEnvIfActive(networkId, "L1_CHAIN_ID");
+  const apiKey = networkEnv(networkId, "AZTEC_API_KEY") ?? process.env.AZTEC_API_KEY?.trim();
+  const backend =
+    networkEnv(networkId, "L1_BACKEND") ?? globalEnvIfActive(networkId, "L1_BACKEND");
+
+  if (aztecNode) config.aztecNodeUrl = aztecNode;
+  if (l1Rpc) config.l1RpcUrl = l1Rpc;
+  if (l1Chain) config.l1ChainId = Number(l1Chain);
+  if (apiKey) config.apiKey = apiKey;
+  if (backend === "portal" || backend === "gobridge") {
+    config.l1Backend = backend;
   }
 
   return config;
 }
 
 export function resolveL1Backend(config: NetworkConfig): L1Backend {
-  return config.l1Backend ?? "gobridge";
+  return config.l1Backend ?? "portal";
 }
 
 export function resolveNetworkId(explicit?: string): string {

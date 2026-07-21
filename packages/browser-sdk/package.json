@@ -1,0 +1,42 @@
+{
+  "name": "@df-bridge/browser-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./claim-browser": {
+      "types": "./dist/claim-browser.d.ts",
+      "import": "./dist/claim-browser.js",
+      "default": "./dist/claim-browser.js"
+    },
+    "./claim-lazy": {
+      "types": "./dist/claim-lazy.d.ts",
+      "import": "./dist/claim-lazy.js",
+      "default": "./dist/claim-lazy.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@aztec/aztec.js": "v5.0.1",
+    "@aztec/bb.js": "5.0.1",
+    "@aztec/foundation": "v5.0.1",
+    "@aztec/pxe": "v5.0.1",
+    "@aztec/stdlib": "v5.0.1",
+    "@aztec/wallets": "v5.0.1",
+    "@walletconnect/ethereum-provider": "^2.23.10",
+    "viem": "^2.23.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.7.3"
+  }
+}
