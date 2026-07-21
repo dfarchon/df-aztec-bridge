@@ -5,7 +5,7 @@ import { createAztecNodeClient } from "@aztec/aztec.js/node";
 import { FeeJuicePaymentMethodWithClaim } from "@aztec/aztec.js/fee";
 import { isL1ToL2MessageReady } from "@aztec/aztec.js/messaging";
 import type { Wallet } from "@aztec/aztec.js/wallet";
-import { Fr } from "@aztec/foundation/curves/bn254";
+import { Fr, Fq } from "@aztec/foundation/curves/bn254";
 import { defaultFetch } from "@aztec/foundation/json-rpc/client";
 import { getPXEConfig } from "@aztec/pxe/config";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
@@ -41,6 +41,14 @@ function parseSalt(raw?: string): Fr {
   return Fr.fromHexString(raw.trim());
 }
 
+/** Schnorr signing key: explicit hex from account file, else derive from secret (CLI convention). */
+function resolveSigningKey(secret: Fr, signingKeyHex?: string): Fq {
+  if (signingKeyHex?.trim()) {
+    return Fq.fromHexString(signingKeyHex.trim());
+  }
+  return deriveMasterMessageSigningSecretKey(secret);
+}
+
 function cacheKey(networkId: string, aztecNodeUrl: string, apiKey?: string): string {
   return `${networkId}|${aztecNodeUrl.trim()}|${apiKey?.trim() ?? ""}`;
 }
@@ -53,8 +61,13 @@ function createBrowserNode(url: string, apiKey?: string) {
   return createAztecNodeClient(url, undefined, fetchFn);
 }
 
-async function registerAccount(wallet: EmbeddedWallet, secret: Fr, salt: Fr) {
-  const signingKey = deriveMasterMessageSigningSecretKey(secret);
+async function registerAccount(
+  wallet: EmbeddedWallet,
+  secret: Fr,
+  salt: Fr,
+  signingKeyHex?: string,
+) {
+  const signingKey = resolveSigningKey(secret, signingKeyHex);
   return wallet.createSchnorrInitializerlessAccount(secret, salt, signingKey, "main");
 }
 
@@ -173,6 +186,11 @@ export async function waitAndClaimInBrowser(params: {
   credentials: ClaimCredentials;
   l2SecretKey: string;
   salt?: string;
+  /**
+   * Schnorr signing key hex. Required for accounts that used an independent
+   * signing key (e.g. dfpunk). Omit to derive from secret (CLI / aztec-kit convention).
+   */
+  signingKey?: string;
   timeoutMs?: number;
   onProgress?: (phase: BrowserClaimProgress, detail?: string) => void;
 }): Promise<{ l2TxHash: string }> {
@@ -188,8 +206,14 @@ export async function waitAndClaimInBrowser(params: {
   });
 
   progress("account", "Registering claimer account…");
-  await registerAccount(wallet, secret, salt);
-  const caller = AztecAddress.fromStringUnsafe(params.credentials.recipient);
+  const manager = await registerAccount(wallet, secret, salt, params.signingKey);
+  const expected = AztecAddress.fromStringUnsafe(params.credentials.recipient);
+  if (!manager.address.equals(expected)) {
+    throw new Error(
+      `Registered account ${manager.address} does not match claim recipient ${expected}. ` +
+        `Wrong salt/signingKey — for dfpunk accounts pass the file's signingKey (do not derive from secret).`,
+    );
+  }
 
   progress(
     "l2-wait",
@@ -202,7 +226,7 @@ export async function waitAndClaimInBrowser(params: {
   );
 
   progress("l2-claim", "Claiming Fee Juice on L2 (proving in browser)…");
-  const result = await claimWithBootstrap(wallet, caller, params.credentials);
+  const result = await claimWithBootstrap(wallet, manager.address, params.credentials);
   const l2TxHash = result.receipt.txHash.toString();
   progress("done", `L2 tx ${l2TxHash}`);
   return { l2TxHash };

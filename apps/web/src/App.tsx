@@ -82,6 +82,7 @@ export function App() {
   const [autoClaim, setAutoClaim] = useState(false);
   const [l2Secret, setL2Secret] = useState("");
   const [l2Salt, setL2Salt] = useState("");
+  const [l2SigningKey, setL2SigningKey] = useState("");
   const [showL2Secret, setShowL2Secret] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +104,7 @@ export function App() {
     setRecipient(account.address);
     setL2Secret(account.secretKey);
     setL2Salt(account.salt);
+    setL2SigningKey(account.signingKey ?? "");
     setAutoClaim(true);
   }, []);
 
@@ -401,7 +403,7 @@ export function App() {
   }, []);
 
   const startClaimJob = useCallback(
-    async (creds: ClaimCredentials, secret: string, salt?: string) => {
+    async (creds: ClaimCredentials, secret: string, salt?: string, signingKey?: string) => {
       if (BROWSER_CLAIM) {
         if (!networkMeta?.aztecNodeUrl) {
           throw new Error("Network meta missing aztecNodeUrl for browser claim.");
@@ -430,6 +432,7 @@ export function App() {
             credentials: creds,
             l2SecretKey: secret,
             salt,
+            signingKey: signingKey?.trim() || undefined,
             onProgress: (phase, detail) => {
               setClaimStatus(phase);
               const base = detail ? `[${phase}] ${detail}` : `[${phase}]`;
@@ -455,6 +458,7 @@ export function App() {
           callerAddress: creds.recipient,
           l2SecretKey: secret,
           ...(salt?.trim() ? { salt: salt.trim() } : {}),
+          ...(signingKey?.trim() ? { signingKey: signingKey.trim() } : {}),
         }),
       });
       const body = (await res.json()) as { jobId?: string; error?: string };
@@ -539,7 +543,7 @@ export function App() {
 
       if (autoClaim) {
         setBridgePhase("Starting L2 claim…");
-        await startClaimJob(result.credentials, l2Secret.trim(), l2Salt);
+        await startClaimJob(result.credentials, l2Secret.trim(), l2Salt, l2SigningKey);
         // Browser claim already set the final phase / L2 tx; API claim stays "queued".
         if (!BROWSER_CLAIM) {
           setBridgePhase("L2 claim job queued — polling status…");
@@ -551,7 +555,7 @@ export function App() {
     } finally {
       setBusy(false);
     }
-  }, [wallet, networkMeta, recipient, amountFj, autoClaim, l2Secret, l2Salt, l1Backend, startClaimJob]);
+  }, [wallet, networkMeta, recipient, amountFj, autoClaim, l2Secret, l2Salt, l2SigningKey, l1Backend, startClaimJob]);
 
   const onClaimViaApi = useCallback(async () => {
     if (!credentials) return;
@@ -562,13 +566,13 @@ export function App() {
     setBusy(true);
     setError(null);
     try {
-      await startClaimJob(credentials, l2Secret.trim(), l2Salt);
+      await startClaimJob(credentials, l2Secret.trim(), l2Salt, l2SigningKey);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
-  }, [credentials, l2Secret, l2Salt, startClaimJob]);
+  }, [credentials, l2Secret, l2Salt, l2SigningKey, startClaimJob]);
 
   useEffect(() => {
     if (!claimJobId || claimJobId === "browser") return;
@@ -844,8 +848,8 @@ export function App() {
         <strong>Import Aztec account</strong>
         <p className="hint">
           Upload <span className="mono">dfpunk-account-*.json</span> with{" "}
-          <span className="mono">address / secretKey / salt</span> (and optional signingKey). Fills
-          the form below.
+          <span className="mono">address / secretKey / salt / signingKey</span>. Fills the form
+          below (signingKey is required for dfpunk accounts).
         </p>
         <div
           className={`dropzone${importDragOver ? " drag-over" : ""}${busy ? " disabled" : ""}`}

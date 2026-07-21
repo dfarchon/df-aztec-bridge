@@ -1,5 +1,5 @@
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import { Fr } from "@aztec/foundation/curves/bn254";
+import { Fr, Fq } from "@aztec/foundation/curves/bn254";
 import { deriveMasterMessageSigningSecretKey } from "@aztec/stdlib/keys";
 import { getPXEConfig } from "@aztec/pxe/server";
 import { EmbeddedWallet } from "@aztec/wallets/embedded";
@@ -147,8 +147,11 @@ async function registerInitializerlessAccount(
   wallet: EmbeddedWallet,
   secret: Fr,
   salt: Fr = DEFAULT_ACCOUNT_SALT,
+  signingKeyHex?: string,
 ) {
-  const signingKey = deriveMasterMessageSigningSecretKey(secret);
+  const signingKey = signingKeyHex?.trim()
+    ? Fq.fromHexString(signingKeyHex.trim())
+    : deriveMasterMessageSigningSecretKey(secret);
   return wallet.createSchnorrInitializerlessAccount(secret, salt, signingKey, "main");
 }
 
@@ -408,6 +411,8 @@ export async function waitAndClaimFromCredentials(params: {
   l2SecretKey: string;
   /** Account salt hex; defaults to 0. */
   salt?: string;
+  /** Schnorr signing key; omit to derive from secret (CLI convention). */
+  signingKey?: string;
   secrets?: RuntimeSecrets;
   onProgress?: (phase: string, detail?: string) => void;
 }): Promise<{ l2TxHash: string }> {
@@ -421,8 +426,19 @@ export async function waitAndClaimFromCredentials(params: {
   const { node, wallet } = await openWallet(network, apiKey);
 
   progress("account", "Loading claimer account");
-  await registerInitializerlessAccount(wallet, Fr.fromHexString(params.l2SecretKey), salt);
-  const caller = AztecAddress.fromStringUnsafe(params.callerAddress);
+  const manager = await registerInitializerlessAccount(
+    wallet,
+    Fr.fromHexString(params.l2SecretKey),
+    salt,
+    params.signingKey,
+  );
+  const expected = AztecAddress.fromStringUnsafe(params.callerAddress);
+  if (!manager.address.equals(expected)) {
+    throw new Error(
+      `Registered account ${manager.address} does not match caller ${expected}. ` +
+        `Wrong salt/signingKey — pass the account file's signingKey for dfpunk accounts.`,
+    );
+  }
 
   progress("l2-wait", "Waiting for L1→L2 message");
   await waitForL1ToL2Message({
@@ -433,7 +449,7 @@ export async function waitAndClaimFromCredentials(params: {
   });
 
   progress("l2-claim", "Claiming Fee Juice on L2");
-  const receipt = await claimWithBootstrap(wallet, caller, params.credentials);
+  const receipt = await claimWithBootstrap(wallet, manager.address, params.credentials);
   const l2TxHash = txHashFromSendResult(receipt);
   progress("done", l2TxHash);
   return { l2TxHash };

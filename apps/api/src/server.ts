@@ -156,6 +156,7 @@ app.post("/v1/claim", async (c) => {
     callerAddress: string;
     l2SecretKey: string;
     salt?: string;
+    signingKey?: string;
   };
 
   if (!body.credentials || !body.callerAddress || !body.l2SecretKey) {
@@ -186,6 +187,7 @@ app.post("/v1/claim", async (c) => {
         callerAddress: body.callerAddress,
         l2SecretKey: body.l2SecretKey,
         salt: body.salt,
+        signingKey: body.signingKey,
         secrets: loadRuntimeSecrets(),
       });
       job.result = {

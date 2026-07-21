@@ -17,7 +17,7 @@ export interface ImportedAztecAccount {
   address: string;
   secretKey: string;
   salt: string;
-  /** Present in dfpunk files; not required for bridge/claim forms. */
+  /** Present in dfpunk files; required to reopen those accounts for claim. */
   signingKey?: string;
   createdAt?: number;
   label?: string;
