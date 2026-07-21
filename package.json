@@ -1,0 +1,38 @@
+{
+  "name": "df-aztec-bridge-kit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone Fee Juice L1→L2 bridge kit (CLI + HTTP API), extracted from aztec-kit bridge flow.",
+  "bin": {
+    "df-bridge": "./dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "cli": "node --import tsx src/cli/index.ts",
+    "api": "node --import tsx src/api/server.ts",
+    "deploy-l1-bridge": "node --import tsx scripts/deploy-l1-bridge.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@aztec/aztec.js": "v5.0.1",
+    "@aztec/foundation": "v5.0.1",
+    "@aztec/pxe": "v5.0.1",
+    "@aztec/stdlib": "v5.0.1",
+    "@aztec/ethereum": "v5.0.1",
+    "@aztec/wallets": "v5.0.1",
+    "@hono/node-server": "^1.14.1",
+    "commander": "^13.1.0",
+    "dotenv": "^16.4.7",
+    "hono": "^4.7.2",
+    "viem": "^2.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "tsx": "^4.19.3",
+    "typescript": "~5.7.3"
+  }
+}

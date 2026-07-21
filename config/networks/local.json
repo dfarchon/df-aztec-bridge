@@ -1,0 +1,9 @@
+{
+  "id": "local",
+  "name": "Local Network",
+  "aztecNodeUrl": "http://localhost:8080",
+  "l1RpcUrl": "http://localhost:8545",
+  "l1ChainId": 31337,
+  "bridgeTiming": "warp",
+  "l1Backend": "gobridge"
+}

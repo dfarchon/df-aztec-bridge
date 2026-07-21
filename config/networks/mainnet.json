@@ -1,0 +1,9 @@
+{
+  "id": "mainnet",
+  "name": "Aztec Alpha (Mainnet)",
+  "aztecNodeUrl": "https://aztec-mainnet.drpc.org",
+  "l1RpcUrl": "https://eth.drpc.org",
+  "l1ChainId": 1,
+  "bridgeTiming": "poll",
+  "l1Backend": "gobridge"
+}
