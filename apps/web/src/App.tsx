@@ -70,6 +70,7 @@ export function App() {
     withRpcOverrides(DEFAULT_NETWORK_ID, getRpcOverrides(DEFAULT_NETWORK_ID)),
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [feeJuiceDetailsOpen, setFeeJuiceDetailsOpen] = useState(false);
   const [draftAztecUrl, setDraftAztecUrl] = useState("");
   const [draftL1RpcUrl, setDraftL1RpcUrl] = useState("");
   const [availableWallets, setAvailableWallets] = useState<EIP6963ProviderDetail[]>([]);
@@ -619,6 +620,101 @@ export function App() {
           </svg>
         </button>
       </header>
+
+      <div className="fee-juice-notice" role="note">
+        <div className="fee-juice-notice-content">
+          <strong className="fee-juice-notice-title">
+            <span className="fee-juice-notice-icon" aria-hidden="true">
+              !
+            </span>
+            Important — read before bridging
+          </strong>
+          <p>
+            Bridging is <strong>one-way and irreversible</strong>. Once on Aztec, your
+            $AZTEC becomes Fee Juice — it cannot be withdrawn, transferred to another
+            account, or bridged back to Ethereum or another chain.{" "}
+            <strong className="fee-juice-emphasis">Only bridge the amount you need.</strong>
+          </p>
+        </div>
+        <button
+          type="button"
+          className="icon-btn notice-details-btn"
+          aria-label="Details"
+          title="Details"
+          onClick={() => setFeeJuiceDetailsOpen(true)}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M10.5 16.5h3v3h-3v-3zm1.5-13c2.9 0 5.25 1.85 5.25 4.35 0 2.1-1.35 3.15-2.55 3.9-.9.6-1.35 1.05-1.35 1.8v.7h-2.7v-.9c0-1.5.9-2.4 1.95-3.15 1.05-.75 1.8-1.35 1.8-2.4 0-1.05-.9-1.8-2.25-1.8-1.5 0-2.55.9-2.7 2.25H6.75C7.05 5.7 8.85 3.5 12 3.5z"
+            />
+          </svg>
+        </button>
+      </div>
+
+      {feeJuiceDetailsOpen ? (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setFeeJuiceDetailsOpen(false);
+          }}
+        >
+          <div
+            className="modal fee-juice-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="fee-juice-details-title"
+          >
+            <div className="modal-header">
+              <strong id="fee-juice-details-title">Before you bridge</strong>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Close"
+                title="Close"
+                onClick={() => setFeeJuiceDetailsOpen(false)}
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.3 19.71 2.89 18.3 9.17 12 2.89 5.71 4.3 4.29l6.29 6.3 6.3-6.3z"
+                  />
+                </svg>
+              </button>
+            </div>
+            <p>
+              The <strong>$AZTEC</strong> you deposit on Ethereum is converted{" "}
+              <strong>1:1</strong> into <strong>Fee Juice</strong> on Aztec.
+            </p>
+            <ul>
+              <li>
+                <strong>One-way and irreversible:</strong> it cannot be withdrawn or bridged
+                back to Ethereum or any other chain.
+              </li>
+              <li>
+                <strong>Non-transferable:</strong> Fee Juice stays with the recipient address
+                and cannot be sent to another account.
+              </li>
+              <li>
+                <strong>Public balance:</strong> Fee Juice balances are public on-chain, while
+                your transactions remain private.
+              </li>
+              <li>
+                <strong className="fee-juice-emphasis">Only bridge the amount you need.</strong>
+              </li>
+            </ul>
+            <a
+              className="official-docs-link"
+              href="https://docs.aztec.network/participate/basics/fees#what-is-fee-juice"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Learn more in the official Aztec documentation ↗
+            </a>
+          </div>
+        </div>
+      ) : null}
 
       {settingsOpen ? (
         <div
