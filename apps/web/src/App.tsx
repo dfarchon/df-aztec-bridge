@@ -1858,39 +1858,6 @@ export function App() {
           : "Connect wallet"}
       </button>
 
-      {wallet && shortfall && feeBalance ? (
-        <div className="card balance-shortfall">
-          <strong>Not enough {feeBalance.symbol} on L1</strong>
-          <p>
-            This bridge needs <span className="mono">{shortfall.neededFormatted}</span>{" "}
-            {feeBalance.symbol}, but the connected wallet holds{" "}
-            <span className="mono">{shortfall.haveFormatted}</span>. Get at least{" "}
-            <span className="mono">{shortfall.missingFormatted}</span> more{" "}
-            {feeBalance.symbol} on{" "}
-            {networkMeta?.l1ChainId === 1 ? "Ethereum mainnet" : `chain ${networkMeta?.l1ChainId}`}{" "}
-            before bridging.
-          </p>
-          <p className="hint">
-            {feeBalance.symbol} is a normal ERC-20 on L1 — acquire it the way you would any
-            token, send it to <span className="mono">{wallet.address}</span>, then refresh the
-            balance below. You also need ETH for gas.
-          </p>
-          {networkMeta?.l1ExplorerUrl ? (
-            <p className="hint">
-              Token contract:{" "}
-              <a
-                href={`${networkMeta.l1ExplorerUrl}/token/${networkMeta.l1Addresses.feeJuice}`}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="mono"
-              >
-                {networkMeta.l1Addresses.feeJuice}
-              </a>
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-
       {wallet ? (
         <div className="card wallet-status">
           <div className="wallet-status-account">
