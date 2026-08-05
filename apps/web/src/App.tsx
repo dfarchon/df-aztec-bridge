@@ -26,6 +26,11 @@ import {
 } from "./config/networks.js";
 import { readAccountFile, type ImportedAztecAccount } from "./lib/account-import.js";
 import {
+  downloadClaimCredentials,
+  loadClaimSession,
+  persistClaimCredentials,
+} from "./lib/claim-credentials-store.js";
+import {
   getRpcOverrides,
   hasRpcOverrides,
   setRpcOverrides,
@@ -38,16 +43,6 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
 const WC_PROJECT_ID = (import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as string | undefined)?.trim() ?? "";
 /** Build-time: include / use in-browser PXE claim (heavy chunk). */
 const BROWSER_CLAIM = import.meta.env.VITE_ENABLE_BROWSER_CLAIM === "true";
-
-function downloadJson(filename: string, value: unknown) {
-  const blob = new Blob([`${JSON.stringify(value, null, 2)}\n`], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
 
 function withRpcOverrides(networkId: string, overrides: RpcOverrides): NetworkMeta {
   const base = getNetwork(networkId);
@@ -175,6 +170,18 @@ export function App() {
       setNetworkMeta(null);
       setError(e instanceof Error ? e.message : String(e));
     }
+  }, [networkId]);
+
+  useEffect(() => {
+    const session = loadClaimSession(networkId);
+    if (session) {
+      setCredentials(session.credentials);
+      setL1TxHash(session.l1TxHash);
+      setRecipient((current) => current.trim() || session.recipient);
+      return;
+    }
+    setCredentials(null);
+    setL1TxHash(null);
   }, [networkId]);
 
   const openSettings = useCallback(() => {
@@ -540,7 +547,13 @@ export function App() {
       });
       setL1TxHash(result.l1TxHash);
       setCredentials(result.credentials);
-      setBridgePhase("L1 bridge complete");
+      persistClaimCredentials({
+        networkId,
+        l1TxHash: result.l1TxHash,
+        recipient: result.credentials.recipient,
+        credentials: result.credentials,
+      });
+      setBridgePhase("L1 bridge complete — credentials saved locally and downloaded");
 
       if (autoClaim) {
         setBridgePhase("Starting L2 claim…");
@@ -1131,15 +1144,18 @@ export function App() {
       {credentials ? (
         <div className="card">
           <strong>Claim credentials</strong>
-          <p className="hint">Back these up — refresh will lose them if you do not download.</p>
+          <p className="hint">
+            Saved in this browser (localStorage) and auto-downloaded after L1 bridge. Re-download if
+            needed.
+          </p>
           <p className="mono">{JSON.stringify(credentials, null, 2)}</p>
           <button
             type="button"
             className="ghost"
             onClick={() =>
-              downloadJson(`claim-${credentials.recipient.slice(0, 10)}.json`, {
-                recipient: credentials.recipient,
-                credentials,
+              downloadClaimCredentials(credentials.recipient, credentials, {
+                l1TxHash: l1TxHash ?? undefined,
+                networkId,
               })
             }
           >

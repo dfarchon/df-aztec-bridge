@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./styles.css";
 
 const BROWSER_CLAIM = import.meta.env.VITE_ENABLE_BROWSER_CLAIM === "true";
+const MAINTENANCE_MODE = import.meta.env.VITE_MAINTENANCE_MODE === "true";
 
 function setSplashHint(text: string) {
   const el = document.querySelector(".boot-splash-hint");
@@ -60,6 +61,18 @@ async function warmupPxeIfEnabled() {
 }
 
 async function boot() {
+  if (MAINTENANCE_MODE) {
+    setSplashHint("Checking service status…");
+    const { MaintenancePage } = await import("./MaintenancePage.js");
+    createRoot(document.getElementById("root")!).render(
+      <StrictMode>
+        <MaintenancePage />
+      </StrictMode>,
+    );
+    dismissBootSplash();
+    return;
+  }
+
   setSplashHint("Loading app bundle…");
   const appPromise = import("./App.js");
 

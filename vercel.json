@@ -1,4 +1,9 @@
 {
+  "build": {
+    "env": {
+      "VITE_MAINTENANCE_MODE": "true"
+    }
+  },
   "buildCommand": "pnpm --filter @df-bridge/browser-sdk build && pnpm --filter @df-bridge/web build",
   "outputDirectory": "apps/web/dist",
   "installCommand": "pnpm install",
