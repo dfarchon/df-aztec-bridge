@@ -10,6 +10,8 @@ export interface WebNetworkConfig {
   bridgeTiming: "poll" | "warp";
   l1Backend: L1BridgeBackend;
   l1Addresses: L1Addresses;
+  /** Block explorer origin, used to link users to the L1 Fee Juice token. */
+  l1ExplorerUrl?: string;
 }
 
 /**
@@ -26,6 +28,7 @@ const NETWORKS_BASE: Record<string, WebNetworkConfig> = {
     l1ChainId: 11155111,
     bridgeTiming: "poll",
     l1Backend: "portal",
+    l1ExplorerUrl: "https://sepolia.etherscan.io",
     l1Addresses: {
       l1ChainId: 11155111,
       feeJuicePortal: "0xb4a9f8eadc8ca944729d61e59a9f491faff237a3" as Hex,
@@ -41,6 +44,7 @@ const NETWORKS_BASE: Record<string, WebNetworkConfig> = {
     l1ChainId: 1,
     bridgeTiming: "poll",
     l1Backend: "portal",
+    l1ExplorerUrl: "https://etherscan.io",
     l1Addresses: {
       l1ChainId: 1,
       feeJuicePortal: "0xaf73dd51d1eb8a079bb097f39c832cdd00ac691c" as Hex,

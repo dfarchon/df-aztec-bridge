@@ -10,6 +10,7 @@
     "cli": "pnpm --filter @df-bridge/cli run cli",
     "api": "pnpm --filter @df-bridge/api run dev",
     "web": "pnpm --filter @df-bridge/web run dev",
+    "web:clean": "pnpm --filter @df-bridge/web run dev:clean",
     "deploy-l1-bridge": "node --import tsx scripts/deploy-l1-bridge.ts"
   },
   "engines": {

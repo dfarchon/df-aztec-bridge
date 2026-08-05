@@ -5,16 +5,26 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:clean": "rm -rf node_modules/.vite ../../node_modules/.vite && vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
     "preview": "vite preview"
   },
   "dependencies": {
     "@aztec/bb.js": "5.0.1",
     "@df-bridge/browser-sdk": "workspace:*",
+    "assert": "^2.1.0",
+    "hash.js": "^1.1.7",
+    "json-stringify-deterministic": "^1.0.12",
+    "lodash.chunk": "^4.2.0",
+    "lodash.clonedeepwith": "^4.5.0",
+    "lodash.times": "^4.3.2",
+    "msgpackr": "1.12.1",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "sha3": "^2.1.4",
     "viem": "^2.23.0"
   },
   "devDependencies": {
@@ -24,6 +34,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "~5.7.3",
     "vite": "^6.0.0",
-    "vite-plugin-node-polyfills": "^0.28.0"
+    "vite-plugin-node-polyfills": "^0.28.0",
+    "vitest": "^4.1.10"
   }
 }

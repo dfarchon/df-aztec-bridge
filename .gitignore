@@ -11,6 +11,10 @@ dist/
 .env.*
 !.env.example
 
+# Exported Aztec account files (contain secretKey / signingKey)
+dfpunk-account-*.json
+claim-*.json
+
 # Runtime / local data
 data/
 **/data/

@@ -134,7 +134,7 @@ JSON defaults live in `config/networks/*.json` (currently publicnode L1 RPCs). A
 ## Deploy notes
 
 - **Static-only (Vercel):** networks + L1 addresses live in `apps/web/src/config/networks.ts`.
-  Set `VITE_ENABLE_BROWSER_CLAIM=true` so auto-claim does not need an API.
+  Browser claim is enabled by default, so auto-claim does not need an API.
 - Auto-claim **API** (`VITE_ENABLE_BROWSER_CLAIM=false`): still needs `VITE_API_BASE` + Node `/v1/claim`.
 - Optional URL overrides: `VITE_TESTNET_AZTEC_NODE_URL`, `VITE_MAINNET_L1_RPC_URL`, etc.
 - Browser claim needs COOP/COEP headers (Vite sets them when the flag is on).

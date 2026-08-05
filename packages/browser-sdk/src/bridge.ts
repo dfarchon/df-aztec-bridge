@@ -1,11 +1,17 @@
 import { parseAbi, type EIP1193Provider, type Hex } from "viem";
 import { BRIDGE_CONTRACT_ABI, getBridgeAddress } from "./vendor/gobridge/deterministic.js";
-import type { BridgeFromWalletResult, ClaimCredentials, L1Addresses } from "./types.js";
+import type {
+  BridgeFromWalletResult,
+  ClaimCredentials,
+  L1Addresses,
+  PendingBridge,
+} from "./types.js";
 import {
   aztecRecipientToBytes32,
   extractAllDepositEvents,
   generateClaimSecret,
   getL1Clients,
+  getL1PublicClient,
   toHex64,
   viemReadContract,
   erc20ReadAbi,
@@ -48,6 +54,8 @@ export async function bridgeFromConnectedWallet(params: {
   /** Prefer HTTP RPC for receipt polling (wallet RPC often times out). */
   l1RpcUrl?: string;
   onProgress?: (phase: BridgeProgressPhase, detail?: string) => void;
+  /** Called as soon as the deposit tx is submitted, before waiting for its receipt. */
+  onPending?: (pending: PendingBridge) => void;
 }): Promise<BridgeFromWalletResult> {
   const backend = params.backend ?? "portal";
   const progress = params.onProgress ?? (() => {});
@@ -83,6 +91,7 @@ export async function bridgeFromConnectedWallet(params: {
       claimSecret: toHex64(secret.secret),
       aztecRecipient: params.aztecRecipient,
       progress,
+      onPending: params.onPending,
     });
   }
 
@@ -100,6 +109,7 @@ export async function bridgeFromConnectedWallet(params: {
     aztecRecipient: params.aztecRecipient,
     chainId: params.chainId,
     progress,
+    onPending: params.onPending,
   });
 }
 
@@ -118,6 +128,7 @@ async function bridgeViaPortal(params: {
   claimSecret: Hex;
   aztecRecipient: string;
   progress: (phase: BridgeProgressPhase, detail?: string) => void;
+  onPending?: (pending: PendingBridge) => void;
 }): Promise<BridgeFromWalletResult> {
   const {
     publicClient,
@@ -132,6 +143,7 @@ async function bridgeViaPortal(params: {
     claimSecret,
     aztecRecipient,
     progress,
+    onPending,
   } = params;
   const portal = addresses.feeJuicePortal;
   const token = addresses.feeJuice;
@@ -190,6 +202,13 @@ async function bridgeViaPortal(params: {
     chain,
   });
 
+  onPending?.({
+    l1TxHash: hash,
+    claimSecret,
+    claimSecretHash: secretHashHex,
+    claimAmount: amount.toString(),
+    recipient: aztecRecipient,
+  });
   progress("bridge_wait", `Waiting for portal tx ${hash}`);
   const receipt = await waitForTransactionReceiptWithRetry(publicClient, hash);
   progress("parse_receipt", "Parsing DepositToAztecPublic event");
@@ -224,6 +243,7 @@ async function bridgeViaGoBridge(params: {
   aztecRecipient: string;
   chainId: number;
   progress: (phase: BridgeProgressPhase, detail?: string) => void;
+  onPending?: (pending: PendingBridge) => void;
 }): Promise<BridgeFromWalletResult> {
   const {
     publicClient,
@@ -239,6 +259,7 @@ async function bridgeViaGoBridge(params: {
     aztecRecipient,
     chainId,
     progress,
+    onPending,
   } = params;
   const bridgeAddr = getBridgeAddress();
 
@@ -310,6 +331,13 @@ async function bridgeViaGoBridge(params: {
     });
   }
 
+  onPending?.({
+    l1TxHash: hash,
+    claimSecret,
+    claimSecretHash: secretHashHex,
+    claimAmount: amount.toString(),
+    recipient: aztecRecipient,
+  });
   progress("bridge_wait", `Waiting for bridge tx ${hash}`);
   const receipt = await waitForTransactionReceiptWithRetry(publicClient, hash);
   progress("parse_receipt", "Parsing DepositToAztecPublic event");
@@ -328,4 +356,40 @@ async function bridgeViaGoBridge(params: {
   };
 
   return { l1TxHash: hash, credentials, sender: account };
+}
+
+/**
+ * Resume a submitted bridge after a refresh by waiting for its L1 receipt and
+ * deriving the complete claim credentials from the deposit event.
+ */
+export async function resumePendingBridge(params: {
+  pending: PendingBridge;
+  chainId: number;
+  l1RpcUrl: string;
+  provider?: EIP1193Provider | null;
+}): Promise<BridgeFromWalletResult> {
+  const publicClient = getL1PublicClient(params.l1RpcUrl, params.chainId, params.provider);
+  const receipt = await waitForTransactionReceiptWithRetry(
+    publicClient,
+    params.pending.l1TxHash,
+  );
+  const events = extractAllDepositEvents(receipt);
+  if (events.length < 1) {
+    throw new Error("Pending bridge: expected a DepositToAztecPublic event");
+  }
+
+  const credentials: ClaimCredentials = {
+    claimSecret: params.pending.claimSecret,
+    claimSecretHash: params.pending.claimSecretHash,
+    messageHash: events[0].key,
+    messageLeafIndex: events[0].index.toString(),
+    claimAmount: params.pending.claimAmount,
+    recipient: params.pending.recipient,
+  };
+
+  return {
+    l1TxHash: params.pending.l1TxHash,
+    credentials,
+    sender: receipt.from,
+  };
 }

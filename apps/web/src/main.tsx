@@ -18,6 +18,39 @@ function dismissBootSplash() {
   window.setTimeout(() => el.remove(), 280);
 }
 
+/**
+ * A failed chunk request leaves the splash spinning forever with nothing but a
+ * console error, so surface it with a way out. In dev this is usually a stale
+ * Vite dep cache; in production it is a chunk removed by a newer deploy.
+ */
+function showBootFailure(error: unknown) {
+  console.error("[boot] Failed to start the app", error);
+
+  const splash = document.getElementById("boot-splash");
+  const inner = splash?.querySelector(".boot-splash-inner");
+  if (!splash || !inner) return;
+
+  splash.setAttribute("aria-busy", "false");
+  splash.querySelector(".boot-spinner")?.remove();
+
+  const hint = splash.querySelector(".boot-splash-hint");
+  if (hint) {
+    hint.textContent =
+      error instanceof Error && /dynamically imported module|Importing a module/i.test(error.message)
+        ? "Could not load the app bundle. This is usually a stale cache — reload to fetch a fresh copy."
+        : `Could not start the app: ${error instanceof Error ? error.message : String(error)}`;
+  }
+
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.textContent = "Reload";
+  retry.style.cssText =
+    "padding:0.5rem 1.25rem;border-radius:0.375rem;border:1px solid #3d5afe;" +
+    "background:#3d5afe;color:#fff;font:600 0.85rem system-ui,sans-serif;cursor:pointer";
+  retry.addEventListener("click", () => window.location.reload());
+  inner.appendChild(retry);
+}
+
 async function warmupPxeIfEnabled() {
   if (!BROWSER_CLAIM) return;
 
@@ -74,11 +107,7 @@ async function boot() {
   }
 
   setSplashHint("Loading app bundle…");
-  const appPromise = import("./App.js");
-
-  // Prefetch heavy claim stack in parallel with the UI chunk when enabled.
-  const warmupPromise = warmupPxeIfEnabled();
-  const [{ App }] = await Promise.all([appPromise, warmupPromise]);
+  const { App } = await import("./App.js");
 
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
@@ -86,6 +115,9 @@ async function boot() {
     </StrictMode>,
   );
   dismissBootSplash();
+
+  // Warm PXE in the background — do not block the bridge UI.
+  void warmupPxeIfEnabled();
 }
 
-void boot();
+void boot().catch(showBootFailure);

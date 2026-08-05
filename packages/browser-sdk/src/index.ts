@@ -1,4 +1,9 @@
-export type { ClaimCredentials, L1Addresses, BridgeFromWalletResult } from "./types.js";
+export type {
+  ClaimCredentials,
+  L1Addresses,
+  BridgeFromWalletResult,
+  PendingBridge,
+} from "./types.js";
 export {
   connectEvmWallet,
   connectEvmWalletDetail,
@@ -23,6 +28,7 @@ export {
 } from "./walletconnect.js";
 export {
   bridgeFromConnectedWallet,
+  resumePendingBridge,
   type BridgeProgressPhase,
   type L1BridgeBackend,
 } from "./bridge.js";
@@ -37,6 +43,9 @@ export {
   loadBrowserClaim,
   type WaitAndClaimInBrowser,
   type WarmupBrowserClaim,
+  type WaitForL2ClaimTx,
+  type GetClaimMessageStatus,
   type BrowserClaimProgress,
+  type ClaimMessageStatus,
 } from "./claim-lazy.js";
 export { getBridgeAddress } from "./vendor/gobridge/deterministic.js";

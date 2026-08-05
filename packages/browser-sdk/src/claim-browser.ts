@@ -1,17 +1,29 @@
 /**
  * Browser L2 claim (EmbeddedWallet + PXE). Heavy — load via dynamic import only.
  */
-import { createAztecNodeClient } from "@aztec/aztec.js/node";
+import { createAztecNodeClient, waitForTx } from "@aztec/aztec.js/node";
+import { NO_WAIT } from "@aztec/aztec.js/contracts";
 import { FeeJuicePaymentMethodWithClaim } from "@aztec/aztec.js/fee";
 import { isL1ToL2MessageReady } from "@aztec/aztec.js/messaging";
+import { ProtocolContractAddress } from "@aztec/aztec.js/protocol";
 import type { Wallet } from "@aztec/aztec.js/wallet";
 import { Fr, Fq } from "@aztec/foundation/curves/bn254";
 import { defaultFetch } from "@aztec/foundation/json-rpc/client";
+import { openTmpStore } from "@aztec/kv-store/sqlite-opfs";
 import { getPXEConfig } from "@aztec/pxe/config";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { deriveMasterMessageSigningSecretKey } from "@aztec/stdlib/keys";
+import { getNonNullifiedL1ToL2MessageWitness } from "@aztec/stdlib/messaging";
+import { TxHash, TxStatus } from "@aztec/stdlib/tx";
 import { EmbeddedWallet } from "@aztec/wallets/embedded";
 
+import {
+  assertL2ClaimReceiptOk,
+  classifyWitnessLookupError,
+  sendClaimThenWait,
+  type ClaimMessageStatus,
+} from "./claim-status.js";
+import { trimOversizedCrsCache } from "./crs-cache.js";
 import type { ClaimCredentials } from "./types.js";
 
 const AZTEC_API_KEY_HEADER = "X-Aztec-API-Key";
@@ -23,7 +35,10 @@ export type BrowserClaimProgress =
   | "account"
   | "l2-wait"
   | "l2-claim"
+  | "l2-sent"
   | "done";
+
+export type { ClaimMessageStatus };
 
 type NodeClient = ReturnType<typeof createAztecNodeClient>;
 
@@ -34,7 +49,7 @@ type WarmEntry = {
 };
 
 let warm: WarmEntry | null = null;
-let warming: Promise<WarmEntry> | null = null;
+let inFlight: { key: string; promise: Promise<WarmEntry> } | null = null;
 
 function parseSalt(raw?: string): Fr {
   if (!raw?.trim()) return DEFAULT_ACCOUNT_SALT;
@@ -71,15 +86,14 @@ async function registerAccount(
   return wallet.createSchnorrInitializerlessAccount(secret, salt, signingKey, "main");
 }
 
-async function claimWithBootstrap(wallet: Wallet, caller: AztecAddress, claim: ClaimCredentials) {
+async function sendClaimTx(wallet: Wallet, caller: AztecAddress, claim: ClaimCredentials) {
   const paymentMethod = new FeeJuicePaymentMethodWithClaim(caller, {
     claimAmount: BigInt(claim.claimAmount),
     claimSecret: Fr.fromHexString(claim.claimSecret),
     messageLeafIndex: BigInt(claim.messageLeafIndex),
   });
-  // Bootstrap only — claim runs inside the fee payment path.
   const executionPayload = await paymentMethod.getExecutionPayload();
-  return wallet.sendTx(executionPayload, { from: caller });
+  return wallet.sendTx(executionPayload, { from: caller, wait: NO_WAIT });
 }
 
 async function waitForMessage(node: NodeClient, messageHash: Fr, timeoutMs: number) {
@@ -99,11 +113,75 @@ async function createWarmEntry(params: {
   const key = cacheKey(params.networkId, params.aztecNodeUrl, params.apiKey);
   const node = createBrowserNode(params.aztecNodeUrl, params.apiKey);
   const proverEnabled = params.networkId !== "local";
-  const wallet = await EmbeddedWallet.create(node, {
-    ephemeral: true,
-    pxeConfig: { ...getPXEConfig(), proverEnabled },
-  });
-  return { key, node, wallet };
+
+  // Runs before the lazy prover touches the CRS on the first proof.
+  if (proverEnabled) await trimOversizedCrsCache();
+
+  // `ephemeral` only covers the wallet DB — createPXE otherwise always opens the
+  // fixed-name `pxe_data` OPFS store, whose exclusive sync access handle makes a
+  // second PXE (other tab, retry after a failed warmup) fail to start. Claiming
+  // needs no state across sessions, so inject an in-memory store instead.
+  const store = await openTmpStore(true);
+  try {
+    const wallet = await EmbeddedWallet.create(node, {
+      ephemeral: true,
+      pxe: { ...getPXEConfig(), proverEnabled, store },
+    });
+    return { key, node, wallet };
+  } catch (error) {
+    await store.close().catch(() => undefined);
+    throw error;
+  }
+}
+
+async function stopWarmEntry(entry: WarmEntry): Promise<void> {
+  try {
+    await entry.wallet.stop();
+  } catch (error) {
+    console.warn("[claim] Failed to stop EmbeddedWallet cleanly", error);
+  }
+}
+
+/**
+ * PXE holds an exclusive OPFS sync access handle on its sqlite file, so a second
+ * EmbeddedWallet cannot be created until the previous one has been stopped.
+ * Boot warmup, the network-change warmup and the claim itself all funnel through
+ * here so those creations are serialized rather than overlapping.
+ */
+function ensureWarmEntry(params: {
+  aztecNodeUrl: string;
+  networkId: string;
+  apiKey?: string;
+}): Promise<WarmEntry> {
+  const key = cacheKey(params.networkId, params.aztecNodeUrl, params.apiKey);
+  if (warm?.key === key) return Promise.resolve(warm);
+  if (inFlight?.key === key) return inFlight.promise;
+
+  const previous = inFlight?.promise;
+  const promise = (async () => {
+    if (previous) await previous.catch(() => undefined);
+    if (warm?.key === key) return warm;
+
+    if (warm) {
+      const stale = warm;
+      warm = null;
+      await stopWarmEntry(stale);
+    }
+
+    const entry = await createWarmEntry(params);
+    warm = entry;
+    return entry;
+  })();
+
+  const record = { key, promise };
+  inFlight = record;
+  void promise
+    .catch(() => undefined)
+    .finally(() => {
+      if (inFlight === record) inFlight = null;
+    });
+
+  return promise;
 }
 
 /**
@@ -122,21 +200,12 @@ export async function warmupBrowserClaim(params: {
     return;
   }
 
-  if (warming) {
-    params.onProgress?.("PXE warmup already in progress…");
-    const entry = await warming;
-    if (entry.key === key) return;
-    // Different target — fall through and start a new warmup.
-  }
-
-  params.onProgress?.("Initializing EmbeddedWallet / PXE (large first-time download)…");
-  const run = createWarmEntry(params);
-  warming = run;
-  try {
-    warm = await run;
-  } finally {
-    if (warming === run) warming = null;
-  }
+  params.onProgress?.(
+    inFlight
+      ? "PXE warmup already in progress…"
+      : "Initializing EmbeddedWallet / PXE (large first-time download)…",
+  );
+  await ensureWarmEntry(params);
 }
 
 async function getOrCreateWarmEntry(params: {
@@ -155,28 +224,60 @@ async function getOrCreateWarmEntry(params: {
     "wallet",
     "Loading browser EmbeddedWallet / PXE (large download on first use — can take minutes)…",
   );
+  return ensureWarmEntry(params);
+}
 
-  if (warming) {
-    const entry = await warming;
-    if (entry.key === key) {
-      warm = entry;
-      return entry;
-    }
+export async function getClaimMessageStatus(params: {
+  aztecNodeUrl: string;
+  apiKey?: string;
+  credentials: Pick<ClaimCredentials, "messageHash" | "claimSecret">;
+}): Promise<ClaimMessageStatus> {
+  const node = createBrowserNode(params.aztecNodeUrl, params.apiKey);
+  const messageHash = Fr.fromHexString(params.credentials.messageHash);
+  const secret = Fr.fromHexString(params.credentials.claimSecret);
+
+  if (!(await isL1ToL2MessageReady(node, messageHash))) {
+    return "l2-sync-pending";
   }
 
-  const run = createWarmEntry(params);
-  warming = run;
   try {
-    warm = await run;
-    return warm;
-  } finally {
-    if (warming === run) warming = null;
+    await getNonNullifiedL1ToL2MessageWitness(
+      node,
+      ProtocolContractAddress.FeeJuice,
+      messageHash,
+      secret,
+    );
+    return "ready";
+  } catch (error) {
+    if (classifyWitnessLookupError(error) === "consumed") return "consumed";
+    throw error;
   }
+}
+
+export async function waitForL2ClaimTx(params: {
+  aztecNodeUrl: string;
+  apiKey?: string;
+  l2TxHash: string;
+  timeoutSeconds?: number;
+}): Promise<{ l2TxHash: string; status: string }> {
+  const node = createBrowserNode(params.aztecNodeUrl, params.apiKey);
+  const txHash = TxHash.fromString(params.l2TxHash);
+  const receipt = await waitForTx(node, txHash, {
+    waitForStatus: TxStatus.PROPOSED,
+    timeout: params.timeoutSeconds ?? 30 * 60,
+    interval: 5,
+    dontThrowOnRevert: true,
+  });
+
+  return assertL2ClaimReceiptOk(receipt, params.l2TxHash);
 }
 
 /**
  * Wait for the L1→L2 message, then claim Fee Juice in the browser PXE.
  * Prefer calling `warmupBrowserClaim` during app boot so this is fast.
+ *
+ * Uses `wait: NO_WAIT` so callers can persist the L2 tx hash immediately after
+ * proving/submission and before mining completes.
  */
 export async function waitAndClaimInBrowser(params: {
   aztecNodeUrl: string;
@@ -193,10 +294,22 @@ export async function waitAndClaimInBrowser(params: {
   signingKey?: string;
   timeoutMs?: number;
   onProgress?: (phase: BrowserClaimProgress, detail?: string) => void;
+  /** Fired as soon as the L2 claim tx hash is known (after prove + submit). */
+  onTxSent?: (l2TxHash: string) => void;
 }): Promise<{ l2TxHash: string }> {
   const progress = params.onProgress ?? (() => {});
   const secret = Fr.fromHexString(params.l2SecretKey);
   const salt = parseSalt(params.salt);
+
+  const messageStatus = await getClaimMessageStatus({
+    aztecNodeUrl: params.aztecNodeUrl,
+    apiKey: params.apiKey,
+    credentials: params.credentials,
+  });
+  if (messageStatus === "consumed") {
+    progress("done", "Claim message already consumed — nothing to do");
+    return { l2TxHash: "" };
+  }
 
   const { node, wallet } = await getOrCreateWarmEntry({
     aztecNodeUrl: params.aztecNodeUrl,
@@ -215,19 +328,48 @@ export async function waitAndClaimInBrowser(params: {
     );
   }
 
-  progress(
-    "l2-wait",
-    "Waiting for L1→L2 message (Aztec may take several minutes after the L1 tx)…",
-  );
-  await waitForMessage(
-    node,
-    Fr.fromHexString(params.credentials.messageHash),
-    params.timeoutMs ?? 30 * 60_000,
-  );
+  if (messageStatus === "l2-sync-pending") {
+    progress(
+      "l2-wait",
+      "Waiting for L1→L2 message (Aztec may take several minutes after the L1 tx)…",
+    );
+    await waitForMessage(
+      node,
+      Fr.fromHexString(params.credentials.messageHash),
+      params.timeoutMs ?? 30 * 60_000,
+    );
+  }
 
-  progress("l2-claim", "Claiming Fee Juice on L2 (proving in browser)…");
-  const result = await claimWithBootstrap(wallet, manager.address, params.credentials);
-  const l2TxHash = result.receipt.txHash.toString();
+  const afterWait = await getClaimMessageStatus({
+    aztecNodeUrl: params.aztecNodeUrl,
+    apiKey: params.apiKey,
+    credentials: params.credentials,
+  });
+  if (afterWait === "consumed") {
+    progress("done", "Claim message already consumed — nothing to do");
+    return { l2TxHash: "" };
+  }
+
+  progress("l2-claim", "Proving and submitting Fee Juice claim on L2…");
+  const { l2TxHash } = await sendClaimThenWait({
+    send: async () => {
+      const { txHash } = await sendClaimTx(wallet, manager.address, params.credentials);
+      return { txHash: txHash.toString() };
+    },
+    onTxSent: (hash) => {
+      params.onTxSent?.(hash);
+      progress("l2-sent", `L2 claim submitted — ${hash}`);
+    },
+    wait: async (hash) => {
+      progress("l2-claim", "Waiting for L2 claim confirmation…");
+      await waitForL2ClaimTx({
+        aztecNodeUrl: params.aztecNodeUrl,
+        apiKey: params.apiKey,
+        l2TxHash: hash,
+        timeoutSeconds: Math.ceil((params.timeoutMs ?? 30 * 60_000) / 1000),
+      });
+    },
+  });
   progress("done", `L2 tx ${l2TxHash}`);
   return { l2TxHash };
 }

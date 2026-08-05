@@ -17,3 +17,8 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+declare module "pino-browser-entry" {
+  const pinoBrowser: unknown;
+  export default pinoBrowser;
+}

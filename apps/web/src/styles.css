@@ -123,6 +123,47 @@ main {
   color: #9db0ff;
 }
 
+.flow-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+  margin-top: 1.25rem;
+  padding: 0.3rem;
+  border: 1px solid #2d2d2d;
+  border-radius: 10px;
+  background: #181818;
+}
+
+.flow-tabs button {
+  position: relative;
+  margin: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #999;
+  font-weight: 600;
+}
+
+.flow-tabs button:hover {
+  color: #ddd;
+  background: #202020;
+}
+
+.flow-tabs button.active {
+  border-color: #3d5afe;
+  background: #252b47;
+  color: #fff;
+}
+
+.flow-tab-badge {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-left: 0.45rem;
+  border-radius: 50%;
+  background: #ffb74d;
+  vertical-align: 0.1em;
+}
+
 .fee-juice-notice {
   display: flex;
   align-items: flex-start;
@@ -192,6 +233,62 @@ main {
 
 .fee-juice-modal {
   transform: translateY(-12vh);
+}
+
+.bridge-confirm-modal {
+  transform: translateY(-8vh);
+}
+
+.recovery-modal {
+  transform: translateY(-8vh);
+  max-height: 78vh;
+  overflow-y: auto;
+}
+
+.recovery-warning {
+  margin-top: 1rem;
+  padding: 0.85rem;
+  border: 1px solid #8a6725;
+  border-radius: 8px;
+  background: #2a2112;
+  color: #f1dda2;
+}
+
+.recovery-warning p {
+  margin: 0.55rem 0 0;
+  color: #d8c99e;
+  font-size: 0.88rem;
+}
+
+.recovery-confirmation {
+  color: #f0f0f0;
+}
+
+.claim-recovery-guide {
+  border-color: #8a6725;
+  background: #211c12;
+}
+
+.claim-recovery-guide ol {
+  margin: 0.75rem 0;
+  padding-left: 1.25rem;
+}
+
+.claim-recovery-guide li + li {
+  margin-top: 0.45rem;
+}
+
+.claim-recovery-guide button {
+  margin-top: 0.5rem;
+}
+
+.account-import.recovery-active {
+  border-color: #a57a27;
+  box-shadow: 0 0 0 2px rgba(255, 183, 77, 0.12);
+}
+
+.recovery-empty {
+  text-align: center;
 }
 
 .fee-juice-modal p {
@@ -615,14 +712,473 @@ label.check input {
   animation: icon-spin 0.8s linear infinite;
 }
 
+.recovery-status p {
+  margin: 0.5rem 0 0;
+}
+
+.recovery-session-list-card strong {
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.recovery-session-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.recovery-session-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  padding: 0.35rem 0.4rem 0.35rem 0.35rem;
+  border: 1px solid #2f2f2f;
+  border-radius: 8px;
+  background: #1e1e1e;
+}
+
+.recovery-session-row:hover {
+  border-color: #444;
+}
+
+.recovery-session-row.active {
+  border-color: #3d5afe;
+  background: #1c2340;
+}
+
+.recovery-session-item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0.3rem 0.4rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #e8e8e8;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recovery-session-item:hover {
+  background: #262626;
+}
+
+.recovery-session-row.active .recovery-session-item:hover {
+  background: #222a4a;
+}
+
+.recovery-session-download {
+  align-self: center;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.recovery-session-phase {
+  font-weight: 600;
+  color: #cdd6ff;
+}
+
+.recovery-session-hash {
+  font-size: 0.78rem;
+  color: #9aa0a6;
+}
+
+.recovery-session-actions {
+  margin-top: 1rem;
+}
+
+.recovery-account-import {
+  margin-top: 0.75rem;
+}
+
+.recovery-file-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+  padding: 0.65rem 1rem;
+  border: 1px dashed #4a4a4a;
+  border-radius: 10px;
+  background: #151515;
+  text-align: center;
+  cursor: pointer;
+}
+
+.recovery-file-label:hover {
+  border-color: #3d5afe;
+}
+
+.recovery-file-label input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.recovery-file-label-text {
+  color: #ccc;
+  font-size: 0.9rem;
+}
+
+.credentials-import-card strong {
+  display: block;
+}
+
+.credentials-import-message {
+  margin: 0.6rem 0 0;
+}
+
+.credentials-import-ok {
+  color: #9adba0;
+}
+
+.storage-status-ok {
+  color: #9adba0;
+}
+
+.storage-status-error {
+  margin: 0.75rem 0 0;
+}
+
 @media (max-width: 480px) {
   .fee-juice-notice {
     flex-direction: column;
+  }
+
+  .recovery-session-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .recovery-session-download {
+    align-self: stretch;
   }
 }
 
 @keyframes icon-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* ── Insufficient L1 balance ──────────────────────────────────────────── */
+
+.balance-shortfall {
+  border-color: #8a6725;
+  background: #2a2112;
+}
+
+.balance-shortfall strong {
+  color: #ffcf6b;
+}
+
+.balance-shortfall p {
+  margin: 0.5rem 0 0;
+  color: #f1dda2;
+  font-size: 0.9rem;
+}
+
+.balance-shortfall .hint {
+  margin: 0.5rem 0 0;
+  color: #c3b189;
+}
+
+.balance-shortfall a {
+  color: #ffcf6b;
+}
+
+/* ── Recovery step list ───────────────────────────────────────────────── */
+
+.recovery-steps-title {
+  margin: 1rem 0 0.4rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #e8e8e8;
+}
+
+.recovery-steps {
+  margin: 0;
+  padding-left: 1.3rem;
+  display: grid;
+  gap: 0.4rem;
+  color: #c8c8c8;
+  font-size: 0.88rem;
+}
+
+.recovery-steps li::marker {
+  color: #8f9bb5;
+  font-weight: 600;
+}
+
+/* ── In-flight progress panel ─────────────────────────────────────────── */
+
+main.with-progress-panel {
+  padding-bottom: 24rem;
+}
+
+.progress-panel {
+  position: fixed;
+  z-index: 40;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  width: min(100vw, 660px);
+  padding: 0.9rem 1.1rem 1.1rem;
+  border: 1px solid #3d5afe;
+  border-bottom: none;
+  border-radius: 14px 14px 0 0;
+  background: #141824;
+  box-shadow: 0 -14px 44px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+.progress-panel-succeeded {
+  border-color: #3f7d48;
+}
+
+.progress-panel-failed {
+  border-color: #a2453c;
+}
+
+.progress-panel-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, #3d5afe, transparent);
+  animation: progress-sweep 1.6s ease-in-out infinite;
+}
+
+@keyframes progress-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(350%);
+  }
+}
+
+.progress-panel-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+
+.progress-panel-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.progress-panel-title strong {
+  font-size: 1rem;
+  color: #eef1ff;
+}
+
+.progress-panel-step {
+  margin: 0.15rem 0 0;
+  color: #aab4d4;
+  font-size: 0.88rem;
+}
+
+.progress-elapsed {
+  flex-shrink: 0;
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  background: #1e2436;
+  color: #c5d0e6;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-spinner {
+  flex-shrink: 0;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.15rem;
+  border-radius: 50%;
+  border: 2px solid #2f3b55;
+  border-top-color: #6c86ff;
+  animation: icon-spin 0.85s linear infinite;
+}
+
+.progress-panel-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.progress-panel-succeeded .progress-panel-badge {
+  background: #23401f;
+  color: #9adba0;
+}
+
+.progress-panel-failed .progress-panel-badge {
+  background: #3d1f1c;
+  color: #ff8a80;
+}
+
+.progress-notice {
+  margin: 0.8rem 0 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.progress-notice strong {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.95rem;
+}
+
+.progress-notice-warn {
+  border: 1px solid #b07d1f;
+  background: #33270f;
+  color: #f5dda4;
+}
+
+.progress-notice-warn strong {
+  color: #ffcf6b;
+}
+
+.progress-notice-safe {
+  border: 1px solid #3f7d48;
+  background: #16261a;
+  color: #bfe0c4;
+}
+
+.progress-notice-safe strong {
+  color: #9adba0;
+}
+
+.progress-steps {
+  list-style: none;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.progress-steps.collapsed .progress-step:not(.progress-step-active):not(.progress-step-failed) {
+  display: none;
+}
+
+.progress-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.progress-step-marker {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  margin-top: 0.1rem;
+  border-radius: 50%;
+  border: 1px solid #333c52;
+  background: #1a2030;
+  color: #6f7a94;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.progress-step-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.progress-step-label {
+  color: #7b8499;
+  font-size: 0.9rem;
+}
+
+.progress-step-note {
+  margin-top: 0.15rem;
+  color: #aab4d4;
+  font-size: 0.8rem;
+}
+
+.progress-step-done .progress-step-marker {
+  border-color: #3f7d48;
+  background: #1d3320;
+  color: #9adba0;
+}
+
+.progress-step-done .progress-step-label {
+  color: #9ba5b8;
+}
+
+.progress-step-active .progress-step-marker {
+  border-color: #6c86ff;
+  background: #6c86ff;
+  animation: progress-pulse 1.4s ease-in-out infinite;
+}
+
+.progress-step-active .progress-step-label {
+  color: #eef1ff;
+  font-weight: 600;
+}
+
+.progress-step-failed .progress-step-marker {
+  border-color: #a2453c;
+  background: #3d1f1c;
+  color: #ff8a80;
+}
+
+.progress-step-failed .progress-step-label {
+  color: #ff8a80;
+  font-weight: 600;
+}
+
+@keyframes progress-pulse {
+  50% {
+    box-shadow: 0 0 0 5px rgba(108, 134, 255, 0.18);
+  }
+}
+
+.progress-detail {
+  margin: 0.8rem 0 0;
+  padding-top: 0.65rem;
+  border-top: 1px solid #232a3c;
+  color: #8d97ad;
+  max-height: 3.4rem;
+  overflow-y: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-panel-bar,
+  .progress-spinner,
+  .progress-step-active .progress-step-marker {
+    animation: none;
+  }
+}
+
+@media (max-width: 480px) {
+  main.with-progress-panel {
+    padding-bottom: 28rem;
+  }
+
+  .progress-panel {
+    border-radius: 0;
   }
 }
