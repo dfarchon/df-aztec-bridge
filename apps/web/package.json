@@ -14,6 +14,7 @@
   "dependencies": {
     "@aztec/bb.js": "5.0.1",
     "@df-bridge/browser-sdk": "workspace:*",
+    "@vercel/analytics": "2.0.1",
     "assert": "^2.1.0",
     "hash.js": "^1.1.7",
     "json-stringify-deterministic": "^1.0.12",

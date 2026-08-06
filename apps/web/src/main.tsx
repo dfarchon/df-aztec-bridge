@@ -1,6 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { inject } from "@vercel/analytics";
 import "./styles.css";
+
+if (import.meta.env.PROD) {
+  inject({ framework: "react" });
+}
 
 const BROWSER_CLAIM = import.meta.env.VITE_ENABLE_BROWSER_CLAIM !== "false";
 const MAINTENANCE_MODE = import.meta.env.VITE_MAINTENANCE_MODE === "true";
