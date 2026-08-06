@@ -26,6 +26,7 @@ const MESSAGE_HASH =
 const L2_TX =
   "0x4444444444444444444444444444444444444444444444444444444444444444";
 const RECIPIENT = "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd";
+const storeKey = (networkId: string) => `df_aztec_bridge_sessions:${networkId}`;
 
 function memoryStorage(): Storage {
   const map = new Map<string, string>();
@@ -100,7 +101,7 @@ describe("bridge-session v2 store", () => {
     expect(Object.keys(store.sessions)).toHaveLength(1);
     expect(store.sessions[normalizeL1TxHash(L1_A)]?.phase).toBe("l1-pending");
     expect(localStorage.getItem("df_aztec_bridge_session")).toBeNull();
-    expect(localStorage.getItem("df_aztec_bridge_sessions")).toBeTruthy();
+    expect(localStorage.getItem(storeKey("mainnet"))).toBeTruthy();
   });
 
   it("upserts multiple sessions without overwriting siblings", () => {
@@ -186,9 +187,9 @@ describe("bridge-session v2 store", () => {
       claimAmount: "1",
       pending: pending(L1_A),
     });
-    const raw = JSON.parse(localStorage.getItem("df_aztec_bridge_sessions")!);
+    const raw = JSON.parse(localStorage.getItem(storeKey("mainnet"))!);
     raw.sessions[normalizeL1TxHash(L1_B)] = { broken: true };
-    localStorage.setItem("df_aztec_bridge_sessions", JSON.stringify(raw));
+    localStorage.setItem(storeKey("mainnet"), JSON.stringify(raw));
 
     const sessions = listIncompleteSessions("mainnet");
     expect(sessions).toHaveLength(1);
@@ -240,10 +241,30 @@ describe("bridge-session v2 store", () => {
     const active = getActiveSession("mainnet");
     expect(active?.phase).toBe("ready-to-claim");
     expect(active?.credentials).toEqual(credentials());
-    expect(localStorage.getItem("df_aztec_bridge_sessions")).toContain(MESSAGE_HASH);
+    expect(localStorage.getItem(storeKey("mainnet"))).toContain(MESSAGE_HASH);
   });
 
-  it("clearAllSessions wipes the store", () => {
+  it("keeps each network in a separate store", () => {
+    upsertSession("mainnet", {
+      l1TxHash: L1_A,
+      phase: "l1-pending",
+      recipient: RECIPIENT,
+      claimAmount: "1",
+      pending: pending(L1_A),
+    });
+    upsertSession("testnet", {
+      l1TxHash: L1_B,
+      phase: "l1-pending",
+      recipient: RECIPIENT,
+      claimAmount: "1",
+      pending: pending(L1_B),
+    });
+
+    expect(listIncompleteSessions("mainnet").map((session) => session.l1TxHash)).toEqual([L1_A]);
+    expect(listIncompleteSessions("testnet").map((session) => session.l1TxHash)).toEqual([L1_B]);
+  });
+
+  it("clearAllSessions only wipes the selected network", () => {
     upsertSession("mainnet", {
       l1TxHash: L1_A,
       phase: "l1-pending",
@@ -251,7 +272,15 @@ describe("bridge-session v2 store", () => {
       claimAmount: "1",
       pending: pending(),
     });
+    upsertSession("testnet", {
+      l1TxHash: L1_B,
+      phase: "l1-pending",
+      recipient: RECIPIENT,
+      claimAmount: "1",
+      pending: pending(L1_B),
+    });
     clearAllSessions("mainnet");
     expect(listIncompleteSessions("mainnet")).toHaveLength(0);
+    expect(listIncompleteSessions("testnet")).toHaveLength(1);
   });
 });

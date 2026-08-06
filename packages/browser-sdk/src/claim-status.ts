@@ -41,7 +41,13 @@ export async function sendClaimThenWait<T>(params: {
   onTxSent?: (l2TxHash: string) => void;
 }): Promise<{ l2TxHash: string; waitResult: T }> {
   const { txHash } = await params.send();
-  params.onTxSent?.(txHash);
+  try {
+    params.onTxSent?.(txHash);
+  } catch (error) {
+    // The transaction is already on-chain. A UI/storage callback must never
+    // prevent us from waiting for its receipt.
+    console.warn("[claim] onTxSent callback failed after broadcast", error);
+  }
   const waitResult = await params.wait(txHash);
   return { l2TxHash: txHash, waitResult };
 }

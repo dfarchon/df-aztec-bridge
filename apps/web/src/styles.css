@@ -396,6 +396,51 @@ select {
   color: inherit;
 }
 
+input.input-invalid,
+input[aria-invalid="true"] {
+  border-color: #ff8a80;
+  background: #2a1818;
+}
+
+input.input-invalid:focus,
+input[aria-invalid="true"]:focus {
+  outline: 1px solid #ff8a80;
+}
+
+.amount-field {
+  margin-top: 1rem;
+}
+
+.amount-field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.amount-field-head label {
+  margin-top: 0;
+}
+
+.amount-balance-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.amount-balance {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.amount-max-btn {
+  margin: 0;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
 button {
   margin-top: 1.25rem;
   padding: 0.6rem 1rem;

@@ -84,4 +84,22 @@ describe("claim-status helpers", () => {
     ).rejects.toThrow(/dropped/);
     expect(onTxSent).toHaveBeenCalledWith("0xdead");
   });
+
+  it("still waits when the post-broadcast callback throws", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const wait = vi.fn(async () => "mined");
+
+    await expect(
+      sendClaimThenWait({
+        send: async () => ({ txHash: "0xsent" }),
+        onTxSent: () => {
+          throw new Error("storage full");
+        },
+        wait,
+      }),
+    ).resolves.toEqual({ l2TxHash: "0xsent", waitResult: "mined" });
+
+    expect(wait).toHaveBeenCalledWith("0xsent");
+    warn.mockRestore();
+  });
 });

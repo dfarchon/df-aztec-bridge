@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 
-const BROWSER_CLAIM = import.meta.env.VITE_ENABLE_BROWSER_CLAIM === "true";
+const BROWSER_CLAIM = import.meta.env.VITE_ENABLE_BROWSER_CLAIM !== "false";
 const MAINTENANCE_MODE = import.meta.env.VITE_MAINTENANCE_MODE === "true";
 
 function setSplashHint(text: string) {
@@ -108,6 +108,7 @@ async function boot() {
 
   setSplashHint("Loading app bundle…");
   const { App } = await import("./App.js");
+  await warmupPxeIfEnabled();
 
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
@@ -115,9 +116,6 @@ async function boot() {
     </StrictMode>,
   );
   dismissBootSplash();
-
-  // Warm PXE in the background — do not block the bridge UI.
-  void warmupPxeIfEnabled();
 }
 
 void boot().catch(showBootFailure);

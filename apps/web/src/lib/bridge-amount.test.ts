@@ -1,10 +1,12 @@
 import { parseUnits } from "viem";
 import { describe, expect, it } from "vitest";
 import {
+  amountQuickFill,
   bridgeShortfall,
   MIN_BRIDGE_FJ,
   MIN_BRIDGE_WEI,
   parseBridgeAmount,
+  SUGGESTED_BRIDGE_FJ,
 } from "./bridge-amount.js";
 
 const fj = (value: string) => parseUnits(value, 18);
@@ -56,5 +58,35 @@ describe("bridgeShortfall", () => {
     const gap = bridgeShortfall(fj("3"), 0n);
     expect(gap?.haveFormatted).toBe("0");
     expect(gap?.missingFormatted).toBe("3");
+  });
+});
+
+describe("amountQuickFill", () => {
+  it("offers Max when the wallet holds less than 100 FJ", () => {
+    expect(amountQuickFill(fj("99.9"))).toEqual({ label: "Max", amountFj: "99.9" });
+    expect(amountQuickFill(fj("2.9"))).toBeNull();
+  });
+
+  it("never suggests more than a non-minting wallet can bridge", () => {
+    expect(amountQuickFill(fj("100"))).toEqual({
+      label: "Add 100",
+      amountFj: "100",
+    });
+    expect(amountQuickFill(fj("299"))).toEqual({
+      label: "Add 100",
+      amountFj: "100",
+    });
+    expect(amountQuickFill(fj("300"))).toEqual({
+      label: `Add ${SUGGESTED_BRIDGE_FJ}`,
+      amountFj: String(SUGGESTED_BRIDGE_FJ),
+    });
+    expect(amountQuickFill(fj("5000"))?.label).toBe(`Add ${SUGGESTED_BRIDGE_FJ}`);
+  });
+
+  it("offers Add 300 on mintable networks even with no wallet balance", () => {
+    expect(amountQuickFill(0n, true)).toEqual({
+      label: `Add ${SUGGESTED_BRIDGE_FJ}`,
+      amountFj: String(SUGGESTED_BRIDGE_FJ),
+    });
   });
 });

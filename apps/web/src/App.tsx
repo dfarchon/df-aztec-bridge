@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { formatUnits, type Hex } from "viem";
 import {
@@ -40,14 +40,16 @@ import {
 } from "./lib/bridge-session.js";
 import { phaseLabel, recoverySteps, selectSessionForUi, shortHash } from "./lib/claim-recovery.js";
 import {
+  amountQuickFill,
   bridgeShortfall,
+  formatFjAmount,
   MIN_BRIDGE_FJ,
   parseBridgeAmount,
 } from "./lib/bridge-amount.js";
 import { parseClaimCredentialsFile } from "./lib/claim-credentials-import.js";
 import {
   downloadClaimCredentials,
-  persistClaimCredentials,
+  downloadJson,
 } from "./lib/claim-credentials-store.js";
 import {
   advanceProgress,
@@ -72,7 +74,7 @@ type AppTab = "bridge" | "recover";
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
 const WC_PROJECT_ID = (import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as string | undefined)?.trim() ?? "";
 /** Build-time: include / use in-browser PXE claim (heavy chunk). */
-const BROWSER_CLAIM = import.meta.env.VITE_ENABLE_BROWSER_CLAIM === "true";
+const BROWSER_CLAIM = import.meta.env.VITE_ENABLE_BROWSER_CLAIM !== "false";
 
 async function readJsonResponse<T>(response: Response, label: string): Promise<T> {
   const text = await response.text();
@@ -144,10 +146,7 @@ export function App() {
   const [wcUri, setWcUri] = useState<string | null>(null);
   const [wallet, setWallet] = useState<ConnectedWallet | null>(null);
   const [recipient, setRecipient] = useState("");
-  const [amountFj, setAmountFj] = useState(() => {
-    const savedAmount = initialSession?.credentials?.claimAmount ?? initialSession?.pending?.claimAmount;
-    return savedAmount ? formatUnits(BigInt(savedAmount), 18) : "300";
-  });
+  const [amountFj, setAmountFj] = useState("");
   /** When false: L1 bridge only — no L2 secret needed. */
   const [autoClaim, setAutoClaim] = useState(false);
   const [l2Secret, setL2Secret] = useState("");
@@ -191,7 +190,6 @@ export function App() {
   const [storageReady, setStorageReady] = useState<boolean | null>(null);
   const [storageError, setStorageError] = useState<string | null>(null);
 
-  const sessionRestoreStarted = useRef(false);
   const selectedSession = selectSessionForUi(recoverySessions, selectedRecoveryHash);
 
   const refreshSessions = useCallback(() => {
@@ -558,8 +556,7 @@ export function App() {
   // Bridge tab UI (bridgePhase / credentials / l1TxHash); the rest are
   // updated silently in storage and show up in the Recover tab list.
   useEffect(() => {
-    if (!networkMeta || sessionRestoreStarted.current) return;
-    sessionRestoreStarted.current = true;
+    if (!networkMeta) return;
     let cancelled = false;
 
     const activeKey = initialSession ? normalizeL1TxHash(initialSession.l1TxHash) : null;
@@ -601,7 +598,6 @@ export function App() {
               setCredentials(result.credentials);
               setBridgePhase("L1 bridge recovered — claim credentials restored");
               setProgress((prev) => finishProgress(prev, "succeeded"));
-              setRecoveryPromptOpen(true);
             }
           } catch (cause: unknown) {
             if (cancelled) return;
@@ -644,17 +640,27 @@ export function App() {
           } catch (cause: unknown) {
             if (cancelled) return;
             const message = cause instanceof Error ? cause.message : String(cause);
-            upsertSession(networkId, {
-              l1TxHash: session.l1TxHash,
-              phase: "failed",
-              recipient: session.recipient,
-              claimAmount: session.claimAmount,
-              credentials: session.credentials,
-              lastError: message,
-              makeActive: false,
-            });
+            let recoveryError: string | null = null;
+            try {
+              upsertSession(networkId, {
+                l1TxHash: session.l1TxHash,
+                phase: "claim-sent",
+                recipient: session.recipient,
+                claimAmount: session.claimAmount,
+                credentials: session.credentials,
+                l2TxHash: session.l2TxHash,
+                lastError: message,
+                makeActive: false,
+              });
+            } catch (storageError: unknown) {
+              recoveryError = storageErrorMessage(storageError);
+            }
             if (isActiveFlow) {
-              setError(message);
+              setError(
+                recoveryError
+                  ? `${message} Recovery status could not be updated: ${recoveryError}`
+                  : message,
+              );
               setProgress((prev) => finishProgress(prev, "failed"));
             }
           }
@@ -710,6 +716,7 @@ export function App() {
         });
         refreshSessions();
 
+        let submittedHash: string | null = null;
         try {
           const { l2TxHash: hash } = await waitAndClaimInBrowser({
             aztecNodeUrl: networkMeta.aztecNodeUrl,
@@ -726,6 +733,7 @@ export function App() {
               );
             },
             onTxSent: (l2Hash) => {
+              submittedHash = l2Hash;
               setL2TxHash(l2Hash);
               setProgress((prev) =>
                 advanceProgress(prev, {
@@ -734,16 +742,30 @@ export function App() {
                   txSubmitted: true,
                 }),
               );
-              upsertSession(networkId, {
-                l1TxHash: l1Hash,
-                phase: "claim-sent",
-                recipient: creds.recipient,
-                claimAmount: creds.claimAmount,
-                credentials: creds,
-                l2TxHash: l2Hash,
-                makeActive: false,
-              });
-              refreshSessions();
+              try {
+                upsertSession(networkId, {
+                  l1TxHash: l1Hash,
+                  phase: "claim-sent",
+                  recipient: creds.recipient,
+                  claimAmount: creds.claimAmount,
+                  credentials: creds,
+                  l2TxHash: l2Hash,
+                  makeActive: false,
+                });
+                refreshSessions();
+              } catch (storageError: unknown) {
+                downloadJson(`claim-sent-${shortHash(l1Hash)}.json`, {
+                  networkId,
+                  l1TxHash: l1Hash,
+                  l2TxHash: l2Hash,
+                  credentials: creds,
+                });
+                setError(
+                  `L2 claim submitted, but browser recovery storage failed: ${storageErrorMessage(
+                    storageError,
+                  )}. A backup JSON was downloaded.`,
+                );
+              }
             },
           });
 
@@ -769,16 +791,34 @@ export function App() {
         } catch (claimError: unknown) {
           const message = claimError instanceof Error ? claimError.message : String(claimError);
           setProgress((prev) => finishProgress(prev, "failed"));
-          upsertSession(networkId, {
-            l1TxHash: l1Hash,
-            phase: "failed",
-            recipient: creds.recipient,
-            claimAmount: creds.claimAmount,
-            credentials: creds,
-            lastError: message,
-            makeActive: false,
-          });
-          refreshSessions();
+          try {
+            upsertSession(networkId, {
+              l1TxHash: l1Hash,
+              phase: submittedHash ? "claim-sent" : "failed",
+              recipient: creds.recipient,
+              claimAmount: creds.claimAmount,
+              credentials: creds,
+              ...(submittedHash ? { l2TxHash: submittedHash } : {}),
+              lastError: message,
+              makeActive: false,
+            });
+            refreshSessions();
+          } catch (storageError: unknown) {
+            if (submittedHash) {
+              downloadJson(`claim-sent-${shortHash(l1Hash)}.json`, {
+                networkId,
+                l1TxHash: l1Hash,
+                l2TxHash: submittedHash,
+                credentials: creds,
+                error: message,
+              });
+            }
+            setError(
+              `Claim recovery storage failed: ${storageErrorMessage(storageError)}${
+                submittedHash ? ". A backup JSON was downloaded." : ""
+              }`,
+            );
+          }
           throw claimError;
         }
       }
@@ -878,14 +918,27 @@ export function App() {
         onPending: (pending: PendingBridge) => {
           setL1TxHash(pending.l1TxHash);
           setShowBridgeResult(true);
-          upsertSession(networkId, {
-            l1TxHash: pending.l1TxHash,
-            phase: "l1-pending",
-            recipient: pending.recipient,
-            claimAmount: pending.claimAmount,
-            pending,
-          });
-          refreshSessions();
+          try {
+            upsertSession(networkId, {
+              l1TxHash: pending.l1TxHash,
+              phase: "l1-pending",
+              recipient: pending.recipient,
+              claimAmount: pending.claimAmount,
+              pending,
+            });
+            refreshSessions();
+          } catch (storageError: unknown) {
+            downloadJson(`claim-pending-${shortHash(pending.l1TxHash)}.json`, {
+              version: 1,
+              networkId,
+              pending,
+            });
+            setError(
+              `L1 deposit submitted, but browser recovery storage failed: ${storageErrorMessage(
+                storageError,
+              )}. Keep the downloaded pending-claim backup.`,
+            );
+          }
         },
         onProgress: (phase: BridgeProgressPhase, detail?: string) => {
           const labels: Record<BridgeProgressPhase, string> = {
@@ -932,11 +985,9 @@ export function App() {
       }
 
       try {
-        persistClaimCredentials({
-          networkId,
+        downloadClaimCredentials(result.credentials.recipient, result.credentials, {
           l1TxHash: result.l1TxHash,
-          recipient: result.credentials.recipient,
-          credentials: result.credentials,
+          networkId,
         });
       } catch (downloadError: unknown) {
         backupErrors.push(
@@ -1119,17 +1170,24 @@ export function App() {
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : String(e);
         setProgress((prev) => finishProgress(prev, "failed"));
-        upsertSession(networkId, {
-          l1TxHash: session.l1TxHash,
-          phase: "failed",
-          recipient: session.recipient,
-          claimAmount: session.claimAmount,
-          credentials: session.credentials,
-          lastError: message,
-          makeActive: false,
-        });
-        refreshSessions();
-        setError(message);
+        try {
+          upsertSession(networkId, {
+            l1TxHash: session.l1TxHash,
+            phase: "claim-sent",
+            recipient: session.recipient,
+            claimAmount: session.claimAmount,
+            credentials: session.credentials,
+            l2TxHash: session.l2TxHash,
+            lastError: message,
+            makeActive: false,
+          });
+          refreshSessions();
+          setError(message);
+        } catch (storageError: unknown) {
+          setError(
+            `${message} Recovery status could not be updated: ${storageErrorMessage(storageError)}`,
+          );
+        }
       } finally {
         setBusy(false);
       }
@@ -1264,10 +1322,25 @@ export function App() {
     !amountCheck.error &&
     !shortfall &&
     (!autoClaim || !!l2Secret.trim());
+  const bridgeButtonLabel = shortfall
+    ? `Insufficient ${feeBalance?.symbol ?? "AZTEC"}`
+    : autoClaim
+      ? "Bridge + auto claim"
+      : "Bridge via wallet (L1 only)";
   const recoveryAccountReady =
     !!selectedSession?.credentials &&
     !!l2Secret.trim() &&
     recipient.trim().toLowerCase() === selectedSession.credentials.recipient.toLowerCase();
+
+  const amountQuickAction = feeBalance
+    ? amountQuickFill(feeBalance.balance, canMintFeeJuice)
+    : null;
+
+  const applyAmountQuickFill = () => {
+    if (!amountQuickAction) return;
+    setAmountFj(amountQuickAction.amountFj);
+    setError(null);
+  };
 
   const requestBridge = () => {
     if (amountCheck.error) {
@@ -1275,9 +1348,7 @@ export function App() {
       return;
     }
     if (shortfall) {
-      setError(
-        `Not enough ${feeBalance?.symbol ?? "Fee Juice"} on L1 — you need ${shortfall.missingFormatted} more.`,
-      );
+      setError(`Insufficient ${feeBalance?.symbol ?? "AZTEC"} balance.`);
       return;
     }
     if (autoClaim && !l2Secret.trim()) {
@@ -2002,19 +2073,59 @@ export function App() {
         />
       </label>
 
-      <label>
-        Amount (FJ)
+      <div className="amount-field">
+        <div className="amount-field-head">
+          <label htmlFor="bridge-amount-input">Amount (FJ)</label>
+          {wallet && feeBalance ? (
+            <div className="amount-balance-row">
+              <span className="hint amount-balance">
+                Balance:{" "}
+                <span className="mono">
+                  {formatFjAmount(feeBalance.balance)} {feeBalance.symbol}
+                </span>
+              </span>
+              {amountQuickAction ? (
+                <button
+                  type="button"
+                  className="ghost amount-max-btn"
+                  disabled={busy || balanceRefreshing}
+                  onClick={applyAmountQuickFill}
+                >
+                  {amountQuickAction.label}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
         <input
+          id="bridge-amount-input"
           value={amountFj}
           onChange={(e) => setAmountFj(e.target.value)}
           inputMode="decimal"
-          aria-invalid={amountCheck.error ? true : undefined}
+          placeholder={`Min ${MIN_BRIDGE_FJ}`}
+          className={
+            amountFj.trim() && (amountCheck.error || shortfall) ? "input-invalid" : undefined
+          }
+          aria-invalid={
+            amountFj.trim() && (amountCheck.error || shortfall) ? true : undefined
+          }
           aria-describedby="bridge-amount-help"
         />
-      </label>
-      <p id="bridge-amount-help" className={amountCheck.error ? "error" : "hint"}>
-        {amountCheck.error ?? `Minimum ${MIN_BRIDGE_FJ} FJ per bridge.`}
-      </p>
+        <p
+          id="bridge-amount-help"
+          className={
+            amountFj.trim() && (amountCheck.error || shortfall) ? "error" : "hint"
+          }
+        >
+          {!amountFj.trim()
+            ? `Minimum ${MIN_BRIDGE_FJ} FJ per bridge.`
+            : amountCheck.error
+              ? amountCheck.error
+              : shortfall
+                ? `Insufficient balance`
+                : `Minimum ${MIN_BRIDGE_FJ} FJ per bridge.`}
+        </p>
+      </div>
 
       <label className="check">
         <input
@@ -2037,7 +2148,7 @@ export function App() {
       )}
 
       <button type="button" onClick={requestBridge} disabled={busy || !canBridge}>
-        {autoClaim ? "Bridge + auto claim" : "Bridge via wallet (L1 only)"}
+        {bridgeButtonLabel}
       </button>
 
       {showBridgeResult && l1TxHash ? (

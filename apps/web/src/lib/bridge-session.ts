@@ -4,6 +4,8 @@ const V1_STORAGE_KEY = "df_aztec_bridge_session";
 const V2_STORAGE_KEY = "df_aztec_bridge_sessions";
 const PROBE_KEY = "df_aztec_bridge_storage_probe";
 
+const storageKey = (networkId: string) => `${V2_STORAGE_KEY}:${networkId}`;
+
 export type ClaimPhase =
   | "l1-pending"
   | "ready-to-claim"
@@ -335,17 +337,38 @@ function validateStore(value: unknown, networkId: string): BridgeSessionStoreV2 
   };
 }
 
-function readRawStore(): unknown | null {
-  const v2 = localStorage.getItem(V2_STORAGE_KEY);
-  if (v2) return JSON.parse(v2) as unknown;
-  const v1 = localStorage.getItem(V1_STORAGE_KEY);
-  if (v1) return JSON.parse(v1) as unknown;
+function readRawStore(networkId: string): { raw: unknown; sourceKey: string } | null {
+  const scopedKey = storageKey(networkId);
+  const scoped = localStorage.getItem(scopedKey);
+  if (scoped) return { raw: JSON.parse(scoped) as unknown, sourceKey: scopedKey };
+
+  for (const sourceKey of [V2_STORAGE_KEY, V1_STORAGE_KEY]) {
+    const legacy = localStorage.getItem(sourceKey);
+    if (!legacy) continue;
+    const raw = JSON.parse(legacy) as unknown;
+    if (
+      raw &&
+      typeof raw === "object" &&
+      (raw as Record<string, unknown>).networkId === networkId
+    ) {
+      return { raw, sourceKey };
+    }
+  }
   return null;
 }
 
 function writeStore(store: BridgeSessionStoreV2) {
-  localStorage.setItem(V2_STORAGE_KEY, JSON.stringify(store));
-  localStorage.removeItem(V1_STORAGE_KEY);
+  localStorage.setItem(storageKey(store.networkId), JSON.stringify(store));
+  for (const legacyKey of [V2_STORAGE_KEY, V1_STORAGE_KEY]) {
+    const legacy = localStorage.getItem(legacyKey);
+    if (!legacy) continue;
+    try {
+      const parsed = JSON.parse(legacy) as Record<string, unknown>;
+      if (parsed.networkId === store.networkId) localStorage.removeItem(legacyKey);
+    } catch {
+      // Invalid legacy data is handled by its own network load.
+    }
+  }
 }
 
 export function assertBridgeStorageReady(): void {
@@ -380,22 +403,23 @@ export function assertBridgeStorageReady(): void {
 
 export function loadSessionStore(networkId: string): BridgeSessionStoreV2 {
   try {
-    const raw = readRawStore();
-    if (!raw) return emptyStore(networkId);
+    const stored = readRawStore(networkId);
+    if (!stored) return emptyStore(networkId);
+    const { raw, sourceKey } = stored;
 
     if (isBridgeSessionV1(raw)) {
-      if (raw.networkId !== networkId) return emptyStore(networkId);
       const migrated = migrateV1(raw);
       writeStore(migrated);
       return migrated;
     }
 
     try {
-      return validateStore(raw, networkId);
+      const validated = validateStore(raw, networkId);
+      if (sourceKey !== storageKey(networkId)) writeStore(validated);
+      return validated;
     } catch (error) {
       console.warn("[bridge] Clearing invalid recovery store:", error);
-      localStorage.removeItem(V2_STORAGE_KEY);
-      localStorage.removeItem(V1_STORAGE_KEY);
+      localStorage.removeItem(sourceKey);
       return emptyStore(networkId);
     }
   } catch (error) {
@@ -502,11 +526,28 @@ export function removeSession(networkId: string, l1TxHash: string): void {
 
 export function clearAllSessions(networkId?: string): void {
   if (!networkId) {
-    localStorage.removeItem(V2_STORAGE_KEY);
+    const keys = Array.from({ length: localStorage.length }, (_, index) =>
+      localStorage.key(index),
+    ).filter((key): key is string => !!key);
+    for (const key of keys) {
+      if (key === V2_STORAGE_KEY || key.startsWith(`${V2_STORAGE_KEY}:`)) {
+        localStorage.removeItem(key);
+      }
+    }
     localStorage.removeItem(V1_STORAGE_KEY);
     return;
   }
-  writeStore(emptyStore(networkId));
+  localStorage.removeItem(storageKey(networkId));
+  for (const legacyKey of [V2_STORAGE_KEY, V1_STORAGE_KEY]) {
+    const legacy = localStorage.getItem(legacyKey);
+    if (!legacy) continue;
+    try {
+      const parsed = JSON.parse(legacy) as Record<string, unknown>;
+      if (parsed.networkId === networkId) localStorage.removeItem(legacyKey);
+    } catch {
+      // Leave malformed data for the matching load path to discard.
+    }
+  }
 }
 
 /** Compatibility helpers used by older App.tsx call sites during migration. */

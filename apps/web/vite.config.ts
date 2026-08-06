@@ -112,7 +112,7 @@ function aztecSqliteWasmPlugin(): Plugin {
     }
     const src = resolveSqliteWasm();
     res.setHeader("Content-Type", "application/wasm");
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.setHeader("Cache-Control", "no-cache");
     createReadStream(src).pipe(res);
   };
 
@@ -139,7 +139,7 @@ function aztecSqliteWasmPlugin(): Plugin {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, rootDir, "");
-  const browserClaim = env.VITE_ENABLE_BROWSER_CLAIM === "true";
+  const browserClaim = env.VITE_ENABLE_BROWSER_CLAIM !== "false";
   const bbBrowser = resolveAztecBbBrowser();
   const pinoBrowser = resolvePinoBrowser();
 

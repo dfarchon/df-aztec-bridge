@@ -41,6 +41,19 @@ const feeAssetHandlerAbi = parseAbi([
   "function mintAmount() view returns (uint256)",
 ]);
 
+function notifyPending(
+  callback: ((pending: PendingBridge) => void) | undefined,
+  pending: PendingBridge,
+) {
+  try {
+    callback?.(pending);
+  } catch (error) {
+    // The deposit is already broadcast. Consumer persistence/UI failures must
+    // not stop receipt parsing and credential generation.
+    console.warn("[bridge] onPending callback failed after broadcast", error);
+  }
+}
+
 export async function bridgeFromConnectedWallet(params: {
   provider: EIP1193Provider;
   chainId: number;
@@ -202,7 +215,7 @@ async function bridgeViaPortal(params: {
     chain,
   });
 
-  onPending?.({
+  notifyPending(onPending, {
     l1TxHash: hash,
     claimSecret,
     claimSecretHash: secretHashHex,
@@ -331,7 +344,7 @@ async function bridgeViaGoBridge(params: {
     });
   }
 
-  onPending?.({
+  notifyPending(onPending, {
     l1TxHash: hash,
     claimSecret,
     claimSecretHash: secretHashHex,

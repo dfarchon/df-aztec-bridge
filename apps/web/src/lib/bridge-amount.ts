@@ -4,6 +4,15 @@ export const FJ_DECIMALS = 18;
 /** Anything smaller is not worth an L1 deposit + an L2 claim proof. */
 export const MIN_BRIDGE_FJ = 3;
 export const MIN_BRIDGE_WEI = parseUnits(String(MIN_BRIDGE_FJ), FJ_DECIMALS);
+/**
+ * Below this balance the quick-fill control is Max (whole wallet).
+ * At/above it we only suggest a fixed amount so Max cannot drain a large bag.
+ */
+export const QUICK_MAX_BALANCE_FJ = 100;
+export const QUICK_MAX_BALANCE_WEI = parseUnits(String(QUICK_MAX_BALANCE_FJ), FJ_DECIMALS);
+/** Suggested bridge size when minting is available or the wallet can cover it. */
+export const SUGGESTED_BRIDGE_FJ = 300;
+export const SUGGESTED_BRIDGE_WEI = parseUnits(String(SUGGESTED_BRIDGE_FJ), FJ_DECIMALS);
 
 const DECIMAL_INPUT = /^\d+(\.\d{1,18})?$/;
 
@@ -41,11 +50,35 @@ export interface BridgeShortfall {
 }
 
 /** Trim the trailing zeros `formatUnits` leaves on whole-ish values. */
-function formatFj(value: bigint): string {
+export function formatFjAmount(value: bigint): string {
   const raw = formatUnits(value, FJ_DECIMALS);
   if (!raw.includes(".")) return raw;
   const trimmed = raw.replace(/0+$/, "").replace(/\.$/, "");
   return trimmed || "0";
+}
+
+/** Return a quick-fill action that is always valid for the current network. */
+export function amountQuickFill(
+  balance: bigint,
+  canMint = false,
+): {
+  label: string;
+  amountFj: string;
+} | null {
+  if (canMint) {
+    return { label: `Add ${SUGGESTED_BRIDGE_FJ}`, amountFj: String(SUGGESTED_BRIDGE_FJ) };
+  }
+  if (balance < MIN_BRIDGE_WEI) return null;
+  if (balance < QUICK_MAX_BALANCE_WEI) {
+    return { label: "Max", amountFj: formatFjAmount(balance) };
+  }
+  if (balance < SUGGESTED_BRIDGE_WEI) {
+    return {
+      label: `Add ${QUICK_MAX_BALANCE_FJ}`,
+      amountFj: String(QUICK_MAX_BALANCE_FJ),
+    };
+  }
+  return { label: `Add ${SUGGESTED_BRIDGE_FJ}`, amountFj: String(SUGGESTED_BRIDGE_FJ) };
 }
 
 /**
@@ -60,8 +93,8 @@ export function bridgeShortfall(needed: bigint, have: bigint): BridgeShortfall |
     needed,
     have,
     missing,
-    neededFormatted: formatFj(needed),
-    haveFormatted: formatFj(have),
-    missingFormatted: formatFj(missing),
+    neededFormatted: formatFjAmount(needed),
+    haveFormatted: formatFjAmount(have),
+    missingFormatted: formatFjAmount(missing),
   };
 }
