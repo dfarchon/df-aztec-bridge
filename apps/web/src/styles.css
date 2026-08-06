@@ -503,6 +503,16 @@ button:disabled {
   gap: 0.5rem;
 }
 
+.wallet-picker-modal {
+  width: min(100%, 440px);
+  max-height: min(78vh, 680px);
+  overflow-y: auto;
+}
+
+.wallet-picker-modal:focus {
+  outline: none;
+}
+
 .wallet-option {
   width: 100%;
   display: flex;
@@ -532,6 +542,127 @@ button.ghost {
 .wallet-option.wc {
   margin-top: 0.75rem;
   background: #1b2a4a;
+}
+
+.account-menu-wrap {
+  position: relative;
+  margin-top: 1rem;
+}
+
+.account-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: auto;
+  margin: 0;
+  padding: 0.58rem 0.75rem;
+  border-color: #3f4d77;
+  background: #20263a;
+}
+
+.account-trigger svg {
+  margin-left: 0.15rem;
+  color: #9aa7c7;
+}
+
+.account-status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: #62d394;
+  box-shadow: 0 0 0 2px rgba(98, 211, 148, 0.14);
+}
+
+.account-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 0.45rem);
+  left: 0;
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 0.45rem;
+  border: 1px solid #3a3a3a;
+  border-radius: 10px;
+  background: #1b1b1b;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+.account-menu-summary {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.55rem 0.65rem 0.7rem;
+  border-bottom: 1px solid #303030;
+}
+
+.account-menu-summary .mono {
+  overflow: hidden;
+  color: #aaa;
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-address-row,
+.wallet-card-address {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.account-address-row .mono,
+.wallet-card-address .mono {
+  min-width: 0;
+}
+
+.copy-address-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 1.7rem;
+  height: 1.7rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #929292;
+}
+
+.copy-address-btn:hover:not(:disabled) {
+  border-color: #444;
+  background: #292929;
+  color: #fff;
+}
+
+.copy-success {
+  flex: 0 0 auto;
+  color: #62d394;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.account-menu-summary .hint {
+  margin: 0;
+}
+
+.account-menu-item {
+  width: 100%;
+  margin: 0.3rem 0 0;
+  padding: 0.55rem 0.65rem;
+  border-color: transparent;
+  background: transparent;
+  color: #ddd;
+  text-align: left;
+}
+
+.account-menu-item:hover:not(:disabled) {
+  border-color: #3a3a3a;
+  background: #272727;
+}
+
+.account-menu-disconnect {
+  color: #ff9a9a;
 }
 
 .qr-box {
@@ -674,6 +805,14 @@ label.check input {
 
 .wallet-status-account .mono {
   margin: 0.35rem 0 0.25rem;
+}
+
+.wallet-card-address {
+  margin: 0.35rem 0 0.25rem;
+}
+
+.wallet-card-address .mono {
+  margin: 0;
 }
 
 .wallet-status-account .hint {

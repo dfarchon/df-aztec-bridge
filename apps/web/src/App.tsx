@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { formatUnits, type Hex } from "viem";
 import {
   bridgeFromConnectedWallet,
   connectEvmWalletDetail,
   connectWalletConnect,
+  disconnectWalletConnect,
   discoverWallets,
   formatWalletError,
   getFeeJuiceBalance,
@@ -143,8 +144,13 @@ export function App() {
   const [draftL1RpcUrl, setDraftL1RpcUrl] = useState("");
   const [availableWallets, setAvailableWallets] = useState<EIP6963ProviderDetail[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [addressCopied, setAddressCopied] = useState(false);
   const [wcUri, setWcUri] = useState<string | null>(null);
   const [wallet, setWallet] = useState<ConnectedWallet | null>(null);
+  const walletPickerRef = useRef<HTMLDivElement>(null);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [recipient, setRecipient] = useState("");
   const [amountFj, setAmountFj] = useState("");
   /** When false: L1 bridge only — no L2 secret needed. */
@@ -549,6 +555,111 @@ export function App() {
       setError(e instanceof Error ? e.message : String(e));
     }
   }, []);
+
+  const closeWalletPicker = useCallback(() => {
+    setPickerOpen(false);
+    setWcUri(null);
+    setBusy(false);
+    setError(null);
+  }, []);
+
+  const onDisconnect = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      if (wallet?.rdns === "walletconnect") {
+        await disconnectWalletConnect();
+      }
+    } catch (e: unknown) {
+      setError(formatWalletError(e));
+    } finally {
+      setWallet(null);
+      setFeeBalance(null);
+      setBalanceError(null);
+      setAccountMenuOpen(false);
+      setBusy(false);
+    }
+  }, [wallet?.rdns]);
+
+  const copyWalletAddress = useCallback(async () => {
+    if (!wallet) return;
+    try {
+      await navigator.clipboard.writeText(wallet.address);
+      setAddressCopied(true);
+      if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
+      copyResetTimerRef.current = setTimeout(() => setAddressCopied(false), 2_000);
+    } catch {
+      setError("Could not copy the wallet address. Please copy it manually.");
+    }
+  }, [wallet]);
+
+  useEffect(
+    () => () => {
+      if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const dialog = walletPickerRef.current;
+    const focusableSelector =
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    window.requestAnimationFrame(() => {
+      dialog?.querySelector<HTMLElement>(focusableSelector)?.focus();
+    });
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeWalletPicker();
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector));
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [pickerOpen, closeWalletPicker]);
+
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    const closeMenu = (event: PointerEvent) => {
+      if (!accountMenuRef.current?.contains(event.target as Node)) {
+        setAccountMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAccountMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [accountMenuOpen]);
 
   // On mount (once networkMeta is ready): resume every saved session that is
   // still waiting on L1 confirmation or L2 claim confirmation. Only the
@@ -1923,17 +2034,104 @@ export function App() {
         {hasRpcOverrides(rpcOverrides) ? " Custom RPC overrides active (gear)." : null}
       </p>
 
-      <button type="button" onClick={() => void onConnect()} disabled={busy}>
-        {wallet
-          ? `Connected (${wallet.name ?? "wallet"}): ${wallet.address.slice(0, 8)}…`
-          : "Connect wallet"}
-      </button>
+      {wallet ? (
+        <div className="account-menu-wrap" ref={accountMenuRef}>
+          <button
+            type="button"
+            className="account-trigger"
+            aria-haspopup="menu"
+            aria-expanded={accountMenuOpen}
+            onClick={() => setAccountMenuOpen((open) => !open)}
+            disabled={busy}
+          >
+            <span className="account-status-dot" aria-hidden="true" />
+            <span>{wallet.address.slice(0, 6)}…{wallet.address.slice(-4)}</span>
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+              <path fill="currentColor" d="m7 10 5 5 5-5z" />
+            </svg>
+          </button>
+          {accountMenuOpen ? (
+            <div className="account-menu" role="menu" aria-label="Wallet account">
+              <div className="account-menu-summary">
+                <strong>{wallet.name ?? "Connected wallet"}</strong>
+                <div className="account-address-row">
+                  <span className="mono">
+                    {wallet.address.slice(0, 10)}…{wallet.address.slice(-8)}
+                  </span>
+                  <button
+                    type="button"
+                    className="copy-address-btn"
+                    aria-label="Copy wallet address"
+                    title="Copy address"
+                    onClick={() => void copyWalletAddress()}
+                  >
+                    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                      <path
+                        fill="currentColor"
+                        d="M8 7V5c0-1.1.9-2 2-2h9c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2h-2v2c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h2Zm2 0h5c1.1 0 2 .9 2 2v5h2V5h-9v2Zm-4 2v9h9V9H6Z"
+                      />
+                    </svg>
+                  </button>
+                  {addressCopied ? (
+                    <span className="copy-success" role="status">Copied!</span>
+                  ) : null}
+                </div>
+                <span className="hint">Chain ID {wallet.chainId}</span>
+              </div>
+              <button
+                type="button"
+                role="menuitem"
+                className="account-menu-item"
+                onClick={() => {
+                  setAccountMenuOpen(false);
+                  void onConnect();
+                }}
+              >
+                Switch wallet
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="account-menu-item account-menu-disconnect"
+                onClick={() => void onDisconnect()}
+              >
+                Disconnect
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <button type="button" onClick={() => void onConnect()} disabled={busy}>
+          Connect wallet
+        </button>
+      )}
 
       {wallet ? (
         <div className="card wallet-status">
           <div className="wallet-status-account">
             <strong>L1 account</strong>
-            <p className="mono">{wallet.address}</p>
+            <div className="wallet-card-address">
+              <span className="mono">
+                {wallet.address.slice(0, 10)}…{wallet.address.slice(-8)}
+              </span>
+              <button
+                type="button"
+                className="copy-address-btn"
+                aria-label="Copy wallet address"
+                title="Copy address"
+                onClick={() => void copyWalletAddress()}
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M8 7V5c0-1.1.9-2 2-2h9c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2h-2v2c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h2Zm2 0h5c1.1 0 2 .9 2 2v5h2V5h-9v2Zm-4 2v9h9V9H6Z"
+                  />
+                </svg>
+              </button>
+              {addressCopied ? (
+                <span className="copy-success" role="status">Copied!</span>
+              ) : null}
+            </div>
             <p className="hint">
               Chain id: {wallet.chainId}
               {networkMeta && wallet.chainId !== networkMeta.l1ChainId
@@ -1989,69 +2187,92 @@ export function App() {
       ) : null}
 
       {pickerOpen ? (
-        <div className="card wallet-picker">
-          <strong>Choose wallet</strong>
-          <p className="hint">
-            {WC_PROJECT_ID
-              ? "Browser extensions (EIP-6963) or mobile QR (WalletConnect)."
-              : "Browser extensions detected via EIP-6963."}
-          </p>
-
-          {availableWallets.length > 0 ? (
-            <ul className="wallet-list">
-              {availableWallets.map((w) => (
-                <li key={w.info.rdns}>
-                  <button
-                    type="button"
-                    className="wallet-option"
-                    disabled={busy}
-                    onClick={() => void connectDetail(w)}
-                  >
-                    {w.info.icon ? <img src={w.info.icon} alt="" width={28} height={28} /> : null}
-                    <span>{w.info.name}</span>
-                    <span className="rdns">{w.info.rdns}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="hint">No browser extension detected.</p>
-          )}
-
-          {WC_PROJECT_ID ? (
-            <>
+        <div
+          className="modal-backdrop wallet-picker-backdrop"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) closeWalletPicker();
+          }}
+        >
+          <div
+            ref={walletPickerRef}
+            className="modal wallet-picker-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="wallet-picker-title"
+            tabIndex={-1}
+          >
+            <div className="modal-header">
+              <strong id="wallet-picker-title">Choose wallet</strong>
               <button
                 type="button"
-                className="wallet-option wc"
-                disabled={busy || !networkMeta}
-                onClick={() => void onConnectWalletConnect()}
+                className="icon-btn"
+                aria-label="Close wallet picker"
+                title="Close"
+                onClick={closeWalletPicker}
               >
-                <span>Scan QR with mobile wallet</span>
-                <span className="rdns">WalletConnect</span>
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.3 19.71 2.89 18.3 9.17 12 2.89 5.71 4.3 4.29l6.29 6.3 6.3-6.3z"
+                  />
+                </svg>
               </button>
+            </div>
+            <p className="hint">
+              {WC_PROJECT_ID
+                ? "Browser extensions (EIP-6963) or mobile QR (WalletConnect)."
+                : "Browser extensions detected via EIP-6963."}
+            </p>
 
-              {wcUri ? (
-                <div className="qr-box">
-                  <QRCodeSVG value={wcUri} size={220} bgColor="#ffffff" fgColor="#000000" />
-                  <p className="hint">Open MetaMask / OKX / Trust on your phone → Scan QR</p>
-                </div>
-              ) : null}
-            </>
-          ) : null}
+            {availableWallets.length > 0 ? (
+              <ul className="wallet-list">
+                {availableWallets.map((w) => (
+                  <li key={w.info.rdns}>
+                    <button
+                      type="button"
+                      className="wallet-option"
+                      disabled={busy}
+                      onClick={() => void connectDetail(w)}
+                    >
+                      {w.info.icon ? <img src={w.info.icon} alt="" width={28} height={28} /> : null}
+                      <span>{w.info.name}</span>
+                      <span className="rdns">{w.info.rdns}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="hint">No browser extension detected.</p>
+            )}
 
-          <button
-            type="button"
-            className="ghost"
-            disabled={false}
-            onClick={() => {
-              setPickerOpen(false);
-              setWcUri(null);
-              setBusy(false);
-              setError(null);
-            }}
-          >
-            Cancel
-          </button>
+            {WC_PROJECT_ID ? (
+              <>
+                <button
+                  type="button"
+                  className="wallet-option wc"
+                  disabled={busy || !networkMeta}
+                  onClick={() => void onConnectWalletConnect()}
+                >
+                  <span>Scan QR with mobile wallet</span>
+                  <span className="rdns">WalletConnect</span>
+                </button>
+
+                {wcUri ? (
+                  <div className="qr-box">
+                    <QRCodeSVG value={wcUri} size={220} bgColor="#ffffff" fgColor="#000000" />
+                    <p className="hint">Open MetaMask / OKX / Trust on your phone → Scan QR</p>
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+
+            <div className="modal-actions">
+              <button type="button" className="ghost" onClick={closeWalletPicker}>
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
 
