@@ -86,7 +86,7 @@ export function VaultUnlockModal(props: {
             ? "Admin password encrypts this DF Punk vault. A device passkey adds a second factor (biometrics / phone)."
             : passkeyRequired
               ? "Enter your password, then approve the device passkey (Face ID / fingerprint / phone)."
-              : "Enter your vault password. Validation uses password + in-memory PXE signingKey."}
+              : "Enter your vault password. PXE wallet info is restored from IndexedDB."}
         </p>
         {aztecAddress ? (
           <p className="mono small vault-modal-addr">{aztecAddress}</p>

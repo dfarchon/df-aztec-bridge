@@ -4,14 +4,16 @@
  */
 
 import {
-  computeVerifier,
+  computePasswordVerifier,
   decryptJson,
   deriveCek,
   encodeSalt,
   encryptJson,
   decodeSalt,
+  profileUsesPasswordVerifier,
   randomBytes,
   verifyPassword,
+  verifyPasswordOnly,
   VAULT_KDF_ITERATIONS,
   VAULT_SALT_BYTES,
   type VaultPasskeyMeta,
@@ -92,6 +94,16 @@ export async function hasVaultProfile(aztecAddress: string): Promise<boolean> {
   return !!meta;
 }
 
+export async function listVaultProfiles(): Promise<VaultProfileMeta[]> {
+  const all = await backend.listMeta();
+  return all.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+}
+
+export async function hasAnyVaultProfile(): Promise<boolean> {
+  const all = await backend.listMeta();
+  return all.length > 0;
+}
+
 export async function getVaultProfile(
   aztecAddress: string,
 ): Promise<VaultProfileMeta | null> {
@@ -100,23 +112,21 @@ export async function getVaultProfile(
 
 /**
  * First-time admin password after successful PXE import.
- * Binds vault profile to aztecAddress; verifier = HMAC(password, signingKey).
- * Pass `passkey` to require device / phone WebAuthn on every unlock.
+ * Password-only verifier (v2) so later visits unlock with password + passkey only.
  */
 export async function setupVault(opts: {
   aztecAddress: string;
   password: string;
-  signingKey: string;
+  /** Kept for API compat; not used by the v2 password verifier. */
+  signingKey?: string;
   passkey?: VaultPasskeyMeta | null;
 }): Promise<void> {
   const address = opts.aztecAddress.trim();
   const password = opts.password;
-  const signingKey = opts.signingKey.trim();
   if (!address) throw new VaultError("Missing Aztec address for vault setup.");
   if (password.length < 8) {
     throw new VaultError("Password must be at least 8 characters.");
   }
-  if (!signingKey) throw new VaultError("signingKey is required for vault verifier.");
 
   const existing = await backend.getMeta(address);
   if (existing) {
@@ -124,13 +134,14 @@ export async function setupVault(opts: {
   }
 
   const salt = randomBytes(VAULT_SALT_BYTES);
-  const verifier = await computeVerifier(password, salt, signingKey);
+  const verifier = await computePasswordVerifier(password, salt, address);
   const key = await deriveCek(password, salt);
   const meta: VaultProfileMeta = {
-    v: 1,
+    v: 2,
     aztecAddress: address,
     salt: encodeSalt(salt),
     verifier,
+    verifierKind: "password",
     kdf: "PBKDF2-SHA-256",
     iterations: VAULT_KDF_ITERATIONS,
     createdAt: Date.now(),
@@ -159,36 +170,62 @@ export async function attachVaultPasskey(passkey: VaultPasskeyMeta): Promise<voi
 export async function unlockVault(opts: {
   aztecAddress: string;
   password: string;
-  signingKey: string;
+  /** Optional — only needed for legacy v1 signingKey-bound verifiers without a wallets doc. */
+  signingKey?: string;
   /** Test-only: skip WebAuthn when a passkey is registered. */
   skipPasskey?: boolean;
 }): Promise<void> {
   const address = opts.aztecAddress.trim();
-  const signingKey = opts.signingKey.trim();
-  if (!signingKey) {
-    throw new VaultError("Connect DF Punk PXE (signingKey in memory) to unlock the vault.");
-  }
+  const signingKey = opts.signingKey?.trim() || "";
   const meta = await backend.getMeta(address);
   if (!meta) {
-    throw new VaultError("No vault for this account. Set a password after PXE import.");
+    throw new VaultError("No vault for this account. Import DF Punk JSON and set a password.");
   }
   const salt = decodeSalt(meta.salt);
-  const ok = await verifyPassword(
-    opts.password,
-    salt,
-    signingKey,
-    meta.verifier,
-    meta.iterations ?? VAULT_KDF_ITERATIONS,
-  );
+  const iterations = meta.iterations ?? VAULT_KDF_ITERATIONS;
+  let ok = false;
+
+  if (profileUsesPasswordVerifier(meta)) {
+    ok = await verifyPasswordOnly(opts.password, salt, meta.aztecAddress, meta.verifier, iterations);
+  } else if (signingKey) {
+    ok = await verifyPassword(opts.password, salt, signingKey, meta.verifier, iterations);
+  } else {
+    const probeKey = await deriveCek(opts.password, salt, iterations);
+    const env = await backend.getDoc(meta.aztecAddress, "wallets");
+    if (!env) {
+      throw new VaultError(
+        "This vault needs a one-time DF Punk JSON re-import (legacy password verifier). Then unlock works with password + passkey only.",
+      );
+    }
+    try {
+      await decryptJson(probeKey, env);
+      ok = true;
+      const nextVerifier = await computePasswordVerifier(
+        opts.password,
+        salt,
+        meta.aztecAddress,
+        iterations,
+      );
+      await backend.putMeta({
+        ...meta,
+        v: 2,
+        verifier: nextVerifier,
+        verifierKind: "password",
+      });
+    } catch {
+      ok = false;
+    }
+  }
+
   if (!ok) {
-    throw new VaultError("Invalid password (or signingKey does not match this vault).");
+    throw new VaultError("Invalid password.");
   }
 
   if (meta.passkey && !opts.skipPasskey) {
     await assertVaultPasskey(meta.passkey);
   }
 
-  cek = await deriveCek(opts.password, salt, meta.iterations ?? VAULT_KDF_ITERATIONS);
+  cek = await deriveCek(opts.password, salt, iterations);
   activeAddress = meta.aztecAddress;
   unlocked = true;
   notify();

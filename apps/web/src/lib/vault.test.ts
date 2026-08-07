@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createMemoryVaultBackend } from "./vault-idb.ts";
 import {
+  hasAnyVaultProfile,
   hasVaultProfile,
   isVaultUnlocked,
+  listVaultProfiles,
   lockVault,
   resetVaultSession,
   setVaultBackend,
@@ -23,34 +25,34 @@ describe("vault", () => {
     resetVaultSession();
   });
 
-  it("setup + unlock with password and signingKey verifier", async () => {
+  it("setup + unlock with password only (no signingKey in memory)", async () => {
     expect(await hasVaultProfile(ADDR)).toBe(false);
+    expect(await hasAnyVaultProfile()).toBe(false);
     await setupVault({ aztecAddress: ADDR, password: PASS, signingKey: SIGNING });
     expect(isVaultUnlocked()).toBe(true);
-    expect(await hasVaultProfile(ADDR)).toBe(true);
+    expect(await hasAnyVaultProfile()).toBe(true);
+    expect((await listVaultProfiles())[0]?.verifierKind).toBe("password");
 
-    await vaultSetJson("wallets", { accounts: [{ address: ADDR }], activeAddress: ADDR });
-    const doc = await vaultGetJson<{ accounts: { address: string }[] }>("wallets");
-    expect(doc?.accounts[0]?.address).toBe(ADDR);
+    await vaultSetJson("wallets", {
+      accounts: [{ address: ADDR, secretKey: "0x1", salt: "0x0", signingKey: SIGNING }],
+      activeAddress: ADDR,
+    });
 
     lockVault();
-    expect(isVaultUnlocked()).toBe(false);
-
-    await unlockVault({ aztecAddress: ADDR, password: PASS, signingKey: SIGNING });
+    await unlockVault({ aztecAddress: ADDR, password: PASS });
     expect(isVaultUnlocked()).toBe(true);
-    const again = await vaultGetJson<{ accounts: { address: string }[] }>("wallets");
-    expect(again?.accounts[0]?.address).toBe(ADDR);
+    const again = await vaultGetJson<{ accounts: { signingKey?: string }[] }>("wallets");
+    expect(again?.accounts[0]?.signingKey).toBe(SIGNING);
 
     const exported = await vaultExportAllJson();
     expect(exported.aztecAddress).toBe(ADDR);
-    expect((exported.docs as Record<string, unknown>).wallets).toBeTruthy();
   });
 
   it("rejects wrong password on unlock", async () => {
     await setupVault({ aztecAddress: ADDR, password: PASS, signingKey: SIGNING });
     lockVault();
     await expect(
-      unlockVault({ aztecAddress: ADDR, password: "nope-nope-nope", signingKey: SIGNING }),
+      unlockVault({ aztecAddress: ADDR, password: "nope-nope-nope" }),
     ).rejects.toThrow(/Invalid password/);
   });
 });

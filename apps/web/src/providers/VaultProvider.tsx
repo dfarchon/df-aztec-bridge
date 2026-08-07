@@ -13,8 +13,10 @@ import {
   bindVaultAddress,
   getVaultProfile,
   getVaultSession,
+  hasAnyVaultProfile,
   hasVaultProfile,
   isVaultUnlocked,
+  listVaultProfiles,
   lockVault,
   setupVault,
   subscribeVault,
@@ -22,12 +24,17 @@ import {
   VaultError,
 } from "../lib/vault.ts";
 import {
+  getStoredAztecWallet,
+  listStoredAztecWallets,
+} from "../lib/aztec-wallet-store.ts";
+import {
   VaultUnlockModal,
   type VaultModalMode,
 } from "../components/vault/VaultUnlockModal.tsx";
 import { useUi } from "./UiProvider.tsx";
 import { pushDappLog } from "../lib/dapp-log.ts";
 import { registerVaultPasskey } from "../lib/vault-passkey.ts";
+
 type EnsureReason = "setup" | "unlock" | "secrets" | "vault-page";
 
 type VaultContextValue = {
@@ -35,10 +42,15 @@ type VaultContextValue = {
   address: string | null;
   pxeAccount: ImportedAztecAccount | null;
   secretsVisible: boolean;
+  vaultAvailable: boolean;
+  refreshVaultAvailability: () => Promise<boolean>;
   setPxeAccount: (account: ImportedAztecAccount | null) => void;
-  /** After successful PXE import: require setup if no profile. */
   requireVaultAfterPxeImport: (account: ImportedAztecAccount) => Promise<void>;
-  /** Pass `account` when React state may not have flushed yet (post-import). */
+  /**
+   * Unlock IndexedDB vault with password (+ passkey) and restore stored DF Punk account.
+   * No JSON re-import required when wallets doc exists.
+   */
+  unlockExistingVault: (aztecAddress?: string) => Promise<ImportedAztecAccount | null>;
   ensureUnlocked: (
     reason?: EnsureReason,
     account?: ImportedAztecAccount | null,
@@ -55,28 +67,52 @@ export function useVault(): VaultContextValue {
   return ctx;
 }
 
+async function loadAccountFromUnlockedVault(
+  preferredAddress?: string | null,
+): Promise<ImportedAztecAccount | null> {
+  if (preferredAddress) {
+    const one = await getStoredAztecWallet(preferredAddress);
+    if (one?.signingKey?.trim()) return one;
+  }
+  const all = await listStoredAztecWallets();
+  return all.find((a) => !!a.signingKey?.trim()) ?? all[0] ?? null;
+}
+
 export function VaultProvider(props: { children: ReactNode }) {
   const { closeWalletPanel } = useUi();
   const [pxeAccount, setPxeAccountState] = useState<ImportedAztecAccount | null>(null);
   const pxeAccountRef = useRef<ImportedAztecAccount | null>(null);
   const [unlocked, setUnlocked] = useState(() => isVaultUnlocked());
   const [address, setAddress] = useState<string | null>(() => getVaultSession()?.address ?? null);
+  const [vaultAvailable, setVaultAvailable] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<VaultModalMode>("unlock");
   const [modalBusy, setModalBusy] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   const [modalRequired, setModalRequired] = useState(false);
   const [modalPasskeyRequired, setModalPasskeyRequired] = useState(false);
+  const [modalAddress, setModalAddress] = useState<string | null>(null);
 
   const pendingResolve = useRef<((ok: boolean) => void) | null>(null);
+
+  const refreshVaultAvailability = useCallback(async () => {
+    const exists = await hasAnyVaultProfile();
+    setVaultAvailable(exists);
+    return exists;
+  }, []);
+
+  useEffect(() => {
+    void refreshVaultAvailability();
+  }, [refreshVaultAvailability]);
 
   useEffect(() => {
     return subscribeVault(() => {
       const s = getVaultSession();
       setUnlocked(!!s?.unlocked);
       setAddress(s?.address ?? null);
+      void refreshVaultAvailability();
     });
-  }, []);
+  }, [refreshVaultAvailability]);
 
   const finishModal = useCallback((ok: boolean) => {
     setModalOpen(false);
@@ -95,7 +131,6 @@ export function VaultProvider(props: { children: ReactNode }) {
           resolve(true);
           return;
         }
-        // Password modal must sit above the wallet drawer.
         closeWalletPanel();
         pendingResolve.current?.(false);
         pendingResolve.current = resolve;
@@ -103,6 +138,7 @@ export function VaultProvider(props: { children: ReactNode }) {
         setModalRequired(required);
         setModalError(null);
         setModalPasskeyRequired(false);
+        setModalAddress(aztecAddress ?? null);
         setModalOpen(true);
         if (mode === "unlock" && aztecAddress) {
           void getVaultProfile(aztecAddress).then((meta) => {
@@ -136,26 +172,68 @@ export function VaultProvider(props: { children: ReactNode }) {
         const ok = await openModal("setup", true, account.address);
         if (!ok) throw new VaultError("Vault password is required after PXE import.");
       }
+      await refreshVaultAvailability();
     },
-    [openModal, setPxeAccount],
+    [openModal, refreshVaultAvailability, setPxeAccount],
   );
 
   const ensureUnlocked = useCallback(
     async (_reason: EnsureReason = "secrets", account?: ImportedAztecAccount | null) => {
       if (isVaultUnlocked()) return true;
-      const active = account ?? pxeAccountRef.current;
       if (account) setPxeAccount(account);
-      if (!active?.signingKey?.trim()) {
-        setModalError("Connect DF Punk PXE first (signingKey required to unlock).");
+      const active = account ?? pxeAccountRef.current;
+
+      if (active?.address) {
+        const exists = await hasVaultProfile(active.address);
+        return openModal(exists ? "unlock" : "setup", false, active.address);
+      }
+
+      const profiles = await listVaultProfiles();
+      const first = profiles[0];
+      if (!first) {
         pushDappLog({
           kind: "error",
-          title: "Vault unlock blocked",
-          detail: "Import DF Punk → PXE first so signingKey is in memory for password verification.",
+          title: "No vault yet",
+          detail:
+            "Import the full DF Punk dfpunk-account-*.json (Download account info), then set a vault password.",
         });
         return false;
       }
-      const exists = await hasVaultProfile(active.address);
-      return openModal(exists ? "unlock" : "setup", false, active.address);
+      return openModal("unlock", false, first.aztecAddress);
+    },
+    [openModal, setPxeAccount],
+  );
+
+  const unlockExistingVault = useCallback(
+    async (aztecAddress?: string) => {
+      if (isVaultUnlocked()) {
+        const restored = await loadAccountFromUnlockedVault(
+          aztecAddress ?? getVaultSession()?.address ?? pxeAccountRef.current?.address,
+        );
+        if (restored) setPxeAccount(restored);
+        return restored;
+      }
+
+      let address = aztecAddress?.trim() || "";
+      if (!address) {
+        const profiles = await listVaultProfiles();
+        address = profiles[0]?.aztecAddress ?? "";
+      }
+      if (!address) {
+        throw new VaultError("No IndexedDB vault found. Import DF Punk JSON first.");
+      }
+
+      const ok = await openModal("unlock", true, address);
+      if (!ok) return null;
+
+      const restored = await loadAccountFromUnlockedVault(address);
+      if (!restored?.signingKey?.trim()) {
+        throw new VaultError(
+          "Vault unlocked, but no full DF Punk wallet JSON is stored. Import dfpunk-account-*.json from DF client “Download account info”.",
+        );
+      }
+      setPxeAccount(restored);
+      return restored;
     },
     [openModal, setPxeAccount],
   );
@@ -171,14 +249,17 @@ export function VaultProvider(props: { children: ReactNode }) {
   const onSubmitPassword = useCallback(
     async (password: string, opts: { registerPasskey: boolean }) => {
       const active = pxeAccountRef.current;
-      if (!active?.signingKey?.trim()) {
-        setModalError("Missing PXE signingKey. Re-import DF Punk → PXE.");
-        return;
-      }
+      const unlockAddr = modalAddress ?? active?.address ?? null;
+
       setModalBusy(true);
       setModalError(null);
       try {
         if (modalMode === "setup") {
+          if (!active?.address) {
+            setModalError("Missing DF Punk account. Import dfpunk-account-*.json first.");
+            setModalBusy(false);
+            return;
+          }
           let passkey = null as Awaited<ReturnType<typeof registerVaultPasskey>> | null;
           if (opts.registerPasskey) {
             pushDappLog({
@@ -204,6 +285,11 @@ export function VaultProvider(props: { children: ReactNode }) {
             ttlMs: 12_000,
           });
         } else {
+          if (!unlockAddr) {
+            setModalError("No vault profile address selected.");
+            setModalBusy(false);
+            return;
+          }
           if (modalPasskeyRequired) {
             pushDappLog({
               kind: "info",
@@ -213,24 +299,36 @@ export function VaultProvider(props: { children: ReactNode }) {
             });
           }
           await unlockVault({
-            aztecAddress: active.address,
+            aztecAddress: unlockAddr,
             password,
-            signingKey: active.signingKey,
+            signingKey: active?.signingKey,
           });
+          const restored = await loadAccountFromUnlockedVault(unlockAddr);
+          if (restored) setPxeAccount(restored);
           pushDappLog({
             kind: "info",
             title: "Vault unlocked",
-            detail: "Secrets are readable for this session.",
+            detail: restored
+              ? "DF Punk wallet restored from IndexedDB — registering into PXE next."
+              : "Secrets are readable for this session.",
             ttlMs: 8_000,
           });
         }
+        await refreshVaultAvailability();
         finishModal(true);
       } catch (e) {
         setModalBusy(false);
         setModalError(e instanceof Error ? e.message : String(e));
       }
     },
-    [finishModal, modalMode, modalPasskeyRequired],
+    [
+      finishModal,
+      modalAddress,
+      modalMode,
+      modalPasskeyRequired,
+      refreshVaultAvailability,
+      setPxeAccount,
+    ],
   );
 
   const secretsVisible = !!(pxeAccount && unlocked);
@@ -241,8 +339,11 @@ export function VaultProvider(props: { children: ReactNode }) {
       address,
       pxeAccount,
       secretsVisible,
+      vaultAvailable,
+      refreshVaultAvailability,
       setPxeAccount,
       requireVaultAfterPxeImport,
+      unlockExistingVault,
       ensureUnlocked,
       lock,
       requestUnlock,
@@ -252,8 +353,11 @@ export function VaultProvider(props: { children: ReactNode }) {
       address,
       pxeAccount,
       secretsVisible,
+      vaultAvailable,
+      refreshVaultAvailability,
       setPxeAccount,
       requireVaultAfterPxeImport,
+      unlockExistingVault,
       ensureUnlocked,
       lock,
       requestUnlock,
@@ -266,7 +370,7 @@ export function VaultProvider(props: { children: ReactNode }) {
       <VaultUnlockModal
         open={modalOpen}
         mode={modalMode}
-        aztecAddress={pxeAccount?.address ?? address}
+        aztecAddress={modalAddress ?? pxeAccount?.address ?? address}
         busy={modalBusy}
         error={modalError}
         passkeyRequired={modalPasskeyRequired}

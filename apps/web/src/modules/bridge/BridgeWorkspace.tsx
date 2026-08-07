@@ -31,7 +31,11 @@ import {
   getNetwork,
   type WebNetworkConfig,
 } from "../../config/networks.ts";
-import { readAccountFile, type ImportedAztecAccount } from "../../lib/account-import.ts";
+import {
+  assertDfClientAccount,
+  readAccountFile,
+  type ImportedAztecAccount,
+} from "../../lib/account-import.ts";
 import {
   assertBridgeStorageReady,
   BridgeStorageError,
@@ -73,7 +77,7 @@ import { NetworkIntegrityPanel } from "../network/NetworkIntegrityPanel.tsx";
 import { TxAnalysisLinks } from "../../components/ui/TxAnalysisLinks.tsx";
 import { ActionHintButton } from "../../components/ui/ActionHintButton.tsx";
 import { formatDappError, logDappError, pushDappLog } from "../../lib/dapp-log.ts";
-import { importDfPunkFileIntoPxe } from "../../lib/df-pxe-import.ts";
+import { importDfPunkFileIntoPxe, registerDfPunkAccountIntoPxe } from "../../lib/df-pxe-import.ts";
 import { saveAztecWallet } from "../../lib/aztec-wallet-store.ts";
 import {
   AZTEC_MAINNET_NODE_PUBLIC,
@@ -184,6 +188,9 @@ export function BridgeWorkspace() {
     setPxeAccount: setVaultPxeAccount,
     requireVaultAfterPxeImport,
     ensureUnlocked,
+    unlockExistingVault,
+    vaultAvailable,
+    refreshVaultAvailability,
     secretsVisible,
     requestUnlock,
     lock: lockVaultUi,
@@ -204,6 +211,7 @@ export function BridgeWorkspace() {
   const [ethSessionOk, setEthSessionOk] = useState(false);
   const [dfPxeAccount, setDfPxeAccount] = useState<ImportedAztecAccount | null>(null);
   const [gateImportingPxe, setGateImportingPxe] = useState(false);
+  const [gateUnlockingVault, setGateUnlockingVault] = useState(false);
   const [gateImportError, setGateImportError] = useState<string | null>(null);
   const walletPickerRef = useRef<HTMLDivElement>(null);
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -234,6 +242,9 @@ export function BridgeWorkspace() {
   const [feeBalance, setFeeBalance] = useState<FeeJuiceBalance | null>(null);
   const [balanceError, setBalanceError] = useState<string | null>(null);
   const [balanceRefreshing, setBalanceRefreshing] = useState(false);
+  const [l2FeeBalance, setL2FeeBalance] = useState<bigint | null>(null);
+  const [l2BalanceError, setL2BalanceError] = useState<string | null>(null);
+  const [l2BalanceRefreshing, setL2BalanceRefreshing] = useState(false);
   const [importedAccounts, setImportedAccounts] = useState<ImportedAztecAccount[]>([]);
   const [importedIndex, setImportedIndex] = useState(0);
   const [importName, setImportName] = useState<string | null>(null);
@@ -348,6 +359,7 @@ export function BridgeWorkspace() {
         const ok = await ensureUnlocked("secrets", stored);
         if (!ok) throw new Error("Vault password required after PXE import.");
         await saveAztecWallet(stored);
+        await refreshVaultAvailability();
         applyImportedAccount(stored);
         pushDappLog({
           kind: "announce",
@@ -369,9 +381,62 @@ export function BridgeWorkspace() {
       networkId,
       requireVaultAfterPxeImport,
       ensureUnlocked,
+      refreshVaultAvailability,
       applyImportedAccount,
     ],
   );
+
+  const unlockVaultFromGate = useCallback(async () => {
+    if (!ethSessionOk || !wallet) {
+      setGateImportError("Validate MetaMask / WalletConnect first — vault unlock stays locked.");
+      return;
+    }
+    if (!BROWSER_CLAIM) {
+      setGateImportError("Browser PXE is disabled — cannot register the DF account in PXE.");
+      return;
+    }
+    if (!networkMeta?.aztecNodeUrl) {
+      setGateImportError("Select a network with an Aztec node URL first (Settings).");
+      return;
+    }
+
+    setGateUnlockingVault(true);
+    setGateImportError(null);
+    setBridgePhase("Unlocking IndexedDB vault…");
+    try {
+      const restored = await unlockExistingVault();
+      if (!restored) throw new Error("Vault unlock cancelled.");
+      assertDfClientAccount(restored);
+      setBridgePhase("Restoring DF Punk wallet into PXE…");
+      const stored = await registerDfPunkAccountIntoPxe({
+        account: { ...restored, fromDfClient: true },
+        ethWallet: wallet,
+        networkId,
+        aztecNodeUrl: networkMeta.aztecNodeUrl,
+        onProgress: (detail) => setBridgePhase(detail),
+      });
+      await saveAztecWallet(stored);
+      applyImportedAccount(stored);
+      pushDappLog({
+        kind: "announce",
+        title: "Vault unlocked → PXE ready",
+        detail: `Restored ${shortHash(stored.address)} from IndexedDB, bound to ${shortHash(wallet.address)}.`,
+      });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      setGateImportError(message);
+      logDappError(e, "Unlock vault → PXE failed");
+    } finally {
+      setGateUnlockingVault(false);
+    }
+  }, [
+    ethSessionOk,
+    wallet,
+    networkMeta?.aztecNodeUrl,
+    networkId,
+    unlockExistingVault,
+    applyImportedAccount,
+  ]);
 
   const onAccountFile = useCallback(
     async (file: File | null, opts?: AccountImportOptions) => {
@@ -446,6 +511,53 @@ export function BridgeWorkspace() {
     },
     [],
   );
+
+  const refreshL2FeeBalance = useCallback(
+    async (aztecAddress: string, aztecNodeUrl: string, opts?: { spin?: boolean }) => {
+      if (!BROWSER_CLAIM) {
+        setL2FeeBalance(null);
+        setL2BalanceError("Browser PXE disabled — L2 Fee Juice balance unavailable.");
+        return;
+      }
+      const spin = opts?.spin === true;
+      const started = Date.now();
+      if (spin) {
+        setL2BalanceRefreshing(true);
+        setL2FeeBalance(null);
+        setL2BalanceError(null);
+      }
+      try {
+        setL2BalanceError(null);
+        const { loadBrowserClaim } = await import("@df-bridge/browser-sdk/claim-lazy");
+        const { getAztecFeeJuiceBalance } = await loadBrowserClaim();
+        const bal = await getAztecFeeJuiceBalance({
+          aztecNodeUrl,
+          aztecAddress,
+        });
+        setL2FeeBalance(bal);
+      } catch (e: unknown) {
+        setL2FeeBalance(null);
+        setL2BalanceError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (spin) {
+          const remain = 800 - (Date.now() - started);
+          if (remain > 0) await new Promise((r) => setTimeout(r, remain));
+          setL2BalanceRefreshing(false);
+        }
+      }
+    },
+    [],
+  );
+
+  /** Refresh L1 AZTEC + L2 Fee Juice after bridge / claim finishes. */
+  const refreshBalancesAfterAction = useCallback(() => {
+    if (wallet && networkMeta) {
+      void refreshFeeBalance(wallet, networkMeta, { spin: true });
+    }
+    if (dfPxeAccount?.address && networkMeta?.aztecNodeUrl) {
+      void refreshL2FeeBalance(dfPxeAccount.address, networkMeta.aztecNodeUrl, { spin: true });
+    }
+  }, [wallet, networkMeta, dfPxeAccount?.address, refreshFeeBalance, refreshL2FeeBalance]);
 
   // Vault-backed recovery: lazy unlock — do not fail mount while locked.
   useEffect(() => {
@@ -549,6 +661,26 @@ export function BridgeWorkspace() {
     }
     void refreshFeeBalance(wallet, networkMeta);
   }, [wallet?.address, wallet?.chainId, networkMeta, refreshFeeBalance]);
+
+  // Refresh L2 Fee Juice for the DF Punk PXE account
+  useEffect(() => {
+    const ready =
+      ethSessionOk &&
+      isTrustedConnector(wallet) &&
+      isBridgeReadyDfPxeAccount(dfPxeAccount, wallet?.address);
+    if (!ready || !dfPxeAccount?.address || !networkMeta?.aztecNodeUrl) {
+      setL2FeeBalance(null);
+      setL2BalanceError(null);
+      return;
+    }
+    void refreshL2FeeBalance(dfPxeAccount.address, networkMeta.aztecNodeUrl);
+  }, [
+    ethSessionOk,
+    wallet,
+    dfPxeAccount,
+    networkMeta?.aztecNodeUrl,
+    refreshL2FeeBalance,
+  ]);
 
   // Mainnet ETH service fee (~1 L1 tx) preview for the fee recipient treasury.
   useEffect(() => {
@@ -924,6 +1056,7 @@ export function BridgeWorkspace() {
               setBridgePhase(`L2 claim complete — ${session.l2TxHash}`);
               setProgress((prev) => finishProgress(prev, "succeeded"));
               setRecoveryPromptOpen(false);
+              refreshBalancesAfterAction();
             }
           } catch (cause: unknown) {
             if (cancelled) return;
@@ -961,7 +1094,7 @@ export function BridgeWorkspace() {
     return () => {
       cancelled = true;
     };
-  }, [networkMeta, networkId, selectedRecoveryHash, refreshSessions]);
+  }, [networkMeta, networkId, selectedRecoveryHash, refreshSessions, refreshBalancesAfterAction]);
 
   const startClaimJob = useCallback(
     async (l1Hash: string, creds: ClaimCredentials, secret: string, salt?: string, signingKey?: string) => {
@@ -1075,6 +1208,7 @@ export function BridgeWorkspace() {
           setRecoveryPromptOpen(false);
           await removeSession(networkId, l1Hash);
           await refreshSessions();
+          refreshBalancesAfterAction();
           return;
         } catch (claimError: unknown) {
           const message = claimError instanceof Error ? claimError.message : String(claimError);
@@ -1146,7 +1280,7 @@ export function BridgeWorkspace() {
       });
       await refreshSessions();
     },
-    [networkId, networkMeta, refreshSessions],
+    [networkId, networkMeta, refreshSessions, refreshBalancesAfterAction],
   );
 
   const onBridge = useCallback(async () => {
@@ -1312,6 +1446,8 @@ export function BridgeWorkspace() {
         setError(`L1 bridge completed, but ${backupErrors.join("; ")}`);
       }
 
+      refreshBalancesAfterAction();
+
       if (autoClaim) {
         setBridgePhase("Starting L2 claim…");
         await startClaimJob(result.l1TxHash, result.credentials, l2Secret.trim(), l2Salt, l2SigningKey);
@@ -1342,6 +1478,7 @@ export function BridgeWorkspace() {
     startClaimJob,
     networkId,
     refreshSessions,
+    refreshBalancesAfterAction,
     dfPxeAccount,
   ]);
 
@@ -1489,6 +1626,7 @@ export function BridgeWorkspace() {
         setProgress((prev) => finishProgress(prev, "succeeded"));
         setClaimStatus("succeeded");
         setL2TxHash(session.l2TxHash);
+        refreshBalancesAfterAction();
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : String(e);
         setProgress((prev) => finishProgress(prev, "failed"));
@@ -1514,7 +1652,7 @@ export function BridgeWorkspace() {
         setBusy(false);
       }
     },
-    [networkMeta, networkId, refreshSessions],
+    [networkMeta, networkId, refreshSessions, refreshBalancesAfterAction],
   );
 
   const onResumeClaim = useCallback(
@@ -1969,13 +2107,16 @@ export function BridgeWorkspace() {
           pxeReady={
             !!dfPxeAccount && isBridgeReadyDfPxeAccount(dfPxeAccount, wallet?.address)
           }
+          vaultAvailable={vaultAvailable}
           dfpunkPlayUrl={DFPUNK_PLAY_URL}
           canImportPxe={
             ethSessionOk && BROWSER_CLAIM && !!networkMeta?.aztecNodeUrl && !!wallet
           }
           importingPxe={gateImportingPxe}
+          unlockingVault={gateUnlockingVault}
           importError={gateImportError ?? walletConnectError}
           onImportPxeFile={importPxeFromGate}
+          onUnlockVault={unlockVaultFromGate}
         />
       ) : (
         <>
@@ -2076,222 +2217,286 @@ export function BridgeWorkspace() {
         <>
       {path === ROUTES.bridge ? (
         <>
-      <p className="hint">
+      <div className="bridge-layout">
+      <p className="hint bridge-layout-hint">
         Bridging on <span className="mono">mainnet</span> via <span className="mono">portal</span>.
         {hasRpcOverrides(rpcOverrides)
           ? " Custom RPC overrides active — verify hosts before signing."
           : null}
       </p>
 
-      {wallet ? (
-        <div className="card wallet-status">
-          <div className="wallet-status-account">
-            <strong>L1 account</strong>
-            <div className="wallet-card-address">
-              <span className="mono">
-                {wallet.address.slice(0, 10)}…{wallet.address.slice(-8)}
-              </span>
-              <button
-                type="button"
-                className="copy-address-btn"
-                aria-label="Copy wallet address"
-                title="Copy address"
-                onClick={() => void copyWalletAddress()}
-              >
-                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-                  <path
-                    fill="currentColor"
-                    d="M8 7V5c0-1.1.9-2 2-2h9c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2h-2v2c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h2Zm2 0h5c1.1 0 2 .9 2 2v5h2V5h-9v2Zm-4 2v9h9V9H6Z"
-                  />
-                </svg>
-              </button>
-              {addressCopied ? (
-                <span className="copy-success" role="status">Copied!</span>
-              ) : null}
-            </div>
-            <p className="hint">
-              Chain id: {wallet.chainId}
-              {networkMeta && wallet.chainId !== networkMeta.l1ChainId
-                ? ` (expected ${networkMeta.l1ChainId} — switch in wallet)`
-                : ""}
-            </p>
-            <p className="hint">
-              Bridging deducts from the L1 balance below.
-              {networkMeta?.l1Addresses.feeAssetHandler
-                ? " Testnet can mint via faucet if you have no tokens."
-                : " Mainnet requires L1 AZTEC + ETH for gas."}
-            </p>
-          </div>
-          <div className="wallet-status-balance">
-            <div className="wallet-status-balance-main">
-              {balanceRefreshing ? null : feeBalance ? (
-                <span className="balance-amount mono" title={`${feeBalance.formatted} ${feeBalance.symbol}`}>
-                  {feeBalance.formatted}{" "}
-                  <span className="balance-symbol">
-                    {feeBalance.symbol}
+      <div className="bridge-grid">
+        <div className="bridge-col bridge-col-account">
+          {wallet ? (
+            <div className="card wallet-status">
+              <div className="wallet-status-account">
+                <strong>L1 account</strong>
+                <div className="wallet-card-address">
+                  <span className="mono">
+                    {wallet.address.slice(0, 10)}…{wallet.address.slice(-8)}
                   </span>
-                </span>
-              ) : (
-                <span className={`balance-amount hint ${balanceError ? "error" : ""}`}>
-                  {balanceError ? "Failed" : "Loading…"}
-                </span>
-              )}
-              <button
-                type="button"
-                className={`icon-btn${balanceRefreshing ? " spinning" : ""}`}
-                aria-label="Refresh balance"
-                title="Refresh balance"
-                disabled={busy || !networkMeta || balanceRefreshing}
-                onClick={() => {
-                  if (wallet && networkMeta) {
-                    void refreshFeeBalance(wallet, networkMeta, { spin: true });
-                  }
-                }}
-              >
-                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-                  <path
-                    fill="currentColor"
-                    d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.1A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35Z"
-                  />
-                </svg>
-              </button>
-            </div>
-            {!balanceRefreshing && balanceError ? (
-              <p className="hint error balance-error">{balanceError}</p>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-
-      {dfPxeReady ? null : (
-        <p className="hint">
-          Open <strong>Wallets</strong> (top right): validate MetaMask/WalletConnect, then{" "}
-          <strong>Import from DF client → PXE</strong>. Generic file import does not unlock bridge.
-        </p>
-      )}
-
-      <label>
-        Aztec recipient address (DF Punk PXE)
-        <input
-          value={recipient}
-          onChange={(e) => {
-            if (dfPxeAccount) return; // locked to PXE-bound account
-            setRecipient(e.target.value);
-            setDfPxeAccount(null);
-          }}
-          readOnly={!!dfPxeAccount}
-          placeholder="Import DF Punk account into PXE first"
-        />
-      </label>
-      {dfPxeReady ? (
-        <p className="hint storage-status-ok">
-          Recipient locked to DF Punk PXE session (anti-inject). Bound to connector{" "}
-          <span className="mono">{shortHash(wallet!.address)}</span>.
-        </p>
-      ) : (
-        <p className="hint">
-          Bridge options stay locked until a DF Punk account is imported into PXE for this
-          connector.
-        </p>
-      )}
-      {isSponsoredFpcAddress(recipient) ? (
-        <p className="error">
-          Sponsored FPC is not a DF Punk user account — bridge button stays locked. Use DF client
-          import → PXE for play accounts.
-        </p>
-      ) : null}
-
-      <div className="amount-field">
-        <div className="amount-field-head">
-          <label htmlFor="bridge-amount-input">Amount (FJ)</label>
-          {wallet && feeBalance ? (
-            <div className="amount-balance-row">
-              <span className="hint amount-balance">
-                Balance:{" "}
-                <span className="mono">
-                  {formatFjAmount(feeBalance.balance)} {feeBalance.symbol}
-                </span>
-              </span>
-              {amountQuickAction ? (
-                <button
-                  type="button"
-                  className="ghost amount-max-btn"
-                  disabled={busy || balanceRefreshing}
-                  onClick={applyAmountQuickFill}
-                >
-                  {amountQuickAction.label}
-                </button>
-              ) : null}
+                  <button
+                    type="button"
+                    className="copy-address-btn"
+                    aria-label="Copy wallet address"
+                    title="Copy address"
+                    onClick={() => void copyWalletAddress()}
+                  >
+                    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                      <path
+                        fill="currentColor"
+                        d="M8 7V5c0-1.1.9-2 2-2h9c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2h-2v2c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h2Zm2 0h5c1.1 0 2 .9 2 2v5h2V5h-9v2Zm-4 2v9h9V9H6Z"
+                      />
+                    </svg>
+                  </button>
+                  {addressCopied ? (
+                    <span className="copy-success" role="status">
+                      Copied!
+                    </span>
+                  ) : null}
+                </div>
+                <p className="hint">
+                  Chain id: {wallet.chainId}
+                  {networkMeta && wallet.chainId !== networkMeta.l1ChainId
+                    ? ` (expected ${networkMeta.l1ChainId} — switch in wallet)`
+                    : ""}
+                </p>
+                <p className="hint">
+                  Bridging deducts from the L1 balance below.
+                  {networkMeta?.l1Addresses.feeAssetHandler
+                    ? " Testnet can mint via faucet if you have no tokens."
+                    : " Mainnet requires L1 AZTEC + ETH for gas."}
+                </p>
+              </div>
+              <div className="wallet-status-balance">
+                <div className="wallet-status-balance-main">
+                  {balanceRefreshing ? null : feeBalance ? (
+                    <span
+                      className="balance-amount mono"
+                      title={`${feeBalance.formatted} ${feeBalance.symbol}`}
+                    >
+                      {feeBalance.formatted}{" "}
+                      <span className="balance-symbol">{feeBalance.symbol}</span>
+                    </span>
+                  ) : (
+                    <span className={`balance-amount hint ${balanceError ? "error" : ""}`}>
+                      {balanceError ? "Failed" : "Loading…"}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className={`icon-btn${balanceRefreshing ? " spinning" : ""}`}
+                    aria-label="Refresh balance"
+                    title="Refresh balance"
+                    disabled={busy || !networkMeta || balanceRefreshing}
+                    onClick={() => {
+                      if (wallet && networkMeta) {
+                        void refreshFeeBalance(wallet, networkMeta, { spin: true });
+                      }
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                      <path
+                        fill="currentColor"
+                        d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.1A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35Z"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                {!balanceRefreshing && balanceError ? (
+                  <p className="hint error balance-error">{balanceError}</p>
+                ) : null}
+              </div>
             </div>
           ) : null}
+
+          {dfPxeReady ? null : (
+            <p className="hint">
+              Open <strong>Wallets</strong> (top right): validate MetaMask/WalletConnect, then{" "}
+              <strong>Import from DF client → PXE</strong>. Generic file import does not unlock
+              bridge.
+            </p>
+          )}
+
+          <label className="bridge-recipient-field">
+            Aztec recipient (DF Punk PXE)
+            <input
+              value={recipient}
+              onChange={(e) => {
+                if (dfPxeAccount) return;
+                setRecipient(e.target.value);
+                setDfPxeAccount(null);
+              }}
+              readOnly={!!dfPxeAccount}
+              placeholder="Import DF Punk account into PXE first"
+            />
+          </label>
+          {dfPxeReady ? (
+            <p className="hint storage-status-ok">
+              Locked to PXE session · bound{" "}
+              <span className="mono">{shortHash(wallet!.address)}</span>
+            </p>
+          ) : (
+            <p className="hint">
+              Bridge stays locked until a DF Punk account is imported into PXE for this connector.
+            </p>
+          )}
+          {dfPxeReady ? (
+            <div className="card pxe-balance-card">
+              <div className="pxe-balance-head">
+                <strong>Aztec PXE Fee Juice</strong>
+                <button
+                  type="button"
+                  className={`icon-btn${l2BalanceRefreshing ? " spinning" : ""}`}
+                  aria-label="Refresh Aztec Fee Juice balance"
+                  title="Refresh L2 Fee Juice"
+                  disabled={busy || l2BalanceRefreshing || !networkMeta?.aztecNodeUrl}
+                  onClick={() => {
+                    if (dfPxeAccount?.address && networkMeta?.aztecNodeUrl) {
+                      void refreshL2FeeBalance(dfPxeAccount.address, networkMeta.aztecNodeUrl, {
+                        spin: true,
+                      });
+                    }
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                    <path
+                      fill="currentColor"
+                      d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.1A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35Z"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <div className="pxe-balance-main">
+                {l2BalanceRefreshing ? (
+                  <span className="balance-amount hint">Loading…</span>
+                ) : l2FeeBalance != null ? (
+                  <span className="balance-amount mono" title={`${formatFjAmount(l2FeeBalance)} FJ`}>
+                    {formatFjAmount(l2FeeBalance)} <span className="balance-symbol">FJ</span>
+                  </span>
+                ) : (
+                  <span className={`balance-amount hint ${l2BalanceError ? "error" : ""}`}>
+                    {l2BalanceError ? "Failed" : "—"}
+                  </span>
+                )}
+              </div>
+              {!l2BalanceRefreshing && l2BalanceError ? (
+                <p className="hint error balance-error">{l2BalanceError}</p>
+              ) : (
+                <p className="hint">Public Fee Juice on Aztec for this PXE account.</p>
+              )}
+            </div>
+          ) : null}
+          {isSponsoredFpcAddress(recipient) ? (
+            <p className="error">
+              Sponsored FPC is not a DF Punk user account — bridge button stays locked. Use DF
+              client import → PXE for play accounts.
+            </p>
+          ) : null}
         </div>
-        <input
-          id="bridge-amount-input"
-          value={amountFj}
-          onChange={(e) => setAmountFj(e.target.value)}
-          inputMode="decimal"
-          placeholder={`Min ${MIN_BRIDGE_FJ}`}
-          className={
-            amountFj.trim() && (amountCheck.error || shortfall) ? "input-invalid" : undefined
-          }
-          aria-invalid={
-            amountFj.trim() && (amountCheck.error || shortfall) ? true : undefined
-          }
-          aria-describedby="bridge-amount-help"
-        />
-        <p
-          id="bridge-amount-help"
-          className={
-            amountFj.trim() && (amountCheck.error || shortfall) ? "error" : "hint"
-          }
-        >
-          {!amountFj.trim()
-            ? `Minimum ${MIN_BRIDGE_FJ} FJ per bridge.`
-            : amountCheck.error
-              ? amountCheck.error
-              : shortfall
-                ? `Insufficient balance`
-                : `Minimum ${MIN_BRIDGE_FJ} FJ per bridge.`}
-        </p>
-        {feeSplit && !amountCheck.error ? (
-          <p className="hint fee-split mono">
-            Net to Aztec {formatUnits(feeSplit.net, 18)} · AZTEC fee {formatUnits(feeSplit.fee, 18)}{" "}
-            ({BRIDGE_FEE_BPS / 100}% → treasury)
-            {ethServiceFeeWei != null && ethServiceFeeWei > 0n
-              ? ` · ETH service (~1 L1 tx) ${formatEther(ethServiceFeeWei)} → treasury`
-              : networkMeta && shouldChargeBridgeEthServiceFee(networkMeta.l1ChainId)
-                ? " · ETH service fee: estimating…"
-                : ""}
-          </p>
-        ) : null}
+
+        <div className="bridge-col bridge-col-action">
+          <div className="card bridge-amount-card">
+            <div className="amount-field">
+              <div className="amount-field-head">
+                <label htmlFor="bridge-amount-input">Amount (FJ)</label>
+                {wallet && feeBalance ? (
+                  <div className="amount-balance-row">
+                    <span className="hint amount-balance">
+                      <span className="mono">
+                        {formatFjAmount(feeBalance.balance)} {feeBalance.symbol}
+                      </span>
+                    </span>
+                    {amountQuickAction ? (
+                      <button
+                        type="button"
+                        className="ghost amount-max-btn"
+                        disabled={busy || balanceRefreshing}
+                        onClick={applyAmountQuickFill}
+                      >
+                        {amountQuickAction.label}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+              <div className="bridge-amount-input-row">
+                <input
+                  id="bridge-amount-input"
+                  value={amountFj}
+                  onChange={(e) => setAmountFj(e.target.value)}
+                  inputMode="decimal"
+                  placeholder={`Min ${MIN_BRIDGE_FJ}`}
+                  className={
+                    amountFj.trim() && (amountCheck.error || shortfall)
+                      ? "input-invalid bridge-amount-input"
+                      : "bridge-amount-input"
+                  }
+                  aria-invalid={
+                    amountFj.trim() && (amountCheck.error || shortfall) ? true : undefined
+                  }
+                  aria-describedby="bridge-amount-help"
+                />
+                <span className="bridge-amount-unit mono" aria-hidden="true">
+                  FJ
+                </span>
+              </div>
+              <p
+                id="bridge-amount-help"
+                className={
+                  amountFj.trim() && (amountCheck.error || shortfall) ? "error" : "hint"
+                }
+              >
+                {!amountFj.trim()
+                  ? `Minimum ${MIN_BRIDGE_FJ} FJ per bridge.`
+                  : amountCheck.error
+                    ? amountCheck.error
+                    : shortfall
+                      ? `Insufficient balance`
+                      : `Minimum ${MIN_BRIDGE_FJ} FJ per bridge.`}
+              </p>
+              {feeSplit && !amountCheck.error ? (
+                <p className="hint fee-split mono">
+                  Net {formatUnits(feeSplit.net, 18)} · fee {formatUnits(feeSplit.fee, 18)} (
+                  {BRIDGE_FEE_BPS / 100}%)
+                  {ethServiceFeeWei != null && ethServiceFeeWei > 0n
+                    ? ` · ETH ${formatEther(ethServiceFeeWei)}`
+                    : networkMeta && shouldChargeBridgeEthServiceFee(networkMeta.l1ChainId)
+                      ? " · ETH fee…"
+                      : ""}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <label className="check bridge-autoclaim">
+            <input
+              type="checkbox"
+              checked={autoClaim}
+              onChange={(e) => setAutoClaim(e.target.checked)}
+            />
+            <span>
+              Auto claim on L2 after bridge
+              {BROWSER_CLAIM ? " (browser PXE)" : " (API)"}
+            </span>
+          </label>
+
+          {autoClaim ? (
+            renderClaimKeyFields()
+          ) : (
+            <p className="hint">
+              Auto-claim off — download credentials after L1 and claim via CLI later.
+            </p>
+          )}
+
+          <ActionHintButton
+            label={busy ? "Working…" : bridgeButtonLabel}
+            ready={canBridge}
+            busy={busy}
+            onClick={requestBridge}
+          />
+        </div>
       </div>
-
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={autoClaim}
-          onChange={(e) => setAutoClaim(e.target.checked)}
-        />
-        <span>
-          Auto claim on L2 after bridge (needs Aztec account secret)
-          {BROWSER_CLAIM
-            ? " — runs in this browser (heavy PXE download)"
-            : " — via API"}
-        </span>
-      </label>
-
-      {autoClaim ? (
-        renderClaimKeyFields()
-      ) : (
-        <p className="hint">Auto-claim off — after L1 succeeds you can download credentials and claim via CLI later.</p>
-      )}
-
-      <ActionHintButton
-        label={busy ? "Working…" : bridgeButtonLabel}
-        ready={canBridge}
-        busy={busy}
-        onClick={requestBridge}
-      />
 
       {showBridgeResult && l1TxHash ? (
         <div className="card">
@@ -2352,6 +2557,7 @@ export function BridgeWorkspace() {
           ) : null}
         </div>
       ) : null}
+      </div>
         </>
       ) : null}
 
