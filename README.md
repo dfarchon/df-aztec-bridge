@@ -143,8 +143,12 @@ JSON defaults live in `config/networks/*.json` (currently publicnode L1 RPCs). A
 - **Git:** private monorepo [`Stx69/df-aztec-bridge`](https://github.com/Stx69/df-aztec-bridge) — default branch `main` (not public).
 - **Static-only (Netlify):** networks + L1 addresses live in `apps/web/src/config/networks.ts`.
   Deploy with [`netlify.toml`](netlify.toml) (`pnpm install --frozen-lockfile`, HTTPS + CSP headers).
-  In Netlify: **Import from Git** → GitHub **Stx69/df-aztec-bridge** → production branch **`main`**.
-  Set `VITE_BRIDGE_FEE_RECIPIENT` (and optional `VITE_WALLETCONNECT_PROJECT_ID`, `VITE_BRIDGE_PUBLIC_URL`) under **Site configuration → Environment variables** (Production), then **Clear cache and deploy**.
+  **Same env for all builds:** `[build.environment]` in `netlify.toml` + template [`.env.netlify.example`](.env.netlify.example)
+  (production / deploy-preview / branch-deploy). Web needs `VITE_*` keys only.
+  In Netlify UI you may paste the same keys under **Environment variables** (All scopes) —
+  UI values override `netlify.toml` if both are set.
+  After env changes: **Clear cache and deploy**.
+  Local `pnpm web`: copy `.env.example` → `.env`, restart Vite (Netlify UI env does not apply).
   Private GitHub ≠ private site URL: enable Netlify **visitor password / access control** if the live app must stay closed.
   Browser claim is enabled by default, so auto-claim does not need an API.
 - Auto-claim **API** (`VITE_ENABLE_BROWSER_CLAIM=false`): still needs `VITE_API_BASE` + Node `/v1/claim`.

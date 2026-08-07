@@ -1,36 +1,36 @@
 # Netlify — static web app (apps/web).
 # Production: GitHub Stx69/df-aztec-bridge (PRIVATE) → branch `main`.
-# Site build is public by URL unless you enable Netlify visitor password / SSO.
-# Required env (Site configuration → Environment variables → Production):
-#   VITE_BRIDGE_FEE_RECIPIENT=0x…   (L1 5% treasury)
-# Optional:
-#   VITE_WALLETCONNECT_PROJECT_ID=
-#   VITE_BRIDGE_PUBLIC_URL=https://<your-site>.netlify.app/
-#   VITE_DFPUNK_PLAY_URL=https://aztec.dfpunk.xyz/play/
-#   VITE_ENABLE_BROWSER_CLAIM=true
-# After changing VITE_* vars: Trigger deploy → Clear cache and deploy site.
+#
+# Env source of truth for ALL build contexts (production, deploy-preview, branch):
+#   1) [build.environment] below (same values everywhere)
+#   2) Optional UI overrides (Site → Environment variables) — must use VITE_* for web
+# Template to paste into Netlify UI: `.env.netlify.example`
+# Local `pnpm web`: use repo-root `.env` (from `.env.example`), then restart Vite.
+#
+# After changing VITE_*: Deploys → Trigger deploy → Clear cache and deploy site.
 
 [build]
   command = "pnpm install --frozen-lockfile && pnpm --filter @df-bridge/browser-sdk build && pnpm --filter @df-bridge/web build"
   publish = "apps/web/dist"
 
+# Shared by production / deploy-preview / branch deploys / Netlify CLI builds.
 [build.environment]
   NODE_VERSION = "22.23.2"
   PNPM_VERSION = "10.33.2"
-  # Keep browser PXE claim on for static-only Netlify (no API required).
   VITE_ENABLE_BROWSER_CLAIM = "true"
+  VITE_BRIDGE_FEE_RECIPIENT = "0x33D5928E1c66E831Eb250D1250bf2CfF9eACa370"
+  VITE_BRIDGE_PUBLIC_URL = "https://aztec-dfarchon-kit.netlify.app/"
+  VITE_DFPUNK_PLAY_URL = "https://aztec.dfpunk.xyz/play/"
+  VITE_MAINNET_AZTEC_NODE_URL = "https://lb.drpc.live/aztec-mainnet/AnUkBxJDjUo3ksEkgPshPngqoSJzkNIR8YO-RoYgFhqK"
 
-# Production context = Netlify "Production branch" (set to `main` in UI).
+# Contexts inherit [build.environment]; only restate the build command.
 [context.production]
   command = "pnpm install --frozen-lockfile && pnpm --filter @df-bridge/browser-sdk build && pnpm --filter @df-bridge/web build"
 
-[context.production.environment]
-  NODE_VERSION = "22.23.2"
-  PNPM_VERSION = "10.33.2"
-  VITE_ENABLE_BROWSER_CLAIM = "true"
-
-# Deploy previews from PRs on the private repo (only collaborators can open PRs).
 [context.deploy-preview]
+  command = "pnpm install --frozen-lockfile && pnpm --filter @df-bridge/browser-sdk build && pnpm --filter @df-bridge/web build"
+
+[context.branch-deploy]
   command = "pnpm install --frozen-lockfile && pnpm --filter @df-bridge/browser-sdk build && pnpm --filter @df-bridge/web build"
 
 # SPA fallback for client-side routing
