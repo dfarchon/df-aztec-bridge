@@ -254,6 +254,21 @@ export async function getClaimMessageStatus(params: {
   }
 }
 
+/**
+ * Public Fee Juice balance for an Aztec address (PXE / L2 wallet).
+ * Reads protocol Fee Juice public storage via the Aztec node — no PXE required.
+ */
+export async function getAztecFeeJuiceBalance(params: {
+  aztecNodeUrl: string;
+  apiKey?: string;
+  aztecAddress: string;
+}): Promise<bigint> {
+  const { getFeeJuiceBalance } = await import("@aztec/aztec.js/utils");
+  const node = createBrowserNode(params.aztecNodeUrl, params.apiKey);
+  const owner = AztecAddress.fromStringUnsafe(params.aztecAddress.trim());
+  return getFeeJuiceBalance(owner, node);
+}
+
 export async function waitForL2ClaimTx(params: {
   aztecNodeUrl: string;
   apiKey?: string;
