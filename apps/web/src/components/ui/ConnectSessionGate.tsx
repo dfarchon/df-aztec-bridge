@@ -5,17 +5,19 @@ import { pushDappLog } from "../../lib/dapp-log.ts";
 
 /**
  * Centered gate when MetaMask/WalletConnect + DF Punk PXE are not ready.
- * Shell frame / TopBar / Wallets chip stay visible; menus and route bodies are hidden.
+ * Prefer IndexedDB vault unlock when a password vault already exists.
  */
 export function ConnectSessionGate(props: {
   ethConnected: boolean;
   ethSessionOk: boolean;
   pxeReady: boolean;
+  vaultAvailable?: boolean;
   dfpunkPlayUrl?: string;
-  /** When ETH session is OK, allow picking dfpunk-account JSON here (step 2). */
   canImportPxe?: boolean;
   importingPxe?: boolean;
+  unlockingVault?: boolean;
   onImportPxeFile?: (file: File) => void | Promise<void>;
+  onUnlockVault?: () => void | Promise<void>;
   importError?: string | null;
 }) {
   const { openWalletPanel } = useUi();
@@ -25,8 +27,11 @@ export function ConnectSessionGate(props: {
 
   const step1Done = props.ethConnected && props.ethSessionOk;
   const step2Done = props.pxeReady;
+  const vaultAvailable = !!props.vaultAvailable;
   const importing = props.importingPxe || localBusy;
-  const canImport = !!props.canImportPxe && !!props.onImportPxeFile && !importing;
+  const unlocking = !!props.unlockingVault;
+  const canImport = !!props.canImportPxe && !!props.onImportPxeFile && !importing && !unlocking;
+  const canUnlock = step1Done && vaultAvailable && !!props.onUnlockVault && !unlocking && !importing;
 
   const pickFile = () => {
     if (!canImport) {
@@ -35,7 +40,9 @@ export function ConnectSessionGate(props: {
         kind: "info",
         title: "Open Wallets",
         detail: step1Done
-          ? "Use Import from DF client → PXE in the wallet panel."
+          ? vaultAvailable
+            ? "Unlock the IndexedDB vault, or import DF Punk JSON in the wallet panel."
+            : "Use Import from DF client → PXE in the wallet panel."
           : "Connect and validate MetaMask / WalletConnect first.",
         ttlMs: 8_000,
       });
@@ -50,8 +57,8 @@ export function ConnectSessionGate(props: {
         <p className="label">df/archon · session</p>
         <h2 className="connect-gate-title">Connect to unlock the bridge</h2>
         <p className="muted small connect-gate-lead">
-          Menus and bridge tools stay hidden until a validated Web3 connector and a DF Punk
-          account imported into PXE are ready.
+          Menus stay hidden until a validated Web3 connector and a DF Punk PXE session are ready.
+          Returning users unlock IndexedDB with password + passkey.
         </p>
 
         <ol className="connect-gate-steps">
@@ -71,14 +78,23 @@ export function ConnectSessionGate(props: {
               {step2Done ? "✓" : "2"}
             </span>
             <div>
-              <strong>DF Punk → PXE</strong>
+              <strong>{vaultAvailable ? "Unlock PXE IndexedDB" : "DF Punk → PXE"}</strong>
               <p className="hint">
-                In{" "}
-                <a href={playUrl} target="_blank" rel="noopener noreferrer">
-                  DF client
-                </a>
-                , download account info (<span className="mono">dfpunk-account-*.json</span>),
-                then import into PXE. Bridge unlocks only for that bound account.
+                {vaultAvailable ? (
+                  <>
+                    A password vault is already on this device. Unlock with password + passkey to
+                    restore PXE (no JSON re-import).
+                  </>
+                ) : (
+                  <>
+                    In{" "}
+                    <a href={playUrl} target="_blank" rel="noopener noreferrer">
+                      DF client
+                    </a>
+                    , use <strong>Download account info</strong> (
+                    <span className="mono">dfpunk-account-*.json</span>), then import into PXE.
+                  </>
+                )}
               </p>
             </div>
           </li>
@@ -93,14 +109,28 @@ export function ConnectSessionGate(props: {
             </button>
           ) : !step2Done ? (
             <>
-              <button
-                type="button"
-                className="primary connect-gate-cta"
-                disabled={!canImport && !props.onImportPxeFile}
-                onClick={pickFile}
-              >
-                {importing ? "Importing into PXE…" : "Import DF Punk JSON → PXE"}
-              </button>
+              {vaultAvailable ? (
+                <button
+                  type="button"
+                  className="primary connect-gate-cta"
+                  disabled={!canUnlock}
+                  onClick={() => {
+                    if (!props.onUnlockVault) return;
+                    void Promise.resolve(props.onUnlockVault());
+                  }}
+                >
+                  {unlocking ? "Reading PXE IndexedDB…" : "Unlock / read PXE IndexedDB"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="primary connect-gate-cta"
+                  disabled={!canImport && !props.onImportPxeFile}
+                  onClick={pickFile}
+                >
+                  {importing ? "Importing into PXE…" : "Import DF Punk JSON → PXE"}
+                </button>
+              )}
               <input
                 ref={fileRef}
                 type="file"
@@ -115,9 +145,20 @@ export function ConnectSessionGate(props: {
                   void Promise.resolve(props.onImportPxeFile(f)).finally(() => setLocalBusy(false));
                 }}
               />
-              <button type="button" className="ghost connect-gate-cta" onClick={openWalletPanel}>
-                Open Wallets panel
-              </button>
+              {vaultAvailable ? (
+                <button
+                  type="button"
+                  className="ghost connect-gate-cta"
+                  disabled={importing || unlocking}
+                  onClick={pickFile}
+                >
+                  Or import DF Punk JSON…
+                </button>
+              ) : (
+                <button type="button" className="ghost connect-gate-cta" onClick={openWalletPanel}>
+                  Open Wallets panel
+                </button>
+              )}
             </>
           ) : (
             <p className="hint storage-status-ok">Session ready — unlocking menus…</p>

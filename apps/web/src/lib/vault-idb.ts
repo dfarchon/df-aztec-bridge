@@ -12,6 +12,7 @@ export const DOCS_STORE = "docs";
 export type VaultBackend = {
   getMeta(address: string): Promise<VaultProfileMeta | null>;
   putMeta(meta: VaultProfileMeta): Promise<void>;
+  listMeta(): Promise<VaultProfileMeta[]>;
   getDoc(address: string, docId: string): Promise<VaultEnvelope | null>;
   putDoc(address: string, docId: string, envelope: VaultEnvelope): Promise<void>;
   deleteDoc(address: string, docId: string): Promise<void>;
@@ -79,6 +80,20 @@ export function createIdbVaultBackend(): VaultBackend {
         const tx = db.transaction(META_STORE, "readwrite");
         tx.objectStore(META_STORE).put(meta, metaKey(meta.aztecAddress));
         await txDone(tx);
+      } finally {
+        db.close();
+      }
+    },
+
+    async listMeta() {
+      const db = await openDb();
+      try {
+        const tx = db.transaction(META_STORE, "readonly");
+        const raw = await idbReq(tx.objectStore(META_STORE).getAll());
+        await txDone(tx);
+        return (raw as VaultProfileMeta[]).filter(
+          (m) => m && typeof m.aztecAddress === "string" && typeof m.verifier === "string",
+        );
       } finally {
         db.close();
       }
@@ -163,6 +178,9 @@ export function createMemoryVaultBackend(): VaultBackend {
     },
     async putMeta(m) {
       meta.set(metaKey(m.aztecAddress), m);
+    },
+    async listMeta() {
+      return [...meta.values()];
     },
     async getDoc(address, docId) {
       return docs.get(docKey(address, docId)) ?? null;

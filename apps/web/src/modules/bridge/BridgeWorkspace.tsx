@@ -31,7 +31,11 @@ import {
   getNetwork,
   type WebNetworkConfig,
 } from "../../config/networks.ts";
-import { readAccountFile, type ImportedAztecAccount } from "../../lib/account-import.ts";
+import {
+  assertDfClientAccount,
+  readAccountFile,
+  type ImportedAztecAccount,
+} from "../../lib/account-import.ts";
 import {
   assertBridgeStorageReady,
   BridgeStorageError,
@@ -73,7 +77,7 @@ import { NetworkIntegrityPanel } from "../network/NetworkIntegrityPanel.tsx";
 import { TxAnalysisLinks } from "../../components/ui/TxAnalysisLinks.tsx";
 import { ActionHintButton } from "../../components/ui/ActionHintButton.tsx";
 import { formatDappError, logDappError, pushDappLog } from "../../lib/dapp-log.ts";
-import { importDfPunkFileIntoPxe } from "../../lib/df-pxe-import.ts";
+import { importDfPunkFileIntoPxe, registerDfPunkAccountIntoPxe } from "../../lib/df-pxe-import.ts";
 import { saveAztecWallet } from "../../lib/aztec-wallet-store.ts";
 import {
   AZTEC_MAINNET_NODE_PUBLIC,
@@ -184,6 +188,9 @@ export function BridgeWorkspace() {
     setPxeAccount: setVaultPxeAccount,
     requireVaultAfterPxeImport,
     ensureUnlocked,
+    unlockExistingVault,
+    vaultAvailable,
+    refreshVaultAvailability,
     secretsVisible,
     requestUnlock,
     lock: lockVaultUi,
@@ -204,6 +211,7 @@ export function BridgeWorkspace() {
   const [ethSessionOk, setEthSessionOk] = useState(false);
   const [dfPxeAccount, setDfPxeAccount] = useState<ImportedAztecAccount | null>(null);
   const [gateImportingPxe, setGateImportingPxe] = useState(false);
+  const [gateUnlockingVault, setGateUnlockingVault] = useState(false);
   const [gateImportError, setGateImportError] = useState<string | null>(null);
   const walletPickerRef = useRef<HTMLDivElement>(null);
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -351,6 +359,7 @@ export function BridgeWorkspace() {
         const ok = await ensureUnlocked("secrets", stored);
         if (!ok) throw new Error("Vault password required after PXE import.");
         await saveAztecWallet(stored);
+        await refreshVaultAvailability();
         applyImportedAccount(stored);
         pushDappLog({
           kind: "announce",
@@ -372,9 +381,62 @@ export function BridgeWorkspace() {
       networkId,
       requireVaultAfterPxeImport,
       ensureUnlocked,
+      refreshVaultAvailability,
       applyImportedAccount,
     ],
   );
+
+  const unlockVaultFromGate = useCallback(async () => {
+    if (!ethSessionOk || !wallet) {
+      setGateImportError("Validate MetaMask / WalletConnect first — vault unlock stays locked.");
+      return;
+    }
+    if (!BROWSER_CLAIM) {
+      setGateImportError("Browser PXE is disabled — cannot register the DF account in PXE.");
+      return;
+    }
+    if (!networkMeta?.aztecNodeUrl) {
+      setGateImportError("Select a network with an Aztec node URL first (Settings).");
+      return;
+    }
+
+    setGateUnlockingVault(true);
+    setGateImportError(null);
+    setBridgePhase("Unlocking IndexedDB vault…");
+    try {
+      const restored = await unlockExistingVault();
+      if (!restored) throw new Error("Vault unlock cancelled.");
+      assertDfClientAccount(restored);
+      setBridgePhase("Restoring DF Punk wallet into PXE…");
+      const stored = await registerDfPunkAccountIntoPxe({
+        account: { ...restored, fromDfClient: true },
+        ethWallet: wallet,
+        networkId,
+        aztecNodeUrl: networkMeta.aztecNodeUrl,
+        onProgress: (detail) => setBridgePhase(detail),
+      });
+      await saveAztecWallet(stored);
+      applyImportedAccount(stored);
+      pushDappLog({
+        kind: "announce",
+        title: "Vault unlocked → PXE ready",
+        detail: `Restored ${shortHash(stored.address)} from IndexedDB, bound to ${shortHash(wallet.address)}.`,
+      });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      setGateImportError(message);
+      logDappError(e, "Unlock vault → PXE failed");
+    } finally {
+      setGateUnlockingVault(false);
+    }
+  }, [
+    ethSessionOk,
+    wallet,
+    networkMeta?.aztecNodeUrl,
+    networkId,
+    unlockExistingVault,
+    applyImportedAccount,
+  ]);
 
   const onAccountFile = useCallback(
     async (file: File | null, opts?: AccountImportOptions) => {
@@ -2045,13 +2107,16 @@ export function BridgeWorkspace() {
           pxeReady={
             !!dfPxeAccount && isBridgeReadyDfPxeAccount(dfPxeAccount, wallet?.address)
           }
+          vaultAvailable={vaultAvailable}
           dfpunkPlayUrl={DFPUNK_PLAY_URL}
           canImportPxe={
             ethSessionOk && BROWSER_CLAIM && !!networkMeta?.aztecNodeUrl && !!wallet
           }
           importingPxe={gateImportingPxe}
+          unlockingVault={gateUnlockingVault}
           importError={gateImportError ?? walletConnectError}
           onImportPxeFile={importPxeFromGate}
+          onUnlockVault={unlockVaultFromGate}
         />
       ) : (
         <>

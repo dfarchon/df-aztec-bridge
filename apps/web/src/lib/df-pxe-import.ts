@@ -14,8 +14,9 @@ import { pushDappLog } from "./dapp-log.ts";
 
 export type DfPxeImportProgress = (detail: string) => void;
 
-export async function importDfPunkFileIntoPxe(opts: {
-  file: File;
+/** Register an already-parsed DF Punk account (from file or vault restore) into browser PXE. */
+export async function registerDfPunkAccountIntoPxe(opts: {
+  account: ImportedAztecAccount;
   ethWallet: ConnectedWallet;
   networkId: string;
   aztecNodeUrl: string;
@@ -24,16 +25,15 @@ export async function importDfPunkFileIntoPxe(opts: {
   const live = await tryValidateConnectedWalletSession(opts.ethWallet);
   if (!live.ok) throw new Error(live.reason);
 
-  opts.onProgress?.(`Validating connector + reading DF export ${opts.file.name}…`);
-  const accounts = await readAccountFile(opts.file);
-  const primary = accounts[0];
-  if (!primary) throw new Error("No account found in file.");
+  const primary = opts.account;
   assertDfClientAccount(primary);
   if (!primary.fromDfClient) {
-    throw new Error("File is not a DF / dfpunk account export.");
+    throw new Error("Account is not a DF / dfpunk client export.");
   }
   if (!primary.signingKey?.trim()) {
-    throw new Error("DF Punk account is missing signingKey — re-download from DF client.");
+    throw new Error(
+      "DF Punk account is missing signingKey — import the full dfpunk-account-*.json from DF client “Download account info”.",
+    );
   }
 
   const { loadBrowserClaim } = await import("@df-bridge/browser-sdk/claim-lazy");
@@ -71,4 +71,32 @@ export async function importDfPunkFileIntoPxe(opts: {
     boundEthAddress: live.wallet.address.toLowerCase(),
     label: primary.label ?? "DF / dfpunk account",
   };
+}
+
+export async function importDfPunkFileIntoPxe(opts: {
+  file: File;
+  ethWallet: ConnectedWallet;
+  networkId: string;
+  aztecNodeUrl: string;
+  onProgress?: DfPxeImportProgress;
+}): Promise<ImportedAztecAccount> {
+  const live = await tryValidateConnectedWalletSession(opts.ethWallet);
+  if (!live.ok) throw new Error(live.reason);
+
+  opts.onProgress?.(`Validating connector + reading DF export ${opts.file.name}…`);
+  const accounts = await readAccountFile(opts.file);
+  const primary = accounts[0];
+  if (!primary) throw new Error("No account found in file.");
+  assertDfClientAccount(primary);
+  if (!primary.fromDfClient) {
+    throw new Error("File is not a DF / dfpunk account export.");
+  }
+
+  return registerDfPunkAccountIntoPxe({
+    account: primary,
+    ethWallet: live.wallet,
+    networkId: opts.networkId,
+    aztecNodeUrl: opts.aztecNodeUrl,
+    onProgress: opts.onProgress,
+  });
 }

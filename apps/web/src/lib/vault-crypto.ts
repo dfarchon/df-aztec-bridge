@@ -1,11 +1,14 @@
 /**
  * Password vault crypto — Web Crypto only (no npm deps).
- * CEK = PBKDF2(password, salt); verifier = HMAC-SHA256(CEK, signingKey).
+ * CEK = PBKDF2(password, salt).
+ * Verifier (v2): HMAC(password-derived key, purpose|aztecAddress) — unlock without
+ * in-memory signingKey. Legacy v1: HMAC(password-derived key, signingKey).
  */
 
 export const VAULT_KDF_ITERATIONS = 210_000;
 export const VAULT_SALT_BYTES = 16;
 export const VAULT_IV_BYTES = 12;
+export const VAULT_PASSWORD_VERIFIER_PURPOSE = "df-bridge-vault-v2";
 
 export type VaultEnvelope = {
   v: 1;
@@ -20,15 +23,18 @@ export type VaultPasskeyMeta = {
   transports?: string[];
 };
 
+export type VaultVerifierKind = "password" | "signingKey";
+
 export type VaultProfileMeta = {
-  v: 1;
+  /** 2 = password-only verifier. 1 = legacy signingKey-bound. */
+  v: 1 | 2;
   aztecAddress: string;
   salt: string;
   verifier: string;
+  verifierKind?: VaultVerifierKind;
   kdf: "PBKDF2-SHA-256";
   iterations: number;
   createdAt: number;
-  /** Optional WebAuthn second factor (device / phone passkey). */
   passkey?: VaultPasskeyMeta;
 };
 
@@ -120,6 +126,15 @@ export async function computeVerifier(
   return b64Encode(sig);
 }
 
+function timingSafeEqualB64(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 export async function verifyPassword(
   password: string,
   salt: Uint8Array,
@@ -128,12 +143,36 @@ export async function verifyPassword(
   iterations = VAULT_KDF_ITERATIONS,
 ): Promise<boolean> {
   const got = await computeVerifier(password, salt, signingKey, iterations);
-  if (got.length !== expectedVerifierB64.length) return false;
-  let diff = 0;
-  for (let i = 0; i < got.length; i++) {
-    diff |= got.charCodeAt(i) ^ expectedVerifierB64.charCodeAt(i);
-  }
-  return diff === 0;
+  return timingSafeEqualB64(got, expectedVerifierB64);
+}
+
+export async function computePasswordVerifier(
+  password: string,
+  salt: Uint8Array,
+  aztecAddress: string,
+  iterations = VAULT_KDF_ITERATIONS,
+): Promise<string> {
+  const hmacKey = await deriveHmacKey(password, salt, iterations);
+  const material = `${VAULT_PASSWORD_VERIFIER_PURPOSE}|${aztecAddress.trim().toLowerCase()}`;
+  const sig = await crypto.subtle.sign("HMAC", hmacKey, textBytes(material));
+  return b64Encode(sig);
+}
+
+export async function verifyPasswordOnly(
+  password: string,
+  salt: Uint8Array,
+  aztecAddress: string,
+  expectedVerifierB64: string,
+  iterations = VAULT_KDF_ITERATIONS,
+): Promise<boolean> {
+  const got = await computePasswordVerifier(password, salt, aztecAddress, iterations);
+  return timingSafeEqualB64(got, expectedVerifierB64);
+}
+
+export function profileUsesPasswordVerifier(meta: VaultProfileMeta): boolean {
+  if (meta.verifierKind === "password" || meta.v === 2) return true;
+  if (meta.verifierKind === "signingKey") return false;
+  return false;
 }
 
 export async function encryptJson(
