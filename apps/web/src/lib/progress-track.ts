@@ -37,11 +37,19 @@ const BRIDGE_TRACK: ProgressTrack = {
     {
       key: "eth_fee",
       label: "Paying mainnet ETH service fee (~1 L1 tx)",
-      note: "Confirm in your wallet — goes to the same treasury as the AZTEC fee.",
+      note: "Batched with AZTEC fee + approve + deposit when your wallet supports it.",
     },
     { key: "mint", label: "Minting test Fee Juice", note: "Confirm in your wallet." },
-    { key: "approve", label: "Approving Fee Juice spend", note: "Confirm in your wallet." },
-    { key: "deposit", label: "Submitting the L1 deposit", note: "Confirm in your wallet." },
+    {
+      key: "approve",
+      label: "Approving Fee Juice spend",
+      note: "Often batched with fees + deposit in one wallet confirm.",
+    },
+    {
+      key: "deposit",
+      label: "Submitting the L1 deposit",
+      note: "May share one confirm with ETH fee, AZTEC fee, and approve.",
+    },
     { key: "receipt", label: "Reading the L1 deposit event" },
     { key: "saved", label: "Saving claim credentials" },
   ],

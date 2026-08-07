@@ -116,6 +116,21 @@ contract GoBridgeTest is Test {
         assertEq(token.balanceOf(address(bridge)), 0);
     }
 
+    function test_BridgeForwardsEthServiceFee() public {
+        token.mint(user, 100 ether);
+        uint256 ethFee = 0.01 ether;
+        vm.deal(user, ethFee);
+        vm.startPrank(user);
+        token.approve(address(bridge), 100 ether);
+        bridge.bridge{value: ethFee}(bytes32(uint256(1)), 100 ether, bytes32(uint256(2)));
+        vm.stopPrank();
+
+        assertEq(feeWallet.balance, ethFee);
+        assertEq(address(bridge).balance, 0);
+        assertEq(portal.lastAmount(), 95 ether);
+        assertEq(token.balanceOf(feeWallet), 5 ether);
+    }
+
     function test_TrustedPortalOnly_AttackerNeedsSeparateDeploy() public {
         TheftPortal thief = new TheftPortal(token);
         GoBridge evil = new GoBridge(address(token), address(thief), address(handler), rescue, feeWallet);

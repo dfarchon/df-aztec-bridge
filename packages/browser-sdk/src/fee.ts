@@ -3,7 +3,7 @@
  * Net amount is what gets deposited to Aztec Fee Juice.
  *
  * On Ethereum mainnet, an additional native-ETH service fee (~1 L1 tx gas) is
- * sent to the same recipient before the AZTEC token skim (first wallet confirm).
+ * sent to the same recipient, batched with the AZTEC skim when the wallet allows.
  */
 export const BRIDGE_FEE_BPS = 500; // 5%
 export const BPS_DENOMINATOR = 10_000n;

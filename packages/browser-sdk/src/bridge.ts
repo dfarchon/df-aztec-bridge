@@ -1,4 +1,5 @@
 import { parseAbi, type EIP1193Provider, type Hex } from "viem";
+import { sendCalls, waitForCallsStatus } from "viem/actions";
 import {
   BRIDGE_CONTRACT_ABI,
   getBridgeAddress,
@@ -62,6 +63,22 @@ function notifyPending(
   }
 }
 
+function isSendCallsUnsupported(error: unknown): boolean {
+  const err = error as { name?: string; shortMessage?: string; details?: string; message?: string };
+  const text = `${err.name ?? ""} ${err.shortMessage ?? ""} ${err.details ?? ""} ${err.message ?? ""}`.toLowerCase();
+  return (
+    err.name === "MethodNotFoundRpcError" ||
+    err.name === "MethodNotSupportedRpcError" ||
+    err.name === "AtomicityNotSupportedError" ||
+    text.includes("wallet_sendcalls") ||
+    text.includes("does not exist / is not available") ||
+    text.includes("unsupported method") ||
+    text.includes("method not found") ||
+    text.includes("forceatomic") ||
+    text.includes("atomicity")
+  );
+}
+
 export async function bridgeFromConnectedWallet(params: {
   provider: EIP1193Provider;
   chainId: number;
@@ -113,8 +130,7 @@ export async function bridgeFromConnectedWallet(params: {
     throw new Error("Bridge amount too small after 5% protocol fee.");
   }
 
-  // Mainnet: first confirm is native ETH (~1 L1 tx) to the same treasury that
-  // collects the AZTEC token protocol fee.
+  // Mainnet ETH service fee (~1 L1 tx) — batched into the portal/gobridge confirm when possible.
   const ethServiceFee = await resolveBridgeEthServiceFee({
     chainId: params.expectedChainId,
     overrideWei: params.ethServiceFeeWei ?? null,
@@ -128,20 +144,6 @@ export async function bridgeFromConnectedWallet(params: {
     },
     getGasPrice: () => publicClient.getGasPrice(),
   });
-  if (ethServiceFee > 0n) {
-    progress(
-      "eth_fee_wallet",
-      `Confirm mainnet ETH service fee (~1 L1 tx) → treasury (${ethServiceFee} wei)`,
-    );
-    const ethHash = await walletClient.sendTransaction({
-      account,
-      chain,
-      to: params.feeRecipient,
-      value: ethServiceFee,
-    });
-    progress("eth_fee_wait", `Waiting for ETH fee tx ${ethHash}`);
-    await waitForTransactionReceiptWithRetry(publicClient, ethHash);
-  }
 
   if (backend === "portal") {
     return bridgeViaPortal({
@@ -154,6 +156,7 @@ export async function bridgeFromConnectedWallet(params: {
       fee,
       net,
       feeRecipient: params.feeRecipient,
+      ethServiceFee,
       mint: params.mint,
       recipientHex,
       secretHashHex,
@@ -172,6 +175,7 @@ export async function bridgeFromConnectedWallet(params: {
     addresses: params.addresses,
     amount: params.amount,
     net,
+    ethServiceFee,
     mint: params.mint,
     recipientHex,
     secretHashHex,
@@ -186,6 +190,36 @@ export async function bridgeFromConnectedWallet(params: {
 
 type Clients = Awaited<ReturnType<typeof getL1Clients>>;
 
+type PortalCall =
+  | { to: Hex; value: bigint }
+  | {
+      to: Hex;
+      abi: typeof erc20WriteAbi | typeof feeJuicePortalAbi;
+      functionName: "transfer" | "approve" | "depositToAztecPublic";
+      args: readonly unknown[];
+    };
+
+async function tryWalletSendCalls(params: {
+  walletClient: Clients["walletClient"];
+  account: Clients["account"];
+  chain: Clients["chain"];
+  calls: PortalCall[];
+  forceAtomic: boolean;
+}): Promise<Hex | null> {
+  try {
+    const { id } = await sendCalls(params.walletClient, {
+      account: params.account,
+      chain: params.chain,
+      forceAtomic: params.forceAtomic,
+      calls: params.calls,
+    });
+    return id as Hex;
+  } catch (error) {
+    if (isSendCallsUnsupported(error)) return null;
+    throw error;
+  }
+}
+
 async function bridgeViaPortal(params: {
   publicClient: Clients["publicClient"];
   walletClient: Clients["walletClient"];
@@ -196,6 +230,7 @@ async function bridgeViaPortal(params: {
   fee: bigint;
   net: bigint;
   feeRecipient: Hex;
+  ethServiceFee: bigint;
   mint: boolean;
   recipientHex: Hex;
   secretHashHex: Hex;
@@ -214,6 +249,7 @@ async function bridgeViaPortal(params: {
     fee,
     net,
     feeRecipient,
+    ethServiceFee,
     mint,
     recipientHex,
     secretHashHex,
@@ -247,6 +283,123 @@ async function bridgeViaPortal(params: {
     }
   }
 
+  progress("check_allowance", "Checking ERC20 allowance for FeeJuicePortal");
+  const currentAllowance = (await viemReadContract(publicClient, {
+    address: token,
+    abi: erc20ReadAbi,
+    functionName: "allowance",
+    args: [account, portal],
+  })) as bigint;
+  const needsApprove = currentAllowance < net;
+
+  const batchCalls: PortalCall[] = [];
+  if (ethServiceFee > 0n) {
+    batchCalls.push({ to: feeRecipient, value: ethServiceFee });
+  }
+  if (fee > 0n) {
+    batchCalls.push({
+      to: token,
+      abi: erc20WriteAbi,
+      functionName: "transfer",
+      args: [feeRecipient, fee],
+    });
+  }
+  if (needsApprove) {
+    batchCalls.push({
+      to: token,
+      abi: erc20WriteAbi,
+      functionName: "approve",
+      args: [portal, net],
+    });
+  }
+  batchCalls.push({
+    to: portal,
+    abi: feeJuicePortalAbi,
+    functionName: "depositToAztecPublic",
+    args: [recipientHex, net, secretHashHex],
+  });
+
+  // Prefer one wallet confirm for ETH fee + AZTEC fee + approve + deposit (EIP-5792).
+  let hash: Hex | null = null;
+  if (batchCalls.length > 1) {
+    progress(
+      ethServiceFee > 0n ? "eth_fee_wallet" : "bridge_wallet",
+      "Confirm batched L1 bridge (ETH fee + AZTEC fee + approve + deposit) in wallet",
+    );
+    let bundleId =
+      (await tryWalletSendCalls({
+        walletClient,
+        account,
+        chain,
+        calls: batchCalls,
+        forceAtomic: true,
+      })) ??
+      (await tryWalletSendCalls({
+        walletClient,
+        account,
+        chain,
+        calls: batchCalls,
+        forceAtomic: false,
+      }));
+
+    if (bundleId) {
+      progress("bridge_wait", `Waiting for batched bridge ${bundleId}`);
+      const status = await waitForCallsStatus(walletClient, {
+        id: bundleId,
+        timeout: 600_000,
+        throwOnFailure: true,
+      });
+      const receipts = status.receipts ?? [];
+      const depositReceipt = receipts[receipts.length - 1];
+      const depositHash = depositReceipt?.transactionHash as Hex | undefined;
+      if (!depositHash) {
+        throw new Error("Batched bridge completed without a deposit transaction hash.");
+      }
+      hash = depositHash;
+      notifyPending(onPending, {
+        l1TxHash: hash,
+        claimSecret,
+        claimSecretHash: secretHashHex,
+        claimAmount: net.toString(),
+        recipient: aztecRecipient,
+        portal,
+      });
+      const receipt = await waitForTransactionReceiptWithRetry(publicClient, hash);
+      progress("parse_receipt", "Parsing DepositToAztecPublic event");
+      const event = extractDepositEvent(receipt, {
+        portal,
+        to: recipientHex,
+        amount: net,
+        secretHash: secretHashHex,
+      });
+      const credentials: ClaimCredentials = {
+        claimSecret,
+        claimSecretHash: secretHashHex,
+        messageHash: event.key,
+        messageLeafIndex: event.index.toString(),
+        claimAmount: net.toString(),
+        recipient: aztecRecipient,
+      };
+      return { l1TxHash: hash, credentials, sender: account };
+    }
+  }
+
+  // Fallback: sequential confirms (wallets without EIP-5792).
+  if (ethServiceFee > 0n) {
+    progress(
+      "eth_fee_wallet",
+      `Confirm mainnet ETH service fee (~1 L1 tx) → treasury (${ethServiceFee} wei)`,
+    );
+    const ethHash = await walletClient.sendTransaction({
+      account,
+      chain,
+      to: feeRecipient,
+      value: ethServiceFee,
+    });
+    progress("eth_fee_wait", `Waiting for ETH fee tx ${ethHash}`);
+    await waitForTransactionReceiptWithRetry(publicClient, ethHash);
+  }
+
   if (fee > 0n) {
     progress("bridge_wallet", "Confirm 5% protocol fee transfer");
     const feeHash = await walletClient.writeContract({
@@ -261,15 +414,7 @@ async function bridgeViaPortal(params: {
     await waitForTransactionReceiptWithRetry(publicClient, feeHash);
   }
 
-  progress("check_allowance", "Checking ERC20 allowance for FeeJuicePortal");
-  const currentAllowance = (await viemReadContract(publicClient, {
-    address: token,
-    abi: erc20ReadAbi,
-    functionName: "allowance",
-    args: [account, portal],
-  })) as bigint;
-
-  if (currentAllowance < net) {
+  if (needsApprove) {
     progress("approve_wallet", "Confirm token approve (portal) in wallet");
     const approveHash = await walletClient.writeContract({
       address: token,
@@ -284,7 +429,7 @@ async function bridgeViaPortal(params: {
   }
 
   progress("bridge_wallet", "Confirm depositToAztecPublic in wallet");
-  const hash = await walletClient.writeContract({
+  hash = await walletClient.writeContract({
     address: portal,
     abi: feeJuicePortalAbi,
     functionName: "depositToAztecPublic",
@@ -331,6 +476,7 @@ async function bridgeViaGoBridge(params: {
   addresses: L1Addresses;
   amount: bigint;
   net: bigint;
+  ethServiceFee: bigint;
   mint: boolean;
   recipientHex: Hex;
   secretHashHex: Hex;
@@ -349,6 +495,7 @@ async function bridgeViaGoBridge(params: {
     addresses,
     amount,
     net,
+    ethServiceFee,
     mint,
     recipientHex,
     secretHashHex,
@@ -379,7 +526,12 @@ async function bridgeViaGoBridge(params: {
   let hash: Hex;
 
   if (mint && addresses.feeAssetHandler) {
-    progress("bridge_wallet", "Confirm mintAndBridge in your wallet");
+    progress(
+      ethServiceFee > 0n ? "eth_fee_wallet" : "bridge_wallet",
+      ethServiceFee > 0n
+        ? "Confirm mintAndBridge + ETH service fee in your wallet"
+        : "Confirm mintAndBridge in your wallet",
+    );
     hash = await walletClient.writeContract({
       address: bridgeAddr,
       abi: BRIDGE_CONTRACT_ABI,
@@ -387,6 +539,7 @@ async function bridgeViaGoBridge(params: {
       args: [recipientHex, amount, secretHashHex],
       account,
       chain,
+      value: ethServiceFee > 0n ? ethServiceFee : undefined,
     });
   } else {
     progress("check_allowance", "Checking ERC20 allowance");
@@ -411,7 +564,12 @@ async function bridgeViaGoBridge(params: {
       await waitForTransactionReceiptWithRetry(publicClient, approveHash);
     }
 
-    progress("bridge_wallet", "Approve done — confirm bridge tx in your wallet");
+    progress(
+      ethServiceFee > 0n ? "eth_fee_wallet" : "bridge_wallet",
+      ethServiceFee > 0n
+        ? "Confirm bridge + ETH service fee (AZTEC fee skimmed onchain) in your wallet"
+        : "Approve done — confirm bridge tx in your wallet",
+    );
     hash = await walletClient.writeContract({
       address: bridgeAddr,
       abi: BRIDGE_CONTRACT_ABI,
@@ -419,6 +577,7 @@ async function bridgeViaGoBridge(params: {
       args: [recipientHex, amount, secretHashHex],
       account,
       chain,
+      value: ethServiceFee > 0n ? ethServiceFee : undefined,
     });
   }
 

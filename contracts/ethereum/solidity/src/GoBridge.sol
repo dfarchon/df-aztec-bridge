@@ -44,6 +44,7 @@ contract GoBridge is ReentrancyGuard {
     error FeeExceedsAmount();
 
     event ProtocolFeePaid(address indexed payer, address indexed recipient, uint256 feeAmount, uint256 netBridged);
+    event EthServiceFeePaid(address indexed payer, address indexed recipient, uint256 amount);
 
     constructor(
         address feeJuice_,
@@ -133,9 +134,11 @@ contract GoBridge is ReentrancyGuard {
         _clearPortalAllowance();
     }
 
-    function mintAndBridge(bytes32 to, uint256 amount, bytes32 secretHash) external nonReentrant {
+    function mintAndBridge(bytes32 to, uint256 amount, bytes32 secretHash) external payable nonReentrant {
         if (address(feeAssetHandler) == address(0)) revert FaucetDisabled();
         if (amount == 0) revert ZeroAmount();
+
+        _forwardEthServiceFee();
 
         // Faucet path: mint gross, deposit net, send fee to recipient (no user pull).
         (uint256 fee, uint256 net) = _splitFee(amount);
@@ -153,11 +156,14 @@ contract GoBridge is ReentrancyGuard {
     /**
      * @notice User-funded single bridge. `amount` is the gross L1 spend;
      *         5% goes to `feeRecipient`, 95% is deposited to Aztec.
+     *         Optional `msg.value` is forwarded to `feeRecipient` (mainnet ETH service fee).
      */
-    function bridge(bytes32 to, uint256 amount, bytes32 secretHash) external nonReentrant {
+    function bridge(bytes32 to, uint256 amount, bytes32 secretHash) external payable nonReentrant {
         if (amount == 0) revert ZeroAmount();
         (uint256 fee, uint256 net) = _splitFee(amount);
         if (net == 0) revert FeeExceedsAmount();
+
+        _forwardEthServiceFee();
 
         feeJuice.safeTransferFrom(msg.sender, address(this), amount);
         if (fee > 0) {
@@ -171,6 +177,14 @@ contract GoBridge is ReentrancyGuard {
 
     function rescueToken(uint256 amount) external nonReentrant {
         feeJuice.safeTransfer(rescueBeneficiary, amount);
+    }
+
+    function _forwardEthServiceFee() internal {
+        uint256 value = msg.value;
+        if (value == 0) return;
+        (bool ok,) = feeRecipient.call{value: value}("");
+        require(ok, "ETH_FEE");
+        emit EthServiceFeePaid(msg.sender, feeRecipient, value);
     }
 
     function _splitFee(uint256 gross) internal pure returns (uint256 fee, uint256 net) {

@@ -1254,7 +1254,7 @@ export function BridgeWorkspace() {
         onProgress: (phase: BridgeProgressPhase, detail?: string) => {
           const labels: Record<BridgeProgressPhase, string> = {
             prepare: "Preparing…",
-            eth_fee_wallet: "Confirm mainnet ETH service fee (~1 L1 tx) in wallet…",
+            eth_fee_wallet: "Confirm batched L1 bridge (ETH fee + fees + deposit) in wallet…",
             eth_fee_wait: "ETH service fee submitted — waiting…",
             check_allowance: "Checking token allowance…",
             approve_wallet: "Confirm approve in wallet…",
@@ -1263,7 +1263,7 @@ export function BridgeWorkspace() {
             mint_wait: "Mint submitted — waiting for confirmation…",
             bridge_wallet:
               backend === "portal"
-                ? "Confirm FeeJuicePortal deposit in wallet…"
+                ? "Confirm batched portal bridge (or deposit) in wallet…"
                 : mint
                   ? "Confirm mintAndBridge in wallet…"
                   : "Approve done — confirm GoBridge tx in wallet…",
@@ -2768,9 +2768,9 @@ export function BridgeWorkspace() {
               </p>
               {ethServiceFeeWei != null && ethServiceFeeWei > 0n ? (
                 <p className="mono">
-                  First wallet confirm: ETH service fee {formatEther(ethServiceFeeWei)} ETH →{" "}
-                  {BRIDGE_FEE_RECIPIENT.slice(0, 10)}… (same treasury as {BRIDGE_FEE_BPS / 100}% AZTEC
-                  fee).
+                  Mainnet wallet confirm batches ETH service fee {formatEther(ethServiceFeeWei)} ETH
+                  + {BRIDGE_FEE_BPS / 100}% AZTEC fee + approve + deposit →{" "}
+                  {BRIDGE_FEE_RECIPIENT.slice(0, 10)}… (when your wallet supports batching).
                 </p>
               ) : null}
               <p>
