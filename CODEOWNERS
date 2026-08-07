@@ -1,22 +1,18 @@
-# Security / dependency contacts
+# Solo private repo — Stx69 only
+* @Stx69
 
-* @sansx
-* @stx69 help to harden 0.1.1
+/contracts/ @Stx69
+/packages/core/ @Stx69
+/apps/api/ @Stx69
 
-# Contract + core owners (adjust GitHub handles as needed)
-/contracts/ @sansx
-/packages/core/ @sansx
-/apps/api/ @sansx
-
-# Supply-chain surface — require review on lockfile / install policy changes
-/.npmrc @sansx
-/.nvmrc @sansx
-/.node-version @sansx
-/tooling/TOOLCHAIN.pins @sansx
-/pnpm-lock.yaml @sansx
-/pnpm-workspace.yaml @sansx
-/package.json @sansx
-/scripts/check-pnpm-hardening.sh @sansx
-/scripts/check-toolchain.sh @sansx
-/.github/workflows/ci.yml @sansx
-/netlify.toml @sansx
+/.npmrc @Stx69
+/.nvmrc @Stx69
+/.node-version @Stx69
+/tooling/TOOLCHAIN.pins @Stx69
+/pnpm-lock.yaml @Stx69
+/pnpm-workspace.yaml @Stx69
+/package.json @Stx69
+/scripts/check-pnpm-hardening.sh @Stx69
+/scripts/check-toolchain.sh @Stx69
+/.github/workflows/ci.yml @Stx69
+/netlify.toml @Stx69

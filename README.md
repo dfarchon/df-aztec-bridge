@@ -140,11 +140,14 @@ JSON defaults live in `config/networks/*.json` (currently publicnode L1 RPCs). A
 
 ## Deploy notes
 
+- **Git:** private monorepo [`Stx69/df-aztec-bridge`](https://github.com/Stx69/df-aztec-bridge) — default branch `main` (not public).
 - **Static-only (Netlify):** networks + L1 addresses live in `apps/web/src/config/networks.ts`.
   Deploy with [`netlify.toml`](netlify.toml) (`pnpm install --frozen-lockfile`, HTTPS + CSP headers).
-  Set `VITE_BRIDGE_FEE_RECIPIENT` in Netlify env for the 5% L1 fee.
+  In Netlify: **Import from Git** → GitHub **Stx69/df-aztec-bridge** → production branch **`main`**.
+  Set `VITE_BRIDGE_FEE_RECIPIENT` (and optional `VITE_WALLETCONNECT_PROJECT_ID`, `VITE_BRIDGE_PUBLIC_URL`) under **Site configuration → Environment variables** (Production), then **Clear cache and deploy**.
+  Private GitHub ≠ private site URL: enable Netlify **visitor password / access control** if the live app must stay closed.
   Browser claim is enabled by default, so auto-claim does not need an API.
 - Auto-claim **API** (`VITE_ENABLE_BROWSER_CLAIM=false`): still needs `VITE_API_BASE` + Node `/v1/claim`.
 - Optional URL overrides: `VITE_TESTNET_AZTEC_NODE_URL`, `VITE_MAINNET_L1_RPC_URL`, etc.
-- Browser claim needs COOP/COEP headers (Vite sets them when the flag is on).
+- Browser claim needs COOP/COEP headers (Vite / Netlify set them when the flag is on).
 

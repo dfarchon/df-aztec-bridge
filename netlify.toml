@@ -1,4 +1,15 @@
-# Netlify — static web app (apps/web). Force HTTPS + hardened headers.
+# Netlify — static web app (apps/web).
+# Production: GitHub Stx69/df-aztec-bridge (PRIVATE) → branch `main`.
+# Site build is public by URL unless you enable Netlify visitor password / SSO.
+# Required env (Site configuration → Environment variables → Production):
+#   VITE_BRIDGE_FEE_RECIPIENT=0x…   (L1 5% treasury)
+# Optional:
+#   VITE_WALLETCONNECT_PROJECT_ID=
+#   VITE_BRIDGE_PUBLIC_URL=https://<your-site>.netlify.app/
+#   VITE_DFPUNK_PLAY_URL=https://aztec.dfpunk.xyz/play/
+#   VITE_ENABLE_BROWSER_CLAIM=true
+# After changing VITE_* vars: Trigger deploy → Clear cache and deploy site.
+
 [build]
   command = "pnpm install --frozen-lockfile && pnpm --filter @df-bridge/browser-sdk build && pnpm --filter @df-bridge/web build"
   publish = "apps/web/dist"
@@ -6,6 +17,21 @@
 [build.environment]
   NODE_VERSION = "22.23.2"
   PNPM_VERSION = "10.33.2"
+  # Keep browser PXE claim on for static-only Netlify (no API required).
+  VITE_ENABLE_BROWSER_CLAIM = "true"
+
+# Production context = Netlify "Production branch" (set to `main` in UI).
+[context.production]
+  command = "pnpm install --frozen-lockfile && pnpm --filter @df-bridge/browser-sdk build && pnpm --filter @df-bridge/web build"
+
+[context.production.environment]
+  NODE_VERSION = "22.23.2"
+  PNPM_VERSION = "10.33.2"
+  VITE_ENABLE_BROWSER_CLAIM = "true"
+
+# Deploy previews from PRs on the private repo (only collaborators can open PRs).
+[context.deploy-preview]
+  command = "pnpm install --frozen-lockfile && pnpm --filter @df-bridge/browser-sdk build && pnpm --filter @df-bridge/web build"
 
 # SPA fallback for client-side routing
 [[redirects]]

@@ -39,6 +39,9 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 
+# Netlify CLI local link state (site id) — do not commit
+.netlify/
+
 # Accidental empty / junk files
 df-aztec-bridge-kit@0.1.0
 /node
