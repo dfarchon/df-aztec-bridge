@@ -2,14 +2,12 @@ export const ROUTES = {
   home: "/",
   bridge: "/bridge",
   recover: "/recover",
-  network: "/network",
   vault: "/vault",
 } as const;
 
 export type AppRoutePath =
   | typeof ROUTES.bridge
   | typeof ROUTES.recover
-  | typeof ROUTES.network
   | typeof ROUTES.vault;
 
 export type NavItem = {
@@ -33,12 +31,6 @@ export const NAV_ITEMS: NavItem[] = [
     description: "Resume claim credentials",
   },
   {
-    path: ROUTES.network,
-    label: "Network",
-    short: "N",
-    description: "Integrity and RPC",
-  },
-  {
     path: ROUTES.vault,
     label: "Vault",
     short: "V",
@@ -49,10 +41,11 @@ export const NAV_ITEMS: NavItem[] = [
 export function normalizePath(pathname: string): string {
   if (!pathname || pathname === "/") return ROUTES.bridge;
   const cleaned = pathname.replace(/\/+$/, "") || "/";
+  // Legacy /network bookmarks → bridge (integrity lives on bridge; setup in wallet manager)
+  if (cleaned === "/network") return ROUTES.bridge;
   if (
     cleaned === ROUTES.bridge ||
     cleaned === ROUTES.recover ||
-    cleaned === ROUTES.network ||
     cleaned === ROUTES.vault
   ) {
     return cleaned;
@@ -64,7 +57,6 @@ export function isAppRoute(path: string): path is AppRoutePath {
   return (
     path === ROUTES.bridge ||
     path === ROUTES.recover ||
-    path === ROUTES.network ||
     path === ROUTES.vault
   );
 }

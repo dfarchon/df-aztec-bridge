@@ -536,6 +536,22 @@ label {
   cursor: not-allowed;
 }
 
+.wallet-manager-network {
+  margin: 0.75rem 0 1rem;
+}
+
+.wallet-manager-network > .label {
+  margin-bottom: 0.15rem;
+}
+
+.wallet-manager-network .network-row {
+  margin-top: 0.4rem;
+}
+
+.wallet-manager-network > .hint {
+  margin-top: 0.45rem;
+}
+
 input,
 select,
 button {
