@@ -33,11 +33,21 @@ export {
   type BridgeProgressPhase,
   type L1BridgeBackend,
 } from "./bridge.ts";
-export { computeBridgeFee, BRIDGE_FEE_BPS, isValidFeeRecipient } from "./fee.ts";
+export {
+  computeBridgeFee,
+  BRIDGE_FEE_BPS,
+  BRIDGE_ETH_FEE_CHAIN_ID,
+  BRIDGE_ETH_SERVICE_FEE_GAS,
+  isValidFeeRecipient,
+  shouldChargeBridgeEthServiceFee,
+  resolveBridgeEthServiceFee,
+  parseEthFeeWeiOverride,
+} from "./fee.ts";
 export {
   waitForTransactionReceiptWithRetry,
   aztecRecipientToBytes32,
   getFeeJuiceBalance,
+  getL1PublicClient,
   watchProviderSession,
   type FeeJuiceBalance,
 } from "./clients.ts";

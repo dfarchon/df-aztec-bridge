@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { formatUnits, type Hex } from "viem";
+import { formatEther, formatUnits, type Hex } from "viem";
 import {
   bridgeFromConnectedWallet,
   connectEvmWalletDetail,
@@ -8,12 +8,16 @@ import {
   discoverWallets,
   formatWalletError,
   getFeeJuiceBalance,
+  getL1PublicClient,
   isWalletUserRejection,
   resumePendingBridge,
   switchWalletChain,
   watchProviderSession,
   computeBridgeFee,
   BRIDGE_FEE_BPS,
+  parseEthFeeWeiOverride,
+  resolveBridgeEthServiceFee,
+  shouldChargeBridgeEthServiceFee,
   type BridgeProgressPhase,
   type ClaimCredentials,
   type ConnectedWallet,
@@ -103,8 +107,12 @@ type NetworkMeta = WebNetworkConfig;
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
 const WC_PROJECT_ID = (import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as string | undefined)?.trim() ?? "";
-/** Anonymous Trezor / treasury — 5% protocol fee (build-time / Netlify env). */
+/** Anonymous Trezor / treasury — 5% AZTEC + mainnet ETH service fee. */
 const BRIDGE_FEE_RECIPIENT = (import.meta.env.VITE_BRIDGE_FEE_RECIPIENT as string | undefined)?.trim() ?? "";
+/** Optional fixed mainnet ETH service fee (wei). Empty = estimate from gas × ~1 L1 tx. */
+const BRIDGE_ETH_FEE_WEI_OVERRIDE = parseEthFeeWeiOverride(
+  (import.meta.env.VITE_BRIDGE_ETH_FEE_WEI as string | undefined) ?? "",
+);
 const BRIDGE_PUBLIC_URL =
   (import.meta.env.VITE_BRIDGE_PUBLIC_URL as string | undefined)?.trim() ||
   "https://df-atlas.onchainreality.xyz/";
@@ -209,6 +217,7 @@ export function BridgeWorkspace() {
   const [showL2Secret, setShowL2Secret] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ethServiceFeeWei, setEthServiceFeeWei] = useState<bigint | null>(null);
   const [bridgePhase, setBridgePhase] = useState<string | null>(null);
   const [progress, setProgress] = useState<ProgressState | null>(null);
   const [l1TxHash, setL1TxHash] = useState<string | null>(null);
@@ -540,6 +549,39 @@ export function BridgeWorkspace() {
     }
     void refreshFeeBalance(wallet, networkMeta);
   }, [wallet?.address, wallet?.chainId, networkMeta, refreshFeeBalance]);
+
+  // Mainnet ETH service fee (~1 L1 tx) preview for the fee recipient treasury.
+  useEffect(() => {
+    if (!networkMeta || !shouldChargeBridgeEthServiceFee(networkMeta.l1ChainId)) {
+      setEthServiceFeeWei(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const publicClient = getL1PublicClient(networkMeta.l1RpcUrl, networkMeta.l1ChainId);
+        const wei = await resolveBridgeEthServiceFee({
+          chainId: networkMeta.l1ChainId,
+          overrideWei: BRIDGE_ETH_FEE_WEI_OVERRIDE,
+          getMaxFeePerGas: async () => {
+            try {
+              const fees = await publicClient.estimateFeesPerGas();
+              return fees.maxFeePerGas ?? null;
+            } catch {
+              return null;
+            }
+          },
+          getGasPrice: () => publicClient.getGasPrice(),
+        });
+        if (!cancelled) setEthServiceFeeWei(wei > 0n ? wei : null);
+      } catch {
+        if (!cancelled) setEthServiceFeeWei(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [networkMeta?.id, networkMeta?.l1ChainId, networkMeta?.l1RpcUrl]);
 
   const connectDetail = useCallback(
     async (detail: EIP6963ProviderDetail) => {
@@ -1183,6 +1225,7 @@ export function BridgeWorkspace() {
         backend,
         l1RpcUrl: networkMeta.l1RpcUrl,
         feeRecipient: BRIDGE_FEE_RECIPIENT as Hex,
+        ethServiceFeeWei: BRIDGE_ETH_FEE_WEI_OVERRIDE ?? ethServiceFeeWei ?? undefined,
         onPending: async (pending: PendingBridge) => {
           setL1TxHash(pending.l1TxHash);
           setShowBridgeResult(true);
@@ -1211,6 +1254,8 @@ export function BridgeWorkspace() {
         onProgress: (phase: BridgeProgressPhase, detail?: string) => {
           const labels: Record<BridgeProgressPhase, string> = {
             prepare: "Preparing…",
+            eth_fee_wallet: "Confirm mainnet ETH service fee (~1 L1 tx) in wallet…",
+            eth_fee_wait: "ETH service fee submitted — waiting…",
             check_allowance: "Checking token allowance…",
             approve_wallet: "Confirm approve in wallet…",
             approve_wait: "Approve submitted — waiting for confirmation…",
@@ -1943,7 +1988,7 @@ export function BridgeWorkspace() {
         <a href={DFPUNK_PLAY_URL} target="_blank" rel="noreferrer">
           dfpunk aztec
         </a>
-        . Protocol fee {BRIDGE_FEE_BPS / 100}% → L1 treasury.
+        . Protocol fee {BRIDGE_FEE_BPS / 100}% AZTEC + mainnet ETH (~1 L1 tx) → L1 treasury.
       </p>
 
       {path === ROUTES.bridge ? (
@@ -2210,8 +2255,13 @@ export function BridgeWorkspace() {
         </p>
         {feeSplit && !amountCheck.error ? (
           <p className="hint fee-split mono">
-            Net to Aztec {formatUnits(feeSplit.net, 18)} · fee {formatUnits(feeSplit.fee, 18)} (
-            {BRIDGE_FEE_BPS / 100}%)
+            Net to Aztec {formatUnits(feeSplit.net, 18)} · AZTEC fee {formatUnits(feeSplit.fee, 18)}{" "}
+            ({BRIDGE_FEE_BPS / 100}% → treasury)
+            {ethServiceFeeWei != null && ethServiceFeeWei > 0n
+              ? ` · ETH service (~1 L1 tx) ${formatEther(ethServiceFeeWei)} → treasury`
+              : networkMeta && shouldChargeBridgeEthServiceFee(networkMeta.l1ChainId)
+                ? " · ETH service fee: estimating…"
+                : ""}
           </p>
         ) : null}
       </div>
@@ -2716,6 +2766,13 @@ export function BridgeWorkspace() {
                 transaction is submitted. After L1 confirmation, the complete credentials
                 JSON will download automatically.
               </p>
+              {ethServiceFeeWei != null && ethServiceFeeWei > 0n ? (
+                <p className="mono">
+                  First wallet confirm: ETH service fee {formatEther(ethServiceFeeWei)} ETH →{" "}
+                  {BRIDGE_FEE_RECIPIENT.slice(0, 10)}… (same treasury as {BRIDGE_FEE_BPS / 100}% AZTEC
+                  fee).
+                </p>
+              ) : null}
               <p>
                 Complete credentials do not exist until the L1 receipt is confirmed. Keep
                 this page open, allow the download, and store the JSON somewhere safe.

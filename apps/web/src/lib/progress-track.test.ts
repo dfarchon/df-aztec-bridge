@@ -18,6 +18,8 @@ describe("phase mapping", () => {
     expect(bridgePhaseStep("check_allowance")).toBe("approve");
     expect(bridgePhaseStep("bridge_wallet")).toBe("deposit");
     expect(bridgePhaseStep("bridge_wait")).toBe("deposit");
+    expect(bridgePhaseStep("eth_fee_wallet")).toBe("eth_fee");
+    expect(bridgePhaseStep("eth_fee_wait")).toBe("eth_fee");
   });
 
   it("maps every claim phase to a step that exists in the claim track", () => {

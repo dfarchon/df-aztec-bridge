@@ -23,12 +23,14 @@ import {
   erc20WriteAbi,
   waitForTransactionReceiptWithRetry,
 } from "./clients.ts";
-import { computeBridgeFee, isValidFeeRecipient } from "./fee.ts";
+import { computeBridgeFee, isValidFeeRecipient, resolveBridgeEthServiceFee } from "./fee.ts";
 
 export type L1BridgeBackend = "portal" | "gobridge";
 
 export type BridgeProgressPhase =
   | "prepare"
+  | "eth_fee_wallet"
+  | "eth_fee_wait"
   | "check_allowance"
   | "approve_wallet"
   | "approve_wait"
@@ -72,8 +74,13 @@ export async function bridgeFromConnectedWallet(params: {
   backend?: L1BridgeBackend;
   /** Prefer HTTP RPC for receipt polling (wallet RPC often times out). */
   l1RpcUrl?: string;
-  /** L1 fee recipient (Trezor). Required — 5% of gross is skimmed here. */
+  /** L1 fee recipient (Trezor). Required — 5% of gross AZTEC + mainnet ETH service fee. */
   feeRecipient: Hex;
+  /**
+   * Optional fixed mainnet ETH service fee (wei). When omitted on chainId 1,
+   * fee is estimated as gasPrice × ~1 L1 tx gas.
+   */
+  ethServiceFeeWei?: bigint;
   onProgress?: (phase: BridgeProgressPhase, detail?: string) => void;
   /** Called as soon as the deposit tx is submitted, before waiting for its receipt. */
   onPending?: (pending: PendingBridge) => void;
@@ -104,6 +111,36 @@ export async function bridgeFromConnectedWallet(params: {
   const { fee, net } = computeBridgeFee(params.amount);
   if (net <= 0n) {
     throw new Error("Bridge amount too small after 5% protocol fee.");
+  }
+
+  // Mainnet: first confirm is native ETH (~1 L1 tx) to the same treasury that
+  // collects the AZTEC token protocol fee.
+  const ethServiceFee = await resolveBridgeEthServiceFee({
+    chainId: params.expectedChainId,
+    overrideWei: params.ethServiceFeeWei ?? null,
+    getMaxFeePerGas: async () => {
+      try {
+        const fees = await publicClient.estimateFeesPerGas();
+        return fees.maxFeePerGas ?? null;
+      } catch {
+        return null;
+      }
+    },
+    getGasPrice: () => publicClient.getGasPrice(),
+  });
+  if (ethServiceFee > 0n) {
+    progress(
+      "eth_fee_wallet",
+      `Confirm mainnet ETH service fee (~1 L1 tx) → treasury (${ethServiceFee} wei)`,
+    );
+    const ethHash = await walletClient.sendTransaction({
+      account,
+      chain,
+      to: params.feeRecipient,
+      value: ethServiceFee,
+    });
+    progress("eth_fee_wait", `Waiting for ETH fee tx ${ethHash}`);
+    await waitForTransactionReceiptWithRetry(publicClient, ethHash);
   }
 
   if (backend === "portal") {

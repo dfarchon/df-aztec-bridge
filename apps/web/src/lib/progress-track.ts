@@ -34,6 +34,11 @@ const BRIDGE_TRACK: ProgressTrack = {
   title: "Bridging Fee Juice to Aztec",
   steps: [
     { key: "prepare", label: "Preparing the L1 transaction" },
+    {
+      key: "eth_fee",
+      label: "Paying mainnet ETH service fee (~1 L1 tx)",
+      note: "Confirm in your wallet — goes to the same treasury as the AZTEC fee.",
+    },
     { key: "mint", label: "Minting test Fee Juice", note: "Confirm in your wallet." },
     { key: "approve", label: "Approving Fee Juice spend", note: "Confirm in your wallet." },
     { key: "deposit", label: "Submitting the L1 deposit", note: "Confirm in your wallet." },
@@ -95,6 +100,8 @@ const TRACKS: Record<ProgressTrackId, ProgressTrack> = {
 
 const BRIDGE_PHASE_STEP: Record<BridgeProgressPhase, string> = {
   prepare: "prepare",
+  eth_fee_wallet: "eth_fee",
+  eth_fee_wait: "eth_fee",
   mint_wallet: "mint",
   mint_wait: "mint",
   check_allowance: "approve",

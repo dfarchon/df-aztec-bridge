@@ -16,7 +16,15 @@ export {
 } from "./config/index.ts";
 
 export { SUPPORTED_AZTEC_CLIENT_VERSION, assertAztecNodeVersionCompatible } from "./core/version-guard.ts";
-export { computeBridgeFee, BRIDGE_FEE_BPS, isValidFeeRecipient } from "./core/fee.ts";
+export {
+  computeBridgeFee,
+  BRIDGE_FEE_BPS,
+  BRIDGE_ETH_FEE_CHAIN_ID,
+  BRIDGE_ETH_SERVICE_FEE_GAS,
+  isValidFeeRecipient,
+  shouldChargeBridgeEthServiceFee,
+  parseEthFeeWeiOverride,
+} from "./core/fee.ts";
 
 export {
   runBridgePipeline,

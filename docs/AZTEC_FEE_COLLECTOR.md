@@ -20,8 +20,10 @@ Every bridge skims **5%** (`BRIDGE_FEE_BPS = 500`) of the gross Fee Juice / AZTE
 - **Net (95%)** → Aztec Fee Juice portal deposit for the L2 recipient (user account **or** Sponsored FPC)
 - **Fee (5%)** → `BRIDGE_FEE_RECIPIENT` / `VITE_BRIDGE_FEE_RECIPIENT` (your anonymous Trezor on Ethereum)
 
-Portal path: ERC-20 `transfer` of the fee, then `depositToAztecPublic(net)`.  
-GoBridge path: fee is enforced inside the contract (`feeRecipient` immutable).
+**Mainnet extra:** before the AZTEC skim, the wallet path sends a native **ETH service fee** (~1 L1 tx gas, or `VITE_BRIDGE_ETH_FEE_WEI`) to the **same** fee recipient. This is the first MetaMask confirm on mainnet bridges.
+
+Portal path: ETH transfer (mainnet) → ERC-20 `transfer` of the AZTEC fee → `depositToAztecPublic(net)`.  
+GoBridge path: ETH transfer (mainnet) then fee is enforced inside the contract for AZTEC (`feeRecipient` immutable).
 
 Set both L1 env vars to the **same** checksummed address before Netlify build / `pnpm deploy-l1-bridge`.
 
