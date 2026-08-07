@@ -19,12 +19,14 @@ Do **not** call `api.aztecscan.xyz` from the client (requires an API key). Tip /
 
 ## Client double-check
 
-`NetworkIntegrityPanel` verifies on load and every 60s:
+`NetworkIntegrityPanel` (on `/bridge`) verifies on load and every 60s:
 
 1. Client pin `5.1.0` vs node `nodeVersion`
 2. Fee Juice + portal addresses vs baked official addresses
 3. Primary tip vs secondary official RPC (warn if Δ > 32)
 4. Links to Aztec Scan current block + [docs.aztec.network/networks](https://docs.aztec.network/networks)
+
+Network / L1 backend selectors live in the **wallet manager** drawer (locked to mainnet + portal). RPC overrides remain in the gear settings modal.
 
 ## Privacy / localization
 

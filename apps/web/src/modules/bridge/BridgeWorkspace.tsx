@@ -23,7 +23,6 @@ import {
   type ConnectedWallet,
   type EIP6963ProviderDetail,
   type FeeJuiceBalance,
-  type L1BridgeBackend,
   type PendingBridge,
 } from "@df-bridge/browser-sdk";
 import {
@@ -2165,46 +2164,8 @@ export function BridgeWorkspace() {
       </div>
       ) : null}
 
-      {path === ROUTES.network ? (
-        <section className="route-page" aria-label="Network">
-          <NetworkIntegrityPanel network={networkMeta} />
-          <div className="network-row">
-            <label>
-              Network
-              <select
-                value={networkId}
-                disabled
-                title="Locked to mainnet for now"
-                onChange={(e) => setNetworkId(e.target.value)}
-              >
-                {networks.map((id) => (
-                  <option key={id} value={id}>
-                    {id}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              L1 backend
-              <select
-                value={l1Backend}
-                disabled
-                title="Locked to portal for now"
-                onChange={(e) => setL1Backend(e.target.value as L1BridgeBackend)}
-              >
-                <option value="portal">portal</option>
-                <option value="gobridge">gobridge</option>
-              </select>
-            </label>
-          </div>
-          <p className="hint">
-            Network locked to <span className="mono">mainnet</span>; L1 backend locked to{" "}
-            <span className="mono">portal</span>. Addresses are baked into the frontend config.
-            {hasRpcOverrides(rpcOverrides)
-              ? " Custom RPC overrides active (gear) — verify hosts before signing; custom RPCs can see request metadata."
-              : null}
-          </p>
-        </section>
+      {path === ROUTES.bridge ? (
+        <NetworkIntegrityPanel network={networkMeta} />
       ) : null}
 
       {path === ROUTES.vault ? (
@@ -2213,7 +2174,7 @@ export function BridgeWorkspace() {
         </section>
       ) : null}
 
-      {path !== ROUTES.network && path !== ROUTES.vault && wallet && ethSessionOk ? (
+      {path !== ROUTES.vault && wallet && ethSessionOk ? (
         <>
       {path === ROUTES.bridge ? (
         <>
@@ -2840,7 +2801,12 @@ export function BridgeWorkspace() {
       )}
 
       <WalletDrawer
+        networks={networks}
         networkId={networkId}
+        setNetworkId={setNetworkId}
+        l1Backend={l1Backend}
+        setL1Backend={setL1Backend}
+        rpcOverrides={rpcOverrides}
         aztecNodeUrl={networkMeta?.aztecNodeUrl ?? null}
         busy={busy}
         connectingWallet={connectingWallet}

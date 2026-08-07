@@ -1,10 +1,15 @@
 import { QRCodeSVG } from "qrcode.react";
 import { createPortal } from "react-dom";
 import type { RefObject } from "react";
-import type { ConnectedWallet, EIP6963ProviderDetail } from "@df-bridge/browser-sdk";
+import type {
+  ConnectedWallet,
+  EIP6963ProviderDetail,
+  L1BridgeBackend,
+} from "@df-bridge/browser-sdk";
 import { WalletManagerPanel } from "../../modules/wallet/WalletManagerPanel.tsx";
 import { useUi } from "../../providers/UiProvider.tsx";
 import type { ImportedAztecAccount } from "../../lib/account-import.ts";
+import type { RpcOverrides } from "../../lib/rpc-overrides.ts";
 
 const DFPUNK_PLAY_URL =
   (import.meta.env.VITE_DFPUNK_PLAY_URL as string | undefined)?.trim() ||
@@ -12,7 +17,12 @@ const DFPUNK_PLAY_URL =
 const BROWSER_CLAIM = import.meta.env.VITE_ENABLE_BROWSER_CLAIM !== "false";
 
 export function WalletDrawer(props: {
+  networks: string[];
   networkId: string;
+  setNetworkId: (id: string) => void;
+  l1Backend: L1BridgeBackend;
+  setL1Backend: (v: L1BridgeBackend) => void;
+  rpcOverrides: RpcOverrides;
   aztecNodeUrl: string | null;
   busy: boolean;
   connectingWallet?: boolean;
@@ -175,7 +185,12 @@ export function WalletDrawer(props: {
             </div>
             <div className="wallet-drawer-body">
               <WalletManagerPanel
+                networks={props.networks}
                 networkId={props.networkId}
+                setNetworkId={props.setNetworkId}
+                l1Backend={props.l1Backend}
+                setL1Backend={props.setL1Backend}
+                rpcOverrides={props.rpcOverrides}
                 aztecNodeUrl={props.aztecNodeUrl}
                 browserClaimEnabled={BROWSER_CLAIM}
                 busy={props.busy || !!props.connectingWallet}
