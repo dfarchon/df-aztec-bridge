@@ -23,6 +23,7 @@ export const OFFICIAL_HTTPS_HOST_ALLOWLIST = new Set([
   "devnet.aztecscan.xyz",
   "v5.testnet.rpc.aztec-labs.com",
   "aztec-mainnet.drpc.org",
+  "lb.drpc.live",
   "ethereum-rpc.publicnode.com",
   "ethereum-sepolia-rpc.publicnode.com",
   "etherscan.io",
@@ -111,3 +112,11 @@ export const OFFICIAL_TIP_CHECK_RPC: Record<string, string> = {
   mainnet: "https://aztec-mainnet.drpc.org",
   testnet: "https://v5.testnet.rpc.aztec-labs.com",
 };
+
+/**
+ * Aztec Mainnet node defaults.
+ * Primary: authenticated dRPC load balancer. Public fallback: open dRPC endpoint.
+ */
+export const AZTEC_MAINNET_NODE_DEFAULT =
+  "https://lb.drpc.live/aztec-mainnet/AnUkBxJDjUo3ksEkgPshPngqoSJzkNIR8YO-RoYgFhqK";
+export const AZTEC_MAINNET_NODE_PUBLIC = "https://aztec-mainnet.drpc.org";

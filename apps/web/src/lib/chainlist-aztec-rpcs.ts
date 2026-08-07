@@ -11,7 +11,7 @@ export const AZTEC_CHAINLIST_CHAIN_ID = 677868;
 
 export type ChainlistRpcOption = {
   url: string;
-  source: "current" | "chainlist" | "network-default";
+  source: "current" | "chainlist" | "network-default" | "fallback";
   label: string;
 };
 
@@ -93,10 +93,12 @@ export async function fetchChainlistAztecRpcs(opts?: {
   return httpsUrls;
 }
 
-/** Build select options: current draft first, then defaults / Chainlist uniques. */
+/** Build select options: current → network default → preferred fallbacks → Chainlist. */
 export function buildAztecRpcOptions(opts: {
   currentUrl: string;
   networkDefaultUrl: string;
+  /** Extra preferred endpoints after the network default (e.g. public dRPC). */
+  preferredUrls?: string[];
   chainlistUrls: string[];
 }): ChainlistRpcOption[] {
   const out: ChainlistRpcOption[] = [];
@@ -118,6 +120,9 @@ export function buildAztecRpcOptions(opts: {
   }
   if (opts.networkDefaultUrl.trim()) {
     add(opts.networkDefaultUrl, "network-default", "Network default");
+  }
+  for (const url of opts.preferredUrls ?? []) {
+    add(url, "fallback", "Public fallback");
   }
   for (const url of opts.chainlistUrls) {
     add(url, "chainlist", "Chainlist");

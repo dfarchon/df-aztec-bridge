@@ -28,6 +28,7 @@ describe("official-links", () => {
     expect(isOfficialHttpsUrl("https://docs.aztec.network/networks")).toBe(true);
     expect(isOfficialHttpsUrl("https://aztecscan.xyz/")).toBe(true);
     expect(isOfficialHttpsUrl("https://aztec-mainnet.drpc.org")).toBe(true);
+    expect(isOfficialHttpsUrl("https://lb.drpc.live/aztec-mainnet/x")).toBe(true);
     expect(isOfficialHttpsUrl("http://aztecscan.xyz/")).toBe(false);
     expect(isOfficialHttpsUrl("https://evil.example/")).toBe(false);
   });

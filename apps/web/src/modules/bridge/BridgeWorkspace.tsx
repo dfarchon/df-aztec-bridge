@@ -72,6 +72,7 @@ import { formatDappError, logDappError, pushDappLog } from "../../lib/dapp-log.t
 import { importDfPunkFileIntoPxe } from "../../lib/df-pxe-import.ts";
 import { saveAztecWallet } from "../../lib/aztec-wallet-store.ts";
 import {
+  AZTEC_MAINNET_NODE_PUBLIC,
   OFFICIAL_DOCS_FEE_JUICE,
 } from "../../lib/official-links.ts";
 import {
@@ -2863,6 +2864,9 @@ export function BridgeWorkspace() {
             <AztecRpcOptionsField
               value={draftAztecUrl}
               networkDefaultUrl={getNetwork(networkId).aztecNodeUrl}
+              preferredUrls={
+                networkId === "mainnet" ? [AZTEC_MAINNET_NODE_PUBLIC] : undefined
+              }
               onChange={setDraftAztecUrl}
             />
             <label>

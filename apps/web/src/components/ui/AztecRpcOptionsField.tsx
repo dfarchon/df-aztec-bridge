@@ -12,10 +12,12 @@ export type RpcFetchStatus = "idle" | "fetching" | "ok" | "error";
 export function AztecRpcOptionsField(props: {
   value: string;
   networkDefaultUrl: string;
+  /** Shown after network default (e.g. public dRPC when default is authenticated). */
+  preferredUrls?: string[];
   onChange: (url: string) => void;
   disabled?: boolean;
 }) {
-  const { value, networkDefaultUrl, onChange, disabled } = props;
+  const { value, networkDefaultUrl, preferredUrls, onChange, disabled } = props;
   const listId = useId();
   const [status, setStatus] = useState<RpcFetchStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -64,9 +66,10 @@ export function AztecRpcOptionsField(props: {
       buildAztecRpcOptions({
         currentUrl: value,
         networkDefaultUrl,
+        preferredUrls,
         chainlistUrls,
       }),
-    [value, networkDefaultUrl, chainlistUrls],
+    [value, networkDefaultUrl, preferredUrls, chainlistUrls],
   );
 
   const statusTitle =
