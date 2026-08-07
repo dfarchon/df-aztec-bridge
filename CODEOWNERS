@@ -1,0 +1,22 @@
+# Security / dependency contacts
+
+* @sansx
+* @stx69 help to harden 0.1.1
+
+# Contract + core owners (adjust GitHub handles as needed)
+/contracts/ @sansx
+/packages/core/ @sansx
+/apps/api/ @sansx
+
+# Supply-chain surface — require review on lockfile / install policy changes
+/.npmrc @sansx
+/.nvmrc @sansx
+/.node-version @sansx
+/tooling/TOOLCHAIN.pins @sansx
+/pnpm-lock.yaml @sansx
+/pnpm-workspace.yaml @sansx
+/package.json @sansx
+/scripts/check-pnpm-hardening.sh @sansx
+/scripts/check-toolchain.sh @sansx
+/.github/workflows/ci.yml @sansx
+/netlify.toml @sansx

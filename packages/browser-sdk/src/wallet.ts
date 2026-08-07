@@ -2,10 +2,15 @@ import type { EIP1193Provider, Hex } from "viem";
 import {
   discoverWallets,
   type EIP6963ProviderDetail,
-} from "./discovery.js";
+} from "./discovery.ts";
 
-export type { EIP6963ProviderDetail, EIP6963ProviderInfo } from "./discovery.js";
-export { discoverWallets, getWalletsSnapshot, subscribeWallets } from "./discovery.js";
+export type { EIP6963ProviderDetail, EIP6963ProviderInfo } from "./discovery.ts";
+export {
+  discoverWallets,
+  getWalletsSnapshot,
+  subscribeWallets,
+  LEGACY_WALLET_RDNS,
+} from "./discovery.ts";
 
 export interface ConnectedWallet {
   provider: EIP1193Provider;
@@ -71,15 +76,31 @@ export async function connectWithProvider(
   provider: EIP1193Provider,
   meta?: { rdns?: string; name?: string },
 ): Promise<ConnectedWallet> {
+  const label = meta?.name ?? "Wallet";
+
+  // Probe first — MetaMask sometimes leaves eth_requestAccounts hanging forever
+  // when the inpage stream is dead (no popup, no rejection).
+  try {
+    await withTimeout(
+      rpc(provider)({ method: "eth_chainId" }),
+      8_000,
+      `${label} probe`,
+    );
+  } catch {
+    throw new Error(
+      `${label} is not responding. Close the extension popup, refresh this page, unlock the wallet, then connect again.`,
+    );
+  }
+
   const accounts = (await withTimeout(
     rpc(provider)({ method: "eth_requestAccounts" }),
-    120_000,
-    "Connect wallet",
+    90_000,
+    `Connect ${label}`,
   )) as string[];
 
   const address = accounts[0] as Hex | undefined;
   if (!address) {
-    throw new Error("Wallet returned no accounts.");
+    throw new Error(`${label} returned no accounts. Unlock it and approve the connection.`);
   }
 
   const chainIdHex = (await withTimeout(

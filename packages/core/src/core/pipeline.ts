@@ -6,12 +6,13 @@ import { EmbeddedWallet } from "@aztec/wallets/embedded";
 import type { TxReceipt } from "@aztec/stdlib/tx";
 import { parseUnits, type Hex } from "viem";
 
-import { loadNetworkConfig, resolveL1Backend } from "../config/index.js";
-import { waitForL1ToL2Message } from "./bridging.js";
-import { claimWithBootstrap } from "./claim.js";
-import { bridgeFeeJuiceOnL1 } from "./l1/index.js";
-import { createNode } from "./node.js";
-import type { BridgeJobResult, ClaimCredentials, NetworkConfig, RuntimeSecrets, L1Backend } from "./types.js";
+import { loadNetworkConfig, resolveL1Backend } from "../config/index.ts";
+import { waitForL1ToL2Message } from "./bridging.ts";
+import { claimWithBootstrap } from "./claim.ts";
+import { bridgeFeeJuiceOnL1 } from "./l1/index.ts";
+import { createNode } from "./node.ts";
+import { assertAztecNodeVersionCompatible } from "./version-guard.ts";
+import type { BridgeJobResult, ClaimCredentials, NetworkConfig, RuntimeSecrets, L1Backend } from "./types.ts";
 
 const ANVIL_DEV_KEY: Hex = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 
@@ -277,6 +278,10 @@ function resolveL1Key(network: NetworkConfig, secrets: RuntimeSecrets): Hex {
 
 async function openWallet(network: NetworkConfig, apiKey?: string) {
   const node = createNode(network.aztecNodeUrl, apiKey);
+  if (process.env.SKIP_AZTEC_VERSION_CHECK !== "true" && network.id !== "local") {
+    const info = await node.getNodeInfo();
+    assertAztecNodeVersionCompatible(info.nodeVersion);
+  }
   const proverEnabled = network.id !== "local";
   const wallet = await EmbeddedWallet.create(node, {
     ephemeral: true,

@@ -28,13 +28,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@aztec/aztec.js": "v5.0.1",
-    "@aztec/bb.js": "5.0.1",
-    "@aztec/foundation": "v5.0.1",
-    "@aztec/kv-store": "v5.0.1",
-    "@aztec/pxe": "v5.0.1",
-    "@aztec/stdlib": "v5.0.1",
-    "@aztec/wallets": "v5.0.1",
+    "@aztec/aztec.js": "5.1.0",
+    "@aztec/bb.js": "5.1.0",
+    "@aztec/foundation": "5.1.0",
+    "@aztec/kv-store": "5.1.0",
+    "@aztec/pxe": "5.1.0",
+    "@aztec/stdlib": "5.1.0",
+    "@aztec/wallets": "5.1.0",
     "@walletconnect/ethereum-provider": "^2.23.10",
     "idb-keyval": "^6.2.1",
     "viem": "^2.23.0"
@@ -42,5 +42,9 @@
   "devDependencies": {
     "typescript": "~5.7.3",
     "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": "22.23.2",
+    "pnpm": "10.33.2"
   }
 }

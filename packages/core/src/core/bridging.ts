@@ -16,7 +16,7 @@ import { type AztecNodeDebug, createAztecNodeDebugClient } from "@aztec/stdlib/i
 import type { Hex } from "viem";
 import { generatePrivateKey } from "viem/accounts";
 
-import type { BridgeTimingMode } from "./types.js";
+import type { BridgeTimingMode } from "./types.ts";
 
 const logger = createLogger("df-bridge:bridging");
 

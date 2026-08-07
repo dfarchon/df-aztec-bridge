@@ -1,11 +1,10 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { inject } from "@vercel/analytics";
+import { hardenClientSurface } from "./lib/client-hardening.ts";
 import "./styles.css";
 
-if (import.meta.env.PROD) {
-  inject({ framework: "react" });
-}
+// Production: mute console + resist trivial inject helpers (before app boot).
+hardenClientSurface();
 
 const BROWSER_CLAIM = import.meta.env.VITE_ENABLE_BROWSER_CLAIM !== "false";
 const MAINTENANCE_MODE = import.meta.env.VITE_MAINTENANCE_MODE === "true";
@@ -49,9 +48,7 @@ function showBootFailure(error: unknown) {
   const retry = document.createElement("button");
   retry.type = "button";
   retry.textContent = "Reload";
-  retry.style.cssText =
-    "padding:0.5rem 1.25rem;border-radius:0.375rem;border:1px solid #3d5afe;" +
-    "background:#3d5afe;color:#fff;font:600 0.85rem system-ui,sans-serif;cursor:pointer";
+  retry.className = "boot-reload-btn";
   retry.addEventListener("click", () => window.location.reload());
   inner.appendChild(retry);
 }
@@ -63,14 +60,14 @@ async function warmupPxeIfEnabled() {
   const [{ loadBrowserClaim }, { DEFAULT_NETWORK_ID, getNetwork }, { getRpcOverrides }] =
     await Promise.all([
       import("@df-bridge/browser-sdk/claim-lazy"),
-      import("./config/networks.js"),
-      import("./lib/rpc-overrides.js"),
+      import("./config/networks.ts"),
+      import("./lib/rpc-overrides.ts"),
     ]);
 
   const { warmupBrowserClaim } = await loadBrowserClaim();
   const networkId = DEFAULT_NETWORK_ID;
   const base = getNetwork(networkId);
-  const overrides = getRpcOverrides(networkId);
+  const overrides = await getRpcOverrides(networkId);
   const aztecNodeUrl = overrides.aztecNodeUrl?.trim() || base.aztecNodeUrl;
 
   const startedAt = Date.now();
@@ -92,6 +89,17 @@ async function warmupPxeIfEnabled() {
   } catch (e: unknown) {
     console.warn("[boot] PXE warmup failed; claim will retry on demand", e);
     setSplashHint("PXE warmup failed — you can still bridge; claim will retry later.");
+    try {
+      const { logDappError, pushDappLog } = await import("./lib/dapp-log.ts");
+      logDappError(e, "PXE warmup failed");
+      pushDappLog({
+        kind: "announce",
+        title: "You can still connect and bridge",
+        detail: "Import → PXE will retry circuit download when you import a DF account.",
+      });
+    } catch {
+      /* toaster not critical during boot */
+    }
     await new Promise((r) => setTimeout(r, 900));
   } finally {
     window.clearInterval(heartbeat);
@@ -99,9 +107,17 @@ async function warmupPxeIfEnabled() {
 }
 
 async function boot() {
+  const { assertNoLocalizationSideChannels } = await import("./lib/privacy.ts");
+  assertNoLocalizationSideChannels();
+
+  if (import.meta.env.PROD && typeof window !== "undefined" && window.location.protocol === "http:") {
+    // Defense-in-depth: production DApp should only run on HTTPS (Netlify enforces this too).
+    console.warn("[boot] Refusing insecure origin in production");
+  }
+
   if (MAINTENANCE_MODE) {
     setSplashHint("Checking service status…");
-    const { MaintenancePage } = await import("./MaintenancePage.js");
+    const { MaintenancePage } = await import("./components/ui/MaintenancePage.tsx");
     createRoot(document.getElementById("root")!).render(
       <StrictMode>
         <MaintenancePage />
@@ -112,7 +128,7 @@ async function boot() {
   }
 
   setSplashHint("Loading app bundle…");
-  const { App } = await import("./App.js");
+  const { App } = await import("./app/App.tsx");
   await warmupPxeIfEnabled();
 
   createRoot(document.getElementById("root")!).render(

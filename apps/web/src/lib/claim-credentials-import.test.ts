@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseClaimCredentialsFile } from "./claim-credentials-import.js";
+import { parseClaimCredentialsFile } from "./claim-credentials-import.ts";
 
 const L1_TX = "0xAABBCCDDeeff00112233445566778899aabbccddeeff00112233445566778899";
 const credentials = {

@@ -6,7 +6,7 @@ import {
   stepStateAt,
   type ProgressState,
   type ProgressStepState,
-} from "./lib/progress-track.js";
+} from "../../lib/progress-track.ts";
 
 interface ProgressPanelProps {
   progress: ProgressState;

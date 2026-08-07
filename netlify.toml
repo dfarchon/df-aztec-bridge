@@ -1,0 +1,42 @@
+# Netlify — static web app (apps/web). Force HTTPS + hardened headers.
+[build]
+  command = "pnpm install --frozen-lockfile && pnpm --filter @df-bridge/browser-sdk build && pnpm --filter @df-bridge/web build"
+  publish = "apps/web/dist"
+
+[build.environment]
+  NODE_VERSION = "22.23.2"
+  PNPM_VERSION = "10.33.2"
+
+# SPA fallback for client-side routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*.wasm"
+  [headers.values]
+    Content-Type = "application/wasm"
+    Cache-Control = "public, max-age=0, must-revalidate"
+    Cross-Origin-Resource-Policy = "same-origin"
+
+[[headers]]
+  for = "/*.map"
+  [headers.values]
+    # Never serve source maps (defense if a map is ever emitted by mistake).
+    Cache-Control = "no-store"
+    Content-Type = "text/plain"
+    X-Content-Type-Options = "nosniff"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "no-referrer"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=(), interest-cohort=(), attribution-reporting=(), publickey-credentials-get=(self), publickey-credentials-create=(self)"
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Embedder-Policy = "credentialless"
+    Cross-Origin-Resource-Policy = "same-origin"
+    Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' data: blob: https: wss:; child-src 'self' blob:; manifest-src 'self'"

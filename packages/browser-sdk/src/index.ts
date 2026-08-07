@@ -3,7 +3,7 @@ export type {
   L1Addresses,
   BridgeFromWalletResult,
   PendingBridge,
-} from "./types.js";
+} from "./types.ts";
 export {
   connectEvmWallet,
   connectEvmWalletDetail,
@@ -13,39 +13,45 @@ export {
   isWalletUserRejection,
   withTimeout,
   type ConnectedWallet,
-} from "./wallet.js";
+} from "./wallet.ts";
 export {
   discoverWallets,
   getWalletsSnapshot,
   subscribeWallets,
+  LEGACY_WALLET_RDNS,
   type EIP6963ProviderDetail,
   type EIP6963ProviderInfo,
-} from "./discovery.js";
+} from "./discovery.ts";
 export {
   connectWalletConnect,
   disconnectWalletConnect,
   type ConnectWalletConnectParams,
-} from "./walletconnect.js";
+} from "./walletconnect.ts";
 export {
   bridgeFromConnectedWallet,
   resumePendingBridge,
   type BridgeProgressPhase,
   type L1BridgeBackend,
-} from "./bridge.js";
+} from "./bridge.ts";
+export { computeBridgeFee, BRIDGE_FEE_BPS, isValidFeeRecipient } from "./fee.ts";
 export {
   waitForTransactionReceiptWithRetry,
   aztecRecipientToBytes32,
   getFeeJuiceBalance,
   watchProviderSession,
   type FeeJuiceBalance,
-} from "./clients.js";
+} from "./clients.ts";
 export {
   loadBrowserClaim,
   type WaitAndClaimInBrowser,
   type WarmupBrowserClaim,
   type WaitForL2ClaimTx,
   type GetClaimMessageStatus,
+  type CreateQuickDfpunkAccount,
+  type ImportDfpunkAccountIntoPxe,
   type BrowserClaimProgress,
   type ClaimMessageStatus,
-} from "./claim-lazy.js";
-export { getBridgeAddress } from "./vendor/gobridge/deterministic.js";
+  type QuickDfpunkAccount,
+} from "./claim-lazy.ts";
+export { getBridgeAddress, DEFAULT_RESCUE_BENEFICIARY, ZERO_ADDRESS } from "./vendor/gobridge/deterministic.ts";
+export type { GoBridgeDeployConfig } from "./vendor/gobridge/deterministic.ts";

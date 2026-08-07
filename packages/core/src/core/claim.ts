@@ -9,7 +9,7 @@ import { FeeJuicePaymentMethodWithClaim } from "@aztec/aztec.js/fee";
 import { BatchCall } from "@aztec/aztec.js/contracts";
 import { Fr } from "@aztec/foundation/curves/bn254";
 
-import type { ClaimCredentials } from "./types.js";
+import type { ClaimCredentials } from "./types.ts";
 
 /**
  * Bootstrap claim: the first credential pays for gas via FeeJuicePaymentMethodWithClaim,

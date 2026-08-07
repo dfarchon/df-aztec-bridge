@@ -22,9 +22,9 @@ import {
   classifyWitnessLookupError,
   sendClaimThenWait,
   type ClaimMessageStatus,
-} from "./claim-status.js";
-import { trimOversizedCrsCache } from "./crs-cache.js";
-import type { ClaimCredentials } from "./types.js";
+} from "./claim-status.ts";
+import { trimOversizedCrsCache } from "./crs-cache.ts";
+import type { ClaimCredentials } from "./types.ts";
 
 const AZTEC_API_KEY_HEADER = "X-Aztec-API-Key";
 const DEFAULT_ACCOUNT_SALT = new Fr(0);
@@ -372,4 +372,94 @@ export async function waitAndClaimInBrowser(params: {
   });
   progress("done", `L2 tx ${l2TxHash}`);
   return { l2TxHash };
+}
+
+/** dfpunk-compatible Schnorr account created in-browser via EmbeddedWallet / PXE. */
+export interface QuickDfpunkAccount {
+  address: string;
+  secretKey: string;
+  salt: string;
+  signingKey: string;
+  createdAt: number;
+  label: string;
+}
+
+/**
+ * Create a quick Aztec wallet (same credential shape as dfpunk-account-*.json).
+ * Uses the warmed EmbeddedWallet / PXE when available.
+ */
+export async function createQuickDfpunkAccount(params: {
+  aztecNodeUrl: string;
+  networkId: string;
+  apiKey?: string;
+  label?: string;
+  onProgress?: (phase: BrowserClaimProgress, detail?: string) => void;
+}): Promise<QuickDfpunkAccount> {
+  const { wallet } = await getOrCreateWarmEntry(params);
+  params.onProgress?.("account", "Generating Schnorr keys (dfpunk-compatible)…");
+
+  const secretKey = Fr.random();
+  const salt = Fr.random();
+  const signingKey = Fq.random();
+
+  const manager = await wallet.createSchnorrInitializerlessAccount(
+    secretKey,
+    salt,
+    signingKey,
+    "main",
+  );
+
+  return {
+    address: manager.address.toString(),
+    secretKey: secretKey.toString(),
+    salt: salt.toString(),
+    signingKey: signingKey.toString(),
+    createdAt: Date.now(),
+    label: params.label?.trim() || "dfpunk quick wallet",
+  };
+}
+
+/**
+ * Register an existing dfpunk / DF client account into the browser EmbeddedWallet PXE.
+ * Required before L2 claim when the account was created outside this DApp.
+ */
+export async function importDfpunkAccountIntoPxe(params: {
+  aztecNodeUrl: string;
+  networkId: string;
+  apiKey?: string;
+  address: string;
+  secretKey: string;
+  salt: string;
+  /** Required for dfpunk accounts (independent Grumpkin signing key). */
+  signingKey: string;
+  onProgress?: (phase: BrowserClaimProgress, detail?: string) => void;
+}): Promise<{ address: string }> {
+  if (!params.signingKey?.trim()) {
+    throw new Error(
+      "DF client accounts require signingKey. Download dfpunk-account-*.json from the DF game (Settings / Download account info).",
+    );
+  }
+  const { wallet } = await getOrCreateWarmEntry(params);
+  params.onProgress?.("account", "Registering DF / dfpunk account in browser PXE…");
+
+  const secret = Fr.fromHexString(params.secretKey.trim());
+  const salt = Fr.fromHexString(params.salt.trim());
+  const signingKey = resolveSigningKey(secret, params.signingKey);
+  const manager = await wallet.createSchnorrInitializerlessAccount(
+    secret,
+    salt,
+    signingKey,
+    "main",
+  );
+
+  const derived = manager.address.toString().toLowerCase();
+  const expected = params.address.trim().toLowerCase();
+  if (derived !== expected) {
+    throw new Error(
+      `Imported keys derive ${manager.address.toString()}, but the file says ${params.address}. Check secretKey / salt / signingKey from the DF client export.`,
+    );
+  }
+
+  params.onProgress?.("account", `PXE registered ${manager.address.toString()}`);
+  return { address: manager.address.toString() };
 }

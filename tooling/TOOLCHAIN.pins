@@ -1,0 +1,38 @@
+# Pinned toolchain — verify before upgrading. Do not bump without reviewing advisories.
+#
+# Corepack / package.json#packageManager uses: <name>@<ver>+sha512.<hex>
+# where hex = Buffer.from(npmIntegrityWithoutPrefix, 'base64').toString('hex')
+#
+# Official Node SHASUMS256: https://nodejs.org/dist/v22.23.2/SHASUMS256.txt
+# pnpm npm dist.integrity: https://registry.npmjs.org/pnpm/10.33.2
+
+NODE_VERSION=22.23.2
+PNPM_VERSION=10.33.2
+
+# npm registry integrity (base64) for pnpm@10.33.2
+PNPM_NPM_INTEGRITY=sha512-qQ+vb+6rca1sblf5Tg/hoS9dzCLNdU20CulZPraj4LaxLjVAIYuzeuCDQEsfLObbKkEh6XmCm0r/lLmfSdoc+A==
+
+# Corepack packageManager string (sha512 hex of the npm integrity payload)
+PNPM_PACKAGE_MANAGER=pnpm@10.33.2+sha512.a90faf6feeab71ad6c6e57f94e0fe1a12f5dcc22cd754db40ae9593eb6a3e0b6b12e3540218bb37ae083404b1f2ce6db2a4121e979829b4aff94b99f49da1cf8
+
+# Official Node.js SHA256 (from SHASUMS256.txt)
+NODE_SHA256_LINUX_X64=d60acfe00a2932254bb0ad20e01b0d74397a0875595de719654b214f4b03f307
+NODE_SHA256_SOURCE=bbe768df8d5815d7fa76124052985332452e0a4742d39f32027550d1aab8f6fb
+
+# Independently computed SHA512 of official Node.js dist artifacts (nodejs.org)
+NODE_SHA512_LINUX_X64=c4c92a64d62e34a3ceb2df45b6fb4ff8d6ae8bad46e0756daff13a0267c03219d6c61bf651b81ee97762c6e13c4ebb2905cf5ab6c2f8ef9de8747ad9a0edbeac
+NODE_SHA512_DARWIN_ARM64=c118fbb61631c4dc95bd682435cdec7cef7f1ef5598fb9674da91479784649e387a369613eb7920490df20efcf34c72f78bc31f072b54ad97df403c8cca14f30
+NODE_SHA512_DARWIN_X64=95c43699e9a4ccf6cea26031b0c5fa248664156c42ac229d4e54623788cff866ad165192745d342550097278752b8caae60bbaf8c093aabd4bc3a11b00bb48e6
+NODE_SHA512_WIN_X64=31b88a0df9eaad7f1b785b3d413a48cf8be43080b6415aa053224005129828ca179563471c98da171e663eab5c2d7e752ccc4e6ac359a3b3bc8d6022a9e31f8e
+NODE_SHA512_SOURCE=92b959098fb7fcfe80776a983d2ae52479692a63c49087c97a0ee2423147a5222b1e1994e98ff650483322cf3a1f1cca8a51f3389993c0ff5fc13b6d1f4ef4ef
+
+# Root package.json#devDependencies — exact versions + npm registry integrity (sha512-base64).
+# package.json cannot embed Corepack-style +sha512.<hex> for ordinary deps; pins live here + lockfile.
+# Verify: https://registry.npmjs.org/tsx/4.23.1 and https://registry.npmjs.org/typescript/5.7.3
+TSX_VERSION=4.23.1
+TSX_NPM_INTEGRITY=sha512-GQHnkIfxyx1wYCOS/wonik5MVRZU9hi1TEZmzGZSCJB1y9YgoZ8H6itNE/u4suE+yLmOzuE4E5S4TZ/ZX2wcWQ==
+TSX_SHA512_HEX=1901e79087f1cb1d70602392ff0a278a4e4c551654f618b54c4666cc6652089075cbd620a19f07ea2b4d13fbb8b2e13ec8b98ecee1381394b84d9fd95f6c1c59
+
+TYPESCRIPT_VERSION=5.7.3
+TYPESCRIPT_NPM_INTEGRITY=sha512-84MVSjMEHP+FQRPy3pX9sTVV/INIex71s9TL2Gm5FG/WG1SqXeKyZ0k7/blY/4FdOzI12CBy1vGc4og/eus0fw==
+TYPESCRIPT_SHA512_HEX=f383154a33041cff854113f2de95fdb13555fc83487b1ef5b3d4cbd869b9146fd61b54aa5de2b267493bfdb958ff815d3b3235d82072d6f19ce2883f7aeb347f

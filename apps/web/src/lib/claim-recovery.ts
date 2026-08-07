@@ -1,4 +1,4 @@
-import type { BridgeSessionEntry, ClaimPhase } from "./bridge-session.js";
+import type { BridgeSessionEntry, ClaimPhase } from "./bridge-session.ts";
 
 export function shortHash(value: string, left = 8, right = 6): string {
   if (value.length <= left + right + 1) return value;

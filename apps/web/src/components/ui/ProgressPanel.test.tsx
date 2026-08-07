@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { ProgressPanel } from "./ProgressPanel.js";
-import { advanceProgress, finishProgress, startProgress } from "./lib/progress-track.js";
+import { ProgressPanel } from "./ProgressPanel.tsx";
+import { advanceProgress, finishProgress, startProgress } from "../../lib/progress-track.ts";
 
 function render(progress: Parameters<typeof ProgressPanel>[0]["progress"], detail?: string) {
   return renderToStaticMarkup(

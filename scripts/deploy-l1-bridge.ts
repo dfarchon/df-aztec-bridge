@@ -55,7 +55,13 @@ async function main() {
     process.exit(1);
   }
 
-  const address = await deployL1Bridge({ chainName, rpcUrl, deployerKey });
+  const feeRecipient = process.env.BRIDGE_FEE_RECIPIENT as Hex | undefined;
+  if (!feeRecipient || !/^0x[0-9a-fA-F]{40}$/.test(feeRecipient)) {
+    console.error("Set BRIDGE_FEE_RECIPIENT=0x… (anonymous Trezor / treasury) in repo-root .env.");
+    process.exit(1);
+  }
+
+  const address = await deployL1Bridge({ chainName, rpcUrl, deployerKey, feeRecipient });
   console.error(`GoBridge on ${chainName}: ${address}`);
   console.log(address);
 }

@@ -7,7 +7,7 @@ import {
   MIN_BRIDGE_WEI,
   parseBridgeAmount,
   SUGGESTED_BRIDGE_FJ,
-} from "./bridge-amount.js";
+} from "./bridge-amount.ts";
 
 const fj = (value: string) => parseUnits(value, 18);
 

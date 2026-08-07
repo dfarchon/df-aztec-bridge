@@ -26,6 +26,7 @@ export const erc20ReadAbi = parseAbi([
 
 export const erc20WriteAbi = parseAbi([
   "function approve(address spender, uint256 amount) returns (bool)",
+  "function transfer(address to, uint256 amount) returns (bool)",
 ]);
 
 const CHAIN_MAP: Record<number, Chain> = {
@@ -155,17 +156,20 @@ const depositEventAbi = parseAbi([
   "event DepositToAztecPublic(bytes32 indexed to, uint256 amount, bytes32 secretHash, bytes32 key, uint256 index)",
 ]);
 
-export function extractAllDepositEvents(receipt: TransactionReceipt) {
-  const events: Array<{
-    to: Hex;
-    amount: bigint;
-    secretHash: Hex;
-    key: Hex;
-    index: bigint;
-  }> = [];
+export type DepositEvent = {
+  to: Hex;
+  amount: bigint;
+  secretHash: Hex;
+  key: Hex;
+  index: bigint;
+  emitter: Hex;
+};
+
+export function extractAllDepositEvents(receipt: TransactionReceipt): DepositEvent[] {
+  const events: DepositEvent[] = [];
   for (const log of receipt.logs) {
     try {
-      const raw = log as unknown as { data: Hex; topics: [Hex, ...Hex[]] };
+      const raw = log as unknown as { address?: Hex; data: Hex; topics: [Hex, ...Hex[]] };
       if (!raw.topics?.[0]) continue;
       const decoded = decodeEventLog({
         abi: depositEventAbi,
@@ -174,12 +178,34 @@ export function extractAllDepositEvents(receipt: TransactionReceipt) {
       }) as {
         args: { to: Hex; amount: bigint; secretHash: Hex; key: Hex; index: bigint };
       };
-      events.push(decoded.args);
+      const emitter = (log.address ?? raw.address) as Hex | undefined;
+      if (!emitter) continue;
+      events.push({ ...decoded.args, emitter });
     } catch {
       /* not a deposit event */
     }
   }
   return events;
+}
+
+export function extractDepositEvent(
+  receipt: TransactionReceipt,
+  expected: { portal: Hex; to: Hex; amount: bigint; secretHash: Hex },
+): DepositEvent {
+  const matches = extractAllDepositEvents(receipt).filter(
+    (e) =>
+      e.emitter.toLowerCase() === expected.portal.toLowerCase() &&
+      e.to.toLowerCase() === expected.to.toLowerCase() &&
+      e.amount === expected.amount &&
+      e.secretHash.toLowerCase() === expected.secretHash.toLowerCase(),
+  );
+  if (matches.length !== 1) {
+    throw new Error(
+      `Expected exactly one DepositToAztecPublic from portal ${expected.portal} ` +
+        `matching to/amount/secretHash; found ${matches.length}`,
+    );
+  }
+  return matches[0]!;
 }
 
 export function aztecRecipientToBytes32(aztecRecipient: string): Hex {

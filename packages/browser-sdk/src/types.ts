@@ -26,6 +26,8 @@ export interface PendingBridge {
   claimSecretHash: Hex;
   claimAmount: string;
   recipient: string;
+  /** Fee Juice portal that must emit DepositToAztecPublic. Optional for old sessions. */
+  portal?: Hex;
 }
 
 export interface BridgeFromWalletResult {

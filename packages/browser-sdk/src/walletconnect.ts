@@ -1,6 +1,6 @@
 import type { EIP1193Provider, Hex } from "viem";
 import { EthereumProvider } from "@walletconnect/ethereum-provider";
-import { connectWithProvider, withTimeout, type ConnectedWallet } from "./wallet.js";
+import { connectWithProvider, withTimeout, type ConnectedWallet } from "./wallet.ts";
 
 export type WalletConnectUriHandler = (uri: string) => void;
 

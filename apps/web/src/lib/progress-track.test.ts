@@ -9,7 +9,7 @@ import {
   shouldBlockUnload,
   startProgress,
   stepStateAt,
-} from "./progress-track.js";
+} from "./progress-track.ts";
 
 describe("phase mapping", () => {
   it("collapses wallet-confirm and wait phases into one bridge step", () => {

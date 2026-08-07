@@ -1,0 +1,39 @@
+# Network integrity, privacy, explorers
+
+## Aztec Scan (official explorer UX)
+
+Public UI (no private API key from the DApp):
+
+- Mainnet: [https://aztecscan.xyz/](https://aztecscan.xyz/)
+- Testnet: [https://testnet.aztecscan.xyz](https://testnet.aztecscan.xyz)
+
+Deep links used by the web app:
+
+| Kind | Path |
+|------|------|
+| Block | `/blocks/{n}` |
+| Tx effect | `/tx-effects/{0x…}` |
+| L2 address | `/address/{addr}` |
+
+Do **not** call `api.aztecscan.xyz` from the client (requires an API key). Tip / version checks use the configured Aztec node JSON-RPC (`node_getBlockNumber`, `node_getNodeInfo`) plus an official secondary tip RPC.
+
+## Client double-check
+
+`NetworkIntegrityPanel` verifies on load and every 60s:
+
+1. Client pin `5.1.0` vs node `nodeVersion`
+2. Fee Juice + portal addresses vs baked official addresses
+3. Primary tip vs secondary official RPC (warn if Δ > 32)
+4. Links to Aztec Scan current block + [docs.aztec.network/networks](https://docs.aztec.network/networks)
+
+## Privacy / localization
+
+- No Google Fonts / third-party analytics (avoids IP + locale leakage to CDNs)
+- `privacyFetch`: omit credentials, `no-referrer`, force `Accept-Language: en`, strip client-IP headers
+- UI timestamps use ISO-8601 (not `toLocaleString`)
+- API rate-limit keys are **SHA-256 truncated hashes** of `X-Forwarded-For` / `X-Real-IP` — raw IPs are never stored or logged
+- Logs redact hex secrets and IP literals
+
+## Official allowlist
+
+See `apps/web/src/lib/official-links.ts` (`OFFICIAL_HTTPS_HOST_ALLOWLIST`). Custom RPC overrides are allowed but flagged as non-allowlisted in the integrity panel.

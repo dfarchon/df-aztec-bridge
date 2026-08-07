@@ -12,9 +12,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@aztec/bb.js": "5.0.1",
+    "@aztec/bb.js": "5.1.0",
     "@df-bridge/browser-sdk": "workspace:*",
-    "@vercel/analytics": "2.0.1",
     "assert": "^2.1.0",
     "hash.js": "^1.1.7",
     "json-stringify-deterministic": "^1.0.12",
@@ -37,5 +36,9 @@
     "vite": "^6.0.0",
     "vite-plugin-node-polyfills": "^0.28.0",
     "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": "22.23.2",
+    "pnpm": "10.33.2"
   }
 }

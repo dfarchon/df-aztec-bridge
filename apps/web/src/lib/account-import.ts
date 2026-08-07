@@ -1,7 +1,7 @@
 /**
  * Account file parsers for the web form.
  *
- * Canonical format (`dfpunk-account-*.json`):
+ * Canonical DF client export (`dfpunk-account-*.json` from Download account info):
  * ```json
  * {
  *   "address": "0x…",
@@ -11,6 +11,8 @@
  *   "createdAt": 0
  * }
  * ```
+ *
+ * Also accepts Quick Join `dark-forest-privacy-*.json` (same keys + optional homeCoordinates).
  */
 
 export interface ImportedAztecAccount {
@@ -21,6 +23,13 @@ export interface ImportedAztecAccount {
   signingKey?: string;
   createdAt?: number;
   label?: string;
+  /** True when the file looks like a DF client / dfpunk export. */
+  fromDfClient?: boolean;
+  /** Set only after successful importDfpunkAccountIntoPxe in this browser. */
+  pxeRegistered?: boolean;
+  pxeRegisteredAt?: number;
+  /** ETH connector address that performed PXE registration (anti-injection bind). */
+  boundEthAddress?: string;
 }
 
 /** Canonical dfpunk single-account object. */
@@ -30,6 +39,7 @@ type DfpunkAccount = {
   salt?: unknown;
   signingKey?: unknown;
   createdAt?: unknown;
+  homeCoordinates?: unknown;
 };
 
 /** Our CLI `create-account -o` shape (also accepted). */
@@ -53,16 +63,23 @@ function asHexField(value: unknown, field: string): string {
 
 function normalizeDfpunk(row: DfpunkAccount, index = 0): ImportedAztecAccount {
   try {
+    const signingRaw =
+      typeof row.signingKey === "string" && row.signingKey.trim()
+        ? asHexField(row.signingKey, "signingKey")
+        : undefined;
     return {
       address: asHexField(row.address, "address"),
       secretKey: asHexField(row.secretKey, "secretKey"),
       salt: asHexField(row.salt, "salt"),
-      signingKey:
-        typeof row.signingKey === "string" && row.signingKey.trim()
-          ? asHexField(row.signingKey, "signingKey")
-          : undefined,
+      signingKey: signingRaw,
       createdAt: typeof row.createdAt === "number" ? row.createdAt : undefined,
-      label: index === 0 ? "dfpunk account" : `dfpunk account #${index + 1}`,
+      label:
+        index === 0
+          ? row.homeCoordinates
+            ? "DF Quick Join account"
+            : "DF / dfpunk account"
+          : `DF account #${index + 1}`,
+      fromDfClient: true,
     };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -85,7 +102,7 @@ function isDfpunkAccount(obj: Record<string, unknown>): boolean {
 
 /**
  * Parse uploaded JSON into one or more accounts.
- * Primary: single dfpunk object. Also accepts an array of those, or CLI create-account JSON.
+ * Primary: DF client dfpunk-account / Quick Join object. Also array or CLI JSON.
  */
 export function parseAccountUpload(raw: unknown): ImportedAztecAccount[] {
   if (Array.isArray(raw)) {
@@ -102,17 +119,34 @@ export function parseAccountUpload(raw: unknown): ImportedAztecAccount[] {
     }
   }
   throw new Error(
-    'Unrecognized account JSON. Expected dfpunk { address, secretKey, salt, signingKey?, createdAt? }.',
+    "Unrecognized account JSON. Expected DF client dfpunk-account-*.json " +
+      "{ address, secretKey, salt, signingKey, createdAt? }.",
   );
+}
+
+/** Assert DF-client exports include signingKey (required for PXE reopen / claim). */
+export function assertDfClientAccount(account: ImportedAztecAccount): void {
+  if (!account.signingKey?.trim()) {
+    throw new Error(
+      "This DF account file has no signingKey. In the DF client use “Download account info” " +
+        "(dfpunk-account-*.json), not an incomplete export.",
+    );
+  }
 }
 
 export async function readAccountFile(file: File): Promise<ImportedAztecAccount[]> {
   const text = await file.text();
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".txt") || (!text.trim().startsWith("{") && !text.trim().startsWith("["))) {
+    const { parseAztecWalletTxt } = await import("./wallet-backup.ts");
+    return [parseAztecWalletTxt(text)];
+  }
   let json: unknown;
   try {
     json = JSON.parse(text) as unknown;
   } catch {
-    throw new Error("File is not valid JSON");
+    const { parseAztecWalletTxt } = await import("./wallet-backup.ts");
+    return [parseAztecWalletTxt(text)];
   }
   return parseAccountUpload(json);
 }

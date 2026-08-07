@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { NetworkConfig, RuntimeSecrets, L1Backend } from "../core/types.js";
+import type { NetworkConfig, RuntimeSecrets, L1Backend } from "../core/types.ts";
 import type { Hex } from "viem";
 
 /** Monorepo root (`config/networks` lives here). */

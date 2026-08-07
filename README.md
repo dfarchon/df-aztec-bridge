@@ -18,9 +18,16 @@ config/networks/    # Network presets (shared)
 ## Quick start
 
 ```bash
-pnpm install
+nvm install && nvm use          # .nvmrc → Node 22.23.2
+corepack enable
+corepack prepare "$(node -p "require('./package.json').packageManager")" --activate
+pnpm install --frozen-lockfile
 cp .env.example .env   # if present
+pnpm check:toolchain   # nvm + pnpm sha512 pins
+pnpm check:pnpm        # supply-chain / frozen-lockfile posture
 ```
+
+See [docs/PNPM_HARDENING.md](docs/PNPM_HARDENING.md) and [tooling/TOOLCHAIN.pins](tooling/TOOLCHAIN.pins) for Node/pnpm SHA512 digests.
 
 ### CLI (unchanged behaviour)
 
@@ -133,7 +140,9 @@ JSON defaults live in `config/networks/*.json` (currently publicnode L1 RPCs). A
 
 ## Deploy notes
 
-- **Static-only (Vercel):** networks + L1 addresses live in `apps/web/src/config/networks.ts`.
+- **Static-only (Netlify):** networks + L1 addresses live in `apps/web/src/config/networks.ts`.
+  Deploy with [`netlify.toml`](netlify.toml) (`pnpm install --frozen-lockfile`, HTTPS + CSP headers).
+  Set `VITE_BRIDGE_FEE_RECIPIENT` in Netlify env for the 5% L1 fee.
   Browser claim is enabled by default, so auto-claim does not need an API.
 - Auto-claim **API** (`VITE_ENABLE_BROWSER_CLAIM=false`): still needs `VITE_API_BASE` + Node `/v1/claim`.
 - Optional URL overrides: `VITE_TESTNET_AZTEC_NODE_URL`, `VITE_MAINNET_L1_RPC_URL`, etc.

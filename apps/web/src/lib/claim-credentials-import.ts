@@ -1,5 +1,5 @@
 import type { ClaimCredentials } from "@df-bridge/browser-sdk";
-import { normalizeL1TxHash, validateClaimCredentials } from "./bridge-session.js";
+import { normalizeL1TxHash, validateClaimCredentials } from "./bridge-session.ts";
 
 const HEX64 = /^0x[0-9a-fA-F]{64}$/;
 

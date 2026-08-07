@@ -130,7 +130,8 @@ function aztecSqliteWasmPlugin(): Plugin {
     },
     writeBundle(outputOptions) {
       const outDir = outputOptions.dir ?? resolve(webDir, "dist");
-      const assetsDir = resolve(outDir, "assets");
+      // Match production assetsDir ("a") so the worker can fetch sqlite3.wasm.
+      const assetsDir = resolve(outDir, "a");
       mkdirSync(assetsDir, { recursive: true });
       copyFileSync(resolveSqliteWasm(), resolve(assetsDir, wasmName));
     },
@@ -183,7 +184,7 @@ export default defineConfig(({ mode }) => {
         // transform, and `pino-browser-entry` is only reached through the aliased pino
         // shim behind excluded Aztec packages. Without these, Vite discovers them on the
         // first page load and swaps the deps directory mid-flight, which aborts the
-        // in-flight `import("./App.js")` in main.tsx.
+        // in-flight `import("./App.tsx")` in main.tsx.
         "buffer",
         "pino-browser-entry",
       ],
@@ -239,8 +240,18 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       target: "esnext",
+      // Never ship original TypeScript / readable maps to browsers (F12 Sources).
+      sourcemap: false,
+      minify: "esbuild",
+      cssMinify: true,
+      // Opaque hashed filenames — no readable module path leaks in Network tab.
+      assetsDir: "a",
+      reportCompressedSize: false,
       rollupOptions: {
         output: {
+          entryFileNames: "a/[hash].js",
+          chunkFileNames: "a/[hash].js",
+          assetFileNames: "a/[hash][extname]",
           manualChunks(id) {
             if (!browserClaim) return;
             if (id.includes("@aztec/") || id.includes("claim-browser")) {
@@ -250,14 +261,26 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    esbuild: {
+      legalComments: "none",
+      // Strip console / debugger from production bundles (reduces F12 Console signal).
+      drop: mode === "production" ? ["console", "debugger"] : [],
+    },
     server: {
       port: 5173,
-      headers: browserClaim
-        ? {
-            "Cross-Origin-Opener-Policy": "same-origin",
-            "Cross-Origin-Embedder-Policy": "require-corp",
-          }
-        : undefined,
+      headers: {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        // credentialless keeps cross-origin isolation (SharedArrayBuffer / PXE WASM)
+        // without require-corp, which commonly breaks MetaMask / Brave wallet popups.
+        "Cross-Origin-Embedder-Policy": browserClaim ? "credentialless" : "unsafe-none",
+        "Referrer-Policy": "no-referrer",
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Permissions-Policy":
+          "camera=(), microphone=(), geolocation=(), payment=(), publickey-credentials-get=(self), publickey-credentials-create=(self)",
+        "Content-Security-Policy":
+          "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'; worker-src 'self' blob:; connect-src 'self' data: blob: https: wss: http://127.0.0.1:* http://localhost:*; child-src 'self' blob:",
+      },
       proxy: {
         "/api": {
           target: "http://127.0.0.1:8787",
@@ -267,12 +290,17 @@ export default defineConfig(({ mode }) => {
       },
     },
     preview: {
-      headers: browserClaim
-        ? {
-            "Cross-Origin-Opener-Policy": "same-origin",
-            "Cross-Origin-Embedder-Policy": "require-corp",
-          }
-        : undefined,
+      headers: {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": browserClaim ? "credentialless" : "unsafe-none",
+        "Referrer-Policy": "no-referrer",
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Permissions-Policy":
+          "camera=(), microphone=(), geolocation=(), payment=(), usb=(), publickey-credentials-get=(self), publickey-credentials-create=(self)",
+        "Content-Security-Policy":
+          "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' data: blob: https: wss: http://127.0.0.1:* http://localhost:*; child-src 'self' blob:",
+      },
     },
   };
 });

@@ -1,0 +1,11 @@
+title = "df-aztec-bridge"
+[[rules]]
+id = "aztec-account-json"
+description = "Aztec account export files must not be committed"
+path = '''(?i)account.*\.json$'''
+regex = '''(?i)(secretKey|signingKey|privateKey)\s*["']?\s*[:=]'''
+
+[[rules]]
+id = "hex-private-key-assignment"
+description = "Likely private key assignment in source"
+regex = '''(?i)(private[_-]?key|secret[_-]?key)\s*[:=]\s*['\"]0x[a-fA-F0-9]{64}['\"]'''

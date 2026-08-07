@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hardening:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Corepack activate pinned pnpm (sha512)
+        run: |
+          set -euo pipefail
+          PM="$(node -p "require('./package.json').packageManager")"
+          NODE_PIN="$(tr -d '[:space:]' < .nvmrc)"
+          corepack enable
+          corepack prepare "$PM" --activate
+          echo "node $(node -v) (want v${NODE_PIN})"
+          echo "pnpm $(pnpm --version) (from $PM)"
+          test "$(node -p process.versions.node)" = "$NODE_PIN"
+          test "$(pnpm --version)" = "$(node -p "require('./package.json').packageManager.split('@')[1].split('+')[0]")"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install (frozen)
+        run: pnpm install --frozen-lockfile
+
+      - name: Toolchain + pnpm hardening checks
+        run: |
+          pnpm check:toolchain
+          pnpm check:pnpm
+
+      - name: Artifact drift check
+        run: pnpm check:artifacts
+
+      - name: Audit (prod, advisory)
+        run: pnpm audit --prod
+        continue-on-error: true
+
+      - name: Typecheck / build libs
+        run: pnpm run build:libs && pnpm -r run typecheck
+
+      - name: Core / API unit tests
+        run: pnpm --filter @df-bridge/core test && pnpm test:api
+
+      - name: Web / browser-sdk tests
+        run: pnpm --filter @df-bridge/web test && pnpm --filter @df-bridge/browser-sdk test
+
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@de808b1eea699e751c707518dc5ba79f3cbb2eb3 # v1.2.0
+        with:
+          version: stable
+
+      - name: Forge deps + test
+        working-directory: contracts/ethereum/solidity
+        run: forge install && forge test

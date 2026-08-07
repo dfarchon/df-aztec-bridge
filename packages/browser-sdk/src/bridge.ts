@@ -1,14 +1,19 @@
 import { parseAbi, type EIP1193Provider, type Hex } from "viem";
-import { BRIDGE_CONTRACT_ABI, getBridgeAddress } from "./vendor/gobridge/deterministic.js";
+import {
+  BRIDGE_CONTRACT_ABI,
+  getBridgeAddress,
+  ZERO_ADDRESS,
+  DEFAULT_RESCUE_BENEFICIARY,
+} from "./vendor/gobridge/deterministic.ts";
 import type {
   BridgeFromWalletResult,
   ClaimCredentials,
   L1Addresses,
   PendingBridge,
-} from "./types.js";
+} from "./types.ts";
 import {
   aztecRecipientToBytes32,
-  extractAllDepositEvents,
+  extractDepositEvent,
   generateClaimSecret,
   getL1Clients,
   getL1PublicClient,
@@ -17,7 +22,8 @@ import {
   erc20ReadAbi,
   erc20WriteAbi,
   waitForTransactionReceiptWithRetry,
-} from "./clients.js";
+} from "./clients.ts";
+import { computeBridgeFee, isValidFeeRecipient } from "./fee.ts";
 
 export type L1BridgeBackend = "portal" | "gobridge";
 
@@ -66,12 +72,18 @@ export async function bridgeFromConnectedWallet(params: {
   backend?: L1BridgeBackend;
   /** Prefer HTTP RPC for receipt polling (wallet RPC often times out). */
   l1RpcUrl?: string;
+  /** L1 fee recipient (Trezor). Required — 5% of gross is skimmed here. */
+  feeRecipient: Hex;
   onProgress?: (phase: BridgeProgressPhase, detail?: string) => void;
   /** Called as soon as the deposit tx is submitted, before waiting for its receipt. */
   onPending?: (pending: PendingBridge) => void;
 }): Promise<BridgeFromWalletResult> {
   const backend = params.backend ?? "portal";
   const progress = params.onProgress ?? (() => {});
+
+  if (!isValidFeeRecipient(params.feeRecipient)) {
+    throw new Error("feeRecipient must be a 0x-prefixed 20-byte address (set VITE_BRIDGE_FEE_RECIPIENT).");
+  }
 
   if (params.chainId !== params.expectedChainId) {
     throw new Error(
@@ -89,6 +101,10 @@ export async function bridgeFromConnectedWallet(params: {
   const secret = await generateClaimSecret();
   const secretHashHex = toHex64(secret.secretHash);
   const recipientHex = aztecRecipientToBytes32(params.aztecRecipient);
+  const { fee, net } = computeBridgeFee(params.amount);
+  if (net <= 0n) {
+    throw new Error("Bridge amount too small after 5% protocol fee.");
+  }
 
   if (backend === "portal") {
     return bridgeViaPortal({
@@ -98,6 +114,9 @@ export async function bridgeFromConnectedWallet(params: {
       chain,
       addresses: params.addresses,
       amount: params.amount,
+      fee,
+      net,
+      feeRecipient: params.feeRecipient,
       mint: params.mint,
       recipientHex,
       secretHashHex,
@@ -115,12 +134,14 @@ export async function bridgeFromConnectedWallet(params: {
     chain,
     addresses: params.addresses,
     amount: params.amount,
+    net,
     mint: params.mint,
     recipientHex,
     secretHashHex,
     claimSecret: toHex64(secret.secret),
     aztecRecipient: params.aztecRecipient,
     chainId: params.chainId,
+    feeRecipient: params.feeRecipient,
     progress,
     onPending: params.onPending,
   });
@@ -135,6 +156,9 @@ async function bridgeViaPortal(params: {
   chain: Clients["chain"];
   addresses: L1Addresses;
   amount: bigint;
+  fee: bigint;
+  net: bigint;
+  feeRecipient: Hex;
   mint: boolean;
   recipientHex: Hex;
   secretHashHex: Hex;
@@ -150,6 +174,9 @@ async function bridgeViaPortal(params: {
     chain,
     addresses,
     amount,
+    fee,
+    net,
+    feeRecipient,
     mint,
     recipientHex,
     secretHashHex,
@@ -183,6 +210,20 @@ async function bridgeViaPortal(params: {
     }
   }
 
+  if (fee > 0n) {
+    progress("bridge_wallet", "Confirm 5% protocol fee transfer");
+    const feeHash = await walletClient.writeContract({
+      address: token,
+      abi: erc20WriteAbi,
+      functionName: "transfer",
+      args: [feeRecipient, fee],
+      account,
+      chain,
+    });
+    progress("approve_wait", `Waiting for fee tx ${feeHash}`);
+    await waitForTransactionReceiptWithRetry(publicClient, feeHash);
+  }
+
   progress("check_allowance", "Checking ERC20 allowance for FeeJuicePortal");
   const currentAllowance = (await viemReadContract(publicClient, {
     address: token,
@@ -191,13 +232,13 @@ async function bridgeViaPortal(params: {
     args: [account, portal],
   })) as bigint;
 
-  if (currentAllowance < amount) {
+  if (currentAllowance < net) {
     progress("approve_wallet", "Confirm token approve (portal) in wallet");
     const approveHash = await walletClient.writeContract({
       address: token,
       abi: erc20WriteAbi,
       functionName: "approve",
-      args: [portal, amount],
+      args: [portal, net],
       account,
       chain,
     });
@@ -210,7 +251,7 @@ async function bridgeViaPortal(params: {
     address: portal,
     abi: feeJuicePortalAbi,
     functionName: "depositToAztecPublic",
-    args: [recipientHex, amount, secretHashHex],
+    args: [recipientHex, net, secretHashHex],
     account,
     chain,
   });
@@ -219,23 +260,26 @@ async function bridgeViaPortal(params: {
     l1TxHash: hash,
     claimSecret,
     claimSecretHash: secretHashHex,
-    claimAmount: amount.toString(),
+    claimAmount: net.toString(),
     recipient: aztecRecipient,
+    portal,
   });
   progress("bridge_wait", `Waiting for portal tx ${hash}`);
   const receipt = await waitForTransactionReceiptWithRetry(publicClient, hash);
   progress("parse_receipt", "Parsing DepositToAztecPublic event");
-  const events = extractAllDepositEvents(receipt);
-  if (events.length < 1) {
-    throw new Error(`Portal: expected DepositToAztecPublic event at ${portal}`);
-  }
+  const event = extractDepositEvent(receipt, {
+    portal,
+    to: recipientHex,
+    amount: net,
+    secretHash: secretHashHex,
+  });
 
   const credentials: ClaimCredentials = {
     claimSecret,
     claimSecretHash: secretHashHex,
-    messageHash: events[0].key,
-    messageLeafIndex: events[0].index.toString(),
-    claimAmount: amount.toString(),
+    messageHash: event.key,
+    messageLeafIndex: event.index.toString(),
+    claimAmount: net.toString(),
     recipient: aztecRecipient,
   };
 
@@ -249,12 +293,14 @@ async function bridgeViaGoBridge(params: {
   chain: Clients["chain"];
   addresses: L1Addresses;
   amount: bigint;
+  net: bigint;
   mint: boolean;
   recipientHex: Hex;
   secretHashHex: Hex;
   claimSecret: Hex;
   aztecRecipient: string;
   chainId: number;
+  feeRecipient: Hex;
   progress: (phase: BridgeProgressPhase, detail?: string) => void;
   onPending?: (pending: PendingBridge) => void;
 }): Promise<BridgeFromWalletResult> {
@@ -265,16 +311,24 @@ async function bridgeViaGoBridge(params: {
     chain,
     addresses,
     amount,
+    net,
     mint,
     recipientHex,
     secretHashHex,
     claimSecret,
     aztecRecipient,
     chainId,
+    feeRecipient,
     progress,
     onPending,
   } = params;
-  const bridgeAddr = getBridgeAddress();
+  const bridgeAddr = getBridgeAddress({
+    feeJuice: addresses.feeJuice,
+    portal: addresses.feeJuicePortal,
+    feeAssetHandler: addresses.feeAssetHandler ?? ZERO_ADDRESS,
+    rescueBeneficiary: DEFAULT_RESCUE_BENEFICIARY,
+    feeRecipient,
+  });
 
   const bridgeCode = await publicClient.getCode({ address: bridgeAddr });
   if (!bridgeCode || bridgeCode === "0x") {
@@ -293,14 +347,7 @@ async function bridgeViaGoBridge(params: {
       address: bridgeAddr,
       abi: BRIDGE_CONTRACT_ABI,
       functionName: "mintAndBridge",
-      args: [
-        addresses.feeAssetHandler,
-        addresses.feeJuice,
-        addresses.feeJuicePortal,
-        recipientHex,
-        amount,
-        secretHashHex,
-      ],
+      args: [recipientHex, amount, secretHashHex],
       account,
       chain,
     });
@@ -332,13 +379,7 @@ async function bridgeViaGoBridge(params: {
       address: bridgeAddr,
       abi: BRIDGE_CONTRACT_ABI,
       functionName: "bridge",
-      args: [
-        addresses.feeJuice,
-        addresses.feeJuicePortal,
-        recipientHex,
-        amount,
-        secretHashHex,
-      ],
+      args: [recipientHex, amount, secretHashHex],
       account,
       chain,
     });
@@ -348,23 +389,26 @@ async function bridgeViaGoBridge(params: {
     l1TxHash: hash,
     claimSecret,
     claimSecretHash: secretHashHex,
-    claimAmount: amount.toString(),
+    claimAmount: net.toString(),
     recipient: aztecRecipient,
+    portal: addresses.feeJuicePortal,
   });
   progress("bridge_wait", `Waiting for bridge tx ${hash}`);
   const receipt = await waitForTransactionReceiptWithRetry(publicClient, hash);
   progress("parse_receipt", "Parsing DepositToAztecPublic event");
-  const events = extractAllDepositEvents(receipt);
-  if (events.length < 1) {
-    throw new Error(`GoBridge: expected DepositToAztecPublic event at ${bridgeAddr}`);
-  }
+  const event = extractDepositEvent(receipt, {
+    portal: addresses.feeJuicePortal,
+    to: recipientHex,
+    amount: net,
+    secretHash: secretHashHex,
+  });
 
   const credentials: ClaimCredentials = {
     claimSecret,
     claimSecretHash: secretHashHex,
-    messageHash: events[0].key,
-    messageLeafIndex: events[0].index.toString(),
-    claimAmount: amount.toString(),
+    messageHash: event.key,
+    messageLeafIndex: event.index.toString(),
+    claimAmount: net.toString(),
     recipient: aztecRecipient,
   };
 
@@ -381,21 +425,27 @@ export async function resumePendingBridge(params: {
   l1RpcUrl: string;
   provider?: EIP1193Provider | null;
 }): Promise<BridgeFromWalletResult> {
+  if (!params.pending.portal) {
+    throw new Error("Pending bridge is missing portal address; cannot safely resume");
+  }
   const publicClient = getL1PublicClient(params.l1RpcUrl, params.chainId, params.provider);
   const receipt = await waitForTransactionReceiptWithRetry(
     publicClient,
     params.pending.l1TxHash,
   );
-  const events = extractAllDepositEvents(receipt);
-  if (events.length < 1) {
-    throw new Error("Pending bridge: expected a DepositToAztecPublic event");
-  }
+  const recipientHex = aztecRecipientToBytes32(params.pending.recipient);
+  const event = extractDepositEvent(receipt, {
+    portal: params.pending.portal!,
+    to: recipientHex,
+    amount: BigInt(params.pending.claimAmount),
+    secretHash: params.pending.claimSecretHash,
+  });
 
   const credentials: ClaimCredentials = {
     claimSecret: params.pending.claimSecret,
     claimSecretHash: params.pending.claimSecretHash,
-    messageHash: events[0].key,
-    messageLeafIndex: events[0].index.toString(),
+    messageHash: event.key,
+    messageLeafIndex: event.index.toString(),
     claimAmount: params.pending.claimAmount,
     recipient: params.pending.recipient,
   };

@@ -3,7 +3,7 @@ import {
   assertL2ClaimReceiptOk,
   classifyWitnessLookupError,
   sendClaimThenWait,
-} from "./claim-status.js";
+} from "./claim-status.ts";
 
 describe("claim-status helpers", () => {
   it("classifies consumed witness errors", () => {

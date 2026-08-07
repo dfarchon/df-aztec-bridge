@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ClaimPhase } from "./bridge-session.js";
-import { recoverySteps } from "./claim-recovery.js";
+import type { ClaimPhase } from "./bridge-session.ts";
+import { recoverySteps } from "./claim-recovery.ts";
 
 const ALL_PHASES: ClaimPhase[] = [
   "l1-pending",
