@@ -52,11 +52,11 @@ function resolveAztecBbBrowser(): string {
   return hit;
 }
 
-function resolveSqliteWasm(): string {
+function resolveSqliteJswasmFile(fileName: string): string {
   const candidates = [
-    resolve(webDir, "node_modules/@aztec/sqlite3mc-wasm/vendor/jswasm/sqlite3.wasm"),
-    resolve(rootDir, "node_modules/@aztec/sqlite3mc-wasm/vendor/jswasm/sqlite3.wasm"),
-    resolve(rootDir, "packages/browser-sdk/node_modules/@aztec/sqlite3mc-wasm/vendor/jswasm/sqlite3.wasm"),
+    resolve(webDir, "node_modules/@aztec/sqlite3mc-wasm/vendor/jswasm", fileName),
+    resolve(rootDir, "node_modules/@aztec/sqlite3mc-wasm/vendor/jswasm", fileName),
+    resolve(rootDir, "packages/browser-sdk/node_modules/@aztec/sqlite3mc-wasm/vendor/jswasm", fileName),
   ];
   for (const p of candidates) {
     if (existsSync(p)) return p;
@@ -67,14 +67,14 @@ function resolveSqliteWasm(): string {
     const fromWallets = createRequire(
       resolve(rootDir, "node_modules/@aztec/wallets/package.json"),
     );
-    return fromWallets.resolve("@aztec/sqlite3mc-wasm/vendor/jswasm/sqlite3.wasm");
+    return fromWallets.resolve(`@aztec/sqlite3mc-wasm/vendor/jswasm/${fileName}`);
   } catch {
     // continue
   }
 
   try {
     const fromSdk = createRequire(resolve(rootDir, "packages/browser-sdk/package.json"));
-    return fromSdk.resolve("@aztec/sqlite3mc-wasm/vendor/jswasm/sqlite3.wasm");
+    return fromSdk.resolve(`@aztec/sqlite3mc-wasm/vendor/jswasm/${fileName}`);
   } catch {
     // continue
   }
@@ -86,32 +86,46 @@ function resolveSqliteWasm(): string {
       const p = resolve(
         pnpmDir,
         dir,
-        "node_modules/@aztec/sqlite3mc-wasm/vendor/jswasm/sqlite3.wasm",
+        "node_modules/@aztec/sqlite3mc-wasm/vendor/jswasm",
+        fileName,
       );
       if (existsSync(p)) return p;
     }
   }
 
   throw new Error(
-    "sqlite3.wasm not found. Install deps so @aztec/sqlite3mc-wasm is available.",
+    `${fileName} not found. Install deps so @aztec/sqlite3mc-wasm is available.`,
   );
 }
 
 /**
- * PXE's sqlite worker loads `sqlite3.wasm` next to the worker script via
- * WebAssembly.instantiateStreaming. Vite does not emit that file by default,
- * so Vercel SPA rewrite returns index.html (text/html) → MIME error.
+ * PXE's sqlite OPFS worker loads `sqlite3.wasm` and `sqlite3-opfs-async-proxy.js`
+ * next to the hashed worker under assetsDir (`a/`). Vite does not emit those files
+ * by default, so Netlify SPA fallback returns index.html (text/html) → MIME error.
  */
 function aztecSqliteWasmPlugin(): Plugin {
-  const wasmName = "sqlite3.wasm";
+  const assetFiles: Array<{ name: string; contentType: string }> = [
+    { name: "sqlite3.wasm", contentType: "application/wasm" },
+    { name: "sqlite3-opfs-async-proxy.js", contentType: "application/javascript; charset=utf-8" },
+  ];
 
-  const serveWasm = (reqUrl: string | undefined, res: import("http").ServerResponse, next: () => void) => {
-    if (!reqUrl || !reqUrl.split("?")[0]!.endsWith(`/${wasmName}`)) {
+  const serveSqliteAsset = (
+    reqUrl: string | undefined,
+    res: import("http").ServerResponse,
+    next: () => void,
+  ) => {
+    if (!reqUrl) {
       next();
       return;
     }
-    const src = resolveSqliteWasm();
-    res.setHeader("Content-Type", "application/wasm");
+    const pathOnly = reqUrl.split("?")[0]!;
+    const asset = assetFiles.find((a) => pathOnly.endsWith(`/${a.name}`));
+    if (!asset) {
+      next();
+      return;
+    }
+    const src = resolveSqliteJswasmFile(asset.name);
+    res.setHeader("Content-Type", asset.contentType);
     res.setHeader("Cache-Control", "no-cache");
     createReadStream(src).pipe(res);
   };
@@ -120,20 +134,22 @@ function aztecSqliteWasmPlugin(): Plugin {
     name: "aztec-sqlite-wasm",
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        serveWasm(req.url, res, next);
+        serveSqliteAsset(req.url, res, next);
       });
     },
     configurePreviewServer(server) {
       server.middlewares.use((req, res, next) => {
-        serveWasm(req.url, res, next);
+        serveSqliteAsset(req.url, res, next);
       });
     },
     writeBundle(outputOptions) {
       const outDir = outputOptions.dir ?? resolve(webDir, "dist");
-      // Match production assetsDir ("a") so the worker can fetch sqlite3.wasm.
+      // Match production assetsDir ("a") so workers can fetch sibling sqlite assets.
       const assetsDir = resolve(outDir, "a");
       mkdirSync(assetsDir, { recursive: true });
-      copyFileSync(resolveSqliteWasm(), resolve(assetsDir, wasmName));
+      for (const asset of assetFiles) {
+        copyFileSync(resolveSqliteJswasmFile(asset.name), resolve(assetsDir, asset.name));
+      }
     },
   };
 }

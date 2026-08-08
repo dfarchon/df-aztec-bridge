@@ -33,11 +33,19 @@
 [context.branch-deploy]
   command = "pnpm install --frozen-lockfile && pnpm --filter @df-bridge/browser-sdk build && pnpm --filter @df-bridge/web build"
 
-# SPA fallback for client-side routing
+# SPA fallback for client-side routing (only when the path is not a real file).
+# Missing /a/sqlite3-opfs-async-proxy.js previously hit this and returned text/html.
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+[[headers]]
+  for = "/a/sqlite3-opfs-async-proxy.js"
+  [headers.values]
+    Content-Type = "application/javascript; charset=utf-8"
+    Cache-Control = "public, max-age=0, must-revalidate"
+    Cross-Origin-Resource-Policy = "same-origin"
 
 [[headers]]
   for = "/*.wasm"
