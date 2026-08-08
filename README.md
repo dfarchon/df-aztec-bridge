@@ -18,7 +18,7 @@ config/networks/    # Network presets (shared)
 ## Quick start
 
 ```bash
-nvm install && nvm use          # .nvmrc → Node 22.23.2
+nvm install && nvm use          # .nvmrc → Node 24.12.0
 corepack enable
 corepack prepare "$(node -p "require('./package.json').packageManager")" --activate
 pnpm install --frozen-lockfile

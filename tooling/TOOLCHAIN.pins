@@ -3,28 +3,29 @@
 # Corepack / package.json#packageManager uses: <name>@<ver>+sha512.<hex>
 # where hex = Buffer.from(npmIntegrityWithoutPrefix, 'base64').toString('hex')
 #
-# Official Node SHASUMS256: https://nodejs.org/dist/v22.23.2/SHASUMS256.txt
-# pnpm npm dist.integrity: https://registry.npmjs.org/pnpm/10.33.2
+# Official Node SHASUMS256: https://nodejs.org/dist/v24.12.0/SHASUMS256.txt
+# pnpm npm dist.integrity: https://registry.npmjs.org/pnpm/11.20.0
 
-NODE_VERSION=22.23.2
-PNPM_VERSION=10.33.2
+NODE_VERSION=24.12.0
+PNPM_VERSION=11.20.0
 
-# npm registry integrity (base64) for pnpm@10.33.2
-PNPM_NPM_INTEGRITY=sha512-qQ+vb+6rca1sblf5Tg/hoS9dzCLNdU20CulZPraj4LaxLjVAIYuzeuCDQEsfLObbKkEh6XmCm0r/lLmfSdoc+A==
+# npm registry integrity (base64) for pnpm@11.20.0
+PNPM_NPM_INTEGRITY=sha512-mm8zCpW2ZEbqCI+vFSFAWooB8H/ecSTMmVjf7VLUu0NnN+ZbCPhfN7Rvy6N1CSVYrFEmK4FoRLIvY0Bu0Wa/7g==
 
 # Corepack packageManager string (sha512 hex of the npm integrity payload)
-PNPM_PACKAGE_MANAGER=pnpm@10.33.2+sha512.a90faf6feeab71ad6c6e57f94e0fe1a12f5dcc22cd754db40ae9593eb6a3e0b6b12e3540218bb37ae083404b1f2ce6db2a4121e979829b4aff94b99f49da1cf8
+PNPM_PACKAGE_MANAGER=pnpm@11.20.0+sha512.9a6f330a95b66446ea088faf1521405a8a01f07fde7124cc9958dfed52d4bb436737e65b08f85f37b46fcba375092558ac51262b816844b22f63406ed166bfee
 
 # Official Node.js SHA256 (from SHASUMS256.txt)
-NODE_SHA256_LINUX_X64=d60acfe00a2932254bb0ad20e01b0d74397a0875595de719654b214f4b03f307
-NODE_SHA256_SOURCE=bbe768df8d5815d7fa76124052985332452e0a4742d39f32027550d1aab8f6fb
+NODE_SHA256_LINUX_X64=bdebee276e58d0ef5448f3d5ac12c67daa963dd5e0a9bb621a53d1cefbc852fd
+NODE_SHA256_SOURCE=6d3e891a016b90f6c6a19ea5cbc9c90c57eef9198670ba93f04fa82af02574ae
 
-# Independently computed SHA512 of official Node.js dist artifacts (nodejs.org)
-NODE_SHA512_LINUX_X64=c4c92a64d62e34a3ceb2df45b6fb4ff8d6ae8bad46e0756daff13a0267c03219d6c61bf651b81ee97762c6e13c4ebb2905cf5ab6c2f8ef9de8747ad9a0edbeac
-NODE_SHA512_DARWIN_ARM64=c118fbb61631c4dc95bd682435cdec7cef7f1ef5598fb9674da91479784649e387a369613eb7920490df20efcf34c72f78bc31f072b54ad97df403c8cca14f30
-NODE_SHA512_DARWIN_X64=95c43699e9a4ccf6cea26031b0c5fa248664156c42ac229d4e54623788cff866ad165192745d342550097278752b8caae60bbaf8c093aabd4bc3a11b00bb48e6
-NODE_SHA512_WIN_X64=31b88a0df9eaad7f1b785b3d413a48cf8be43080b6415aa053224005129828ca179563471c98da171e663eab5c2d7e752ccc4e6ac359a3b3bc8d6022a9e31f8e
-NODE_SHA512_SOURCE=92b959098fb7fcfe80776a983d2ae52479692a63c49087c97a0ee2423147a5222b1e1994e98ff650483322cf3a1f1cca8a51f3389993c0ff5fc13b6d1f4ef4ef
+# Independently computed SHA512 of official Node.js dist artifacts (nodejs.org).
+# Recompute after bump: curl -fsSL https://nodejs.org/dist/v$NODE_VERSION/<file> | sha512sum
+NODE_SHA512_LINUX_X64=
+NODE_SHA512_DARWIN_ARM64=
+NODE_SHA512_DARWIN_X64=
+NODE_SHA512_WIN_X64=
+NODE_SHA512_SOURCE=
 
 # Root package.json#devDependencies — exact versions + npm registry integrity (sha512-base64).
 # package.json cannot embed Corepack-style +sha512.<hex> for ordinary deps; pins live here + lockfile.

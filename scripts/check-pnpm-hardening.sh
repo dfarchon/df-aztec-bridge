@@ -20,11 +20,11 @@ PM="$(node -p "require('./package.json').packageManager||''")"
 ENG_PNPM="$(node -p "require('./package.json').engines?.pnpm||''")"
 ENG_NODE="$(node -p "require('./package.json').engines?.node||''")"
 
-if [[ ! "$PM" =~ ^pnpm@10\.33\.2\+sha512\.[a-f0-9]{128}$ ]]; then
-  fail "packageManager must be pnpm@10.33.2+sha512.<128-hex> (got: ${PM:-empty})"
+if [[ ! "$PM" =~ ^pnpm@[0-9]+\.[0-9]+\.[0-9]+\+sha512\.[a-f0-9]{128}$ ]]; then
+  fail "packageManager must be pnpm@<ver>+sha512.<128-hex> (got: ${PM:-empty})"
 fi
 [[ "$PM" == "$PNPM_PACKAGE_MANAGER" ]] || fail "packageManager != TOOLCHAIN.pins PNPM_PACKAGE_MANAGER"
-ok "packageManager=$PM (Corepack sha512 pinned; CVE-2025-69264 fixed since 10.26)"
+ok "packageManager=$PM (Corepack sha512 pinned)"
 
 [[ "$ENG_PNPM" == "$PNPM_VERSION" ]] || fail "engines.pnpm=$ENG_PNPM want $PNPM_VERSION"
 [[ "$ENG_NODE" == "$NODE_VERSION" ]] || fail "engines.node=$ENG_NODE want $NODE_VERSION"
@@ -71,36 +71,59 @@ if (missing || other) {
 console.log(`OK: ${sha512}/${resolutions.length} packages resolutions have integrity sha512`);
 EOF
 
-for key in \
-  prefer-frozen-lockfile=true \
-  lockfile=true \
-  package-manager-strict=true \
-  package-manager-strict-version=true \
-  strict-dep-builds=true \
-  minimum-release-age=1440 \
-  block-exotic-subdeps=true \
-  trust-policy=no-downgrade \
-  verify-deps-before-run=error \
-  engine-strict=true \
-  fund=false \
-  shamefully-hoist=false \
-  confirm-modules-purge=false \
-  strict-store-pkg-content-check=true \
-  manage-package-manager-versions=true \
-  'registry=https://registry.npmjs.org/'
-do
-  rg -qF -- "$key" .npmrc || fail ".npmrc missing: $key"
-done
-ok ".npmrc hardened keys present"
+# .npmrc is auth/registry-only on pnpm v11+; hardening lives in pnpm-workspace.yaml.
+rg -qF 'registry=https://registry.npmjs.org/' .npmrc || fail ".npmrc missing HTTPS registry"
+ok ".npmrc registry-only (HTTPS)"
 
-node -e "
-const p=require('./package.json');
-const list=p.pnpm?.onlyBuiltDependencies;
-if (!Array.isArray(list) || !list.length) process.exit(2);
-const pre=p.scripts?.preinstall||'';
-if (!pre.includes('enforce-pnpm')) process.exit(3);
-" || fail "onlyBuiltDependencies allowlist + scripts.preinstall enforce-pnpm required"
-ok "onlyBuiltDependencies allowlist + preinstall enforce-pnpm present"
+node <<'EOF' || fail "pnpm-workspace.yaml hardening + allowBuilds + preinstall enforce-pnpm required"
+const fs = require("fs");
+const text = fs.readFileSync("pnpm-workspace.yaml", "utf8");
+const need = [
+  "preferFrozenLockfile: true",
+  "lockfile: true",
+  "pmOnFail: error",
+  "strictDepBuilds: true",
+  "minimumReleaseAge: 1440",
+  "blockExoticSubdeps: true",
+  "trustPolicy: no-downgrade",
+  "trustLockfile: true",
+  "verifyDepsBeforeRun: error",
+  "engineStrict: true",
+  "fund: false",
+  "shamefullyHoist: false",
+  "confirmModulesPurge: false",
+  "strictStorePkgContentCheck: true",
+  "allowBuilds:",
+];
+for (const k of need) {
+  if (!text.includes(k)) {
+    console.error("pnpm-workspace.yaml missing: " + k);
+    process.exit(2);
+  }
+}
+const builds = [
+  "esbuild: true",
+  "leveldown: true",
+  "lmdb: true",
+  "msgpackr-extract: true",
+  "protobufjs: true",
+  '"@reown/appkit": true',
+];
+for (const b of builds) {
+  if (!text.includes(b)) {
+    console.error("allowBuilds missing: " + b);
+    process.exit(3);
+  }
+}
+const p = require("./package.json");
+if (p.pnpm) {
+  console.error("package.json#pnpm must be removed on pnpm v11");
+  process.exit(4);
+}
+const pre = p.scripts?.preinstall || "";
+if (!pre.includes("enforce-pnpm")) process.exit(5);
+EOF
+ok "pnpm-workspace.yaml hardened + allowBuilds + preinstall enforce-pnpm present"
 
 for f in .github/workflows/ci.yml netlify.toml README.md; do
   rg -q 'pnpm install --frozen-lockfile' "$f" || fail "$f must use pnpm install --frozen-lockfile"

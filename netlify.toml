@@ -15,8 +15,8 @@
 
 # Shared by production / deploy-preview / branch deploys / Netlify CLI builds.
 [build.environment]
-  NODE_VERSION = "22.23.2"
-  PNPM_VERSION = "10.33.2"
+  NODE_VERSION = "24.12.0"
+  PNPM_VERSION = "11.20.0"
   VITE_ENABLE_BROWSER_CLAIM = "true"
   VITE_BRIDGE_FEE_RECIPIENT = "0x33D5928E1c66E831Eb250D1250bf2CfF9eACa370"
   VITE_BRIDGE_PUBLIC_URL = "https://aztec-dfarchon-kit.netlify.app/"

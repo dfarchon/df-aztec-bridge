@@ -61,8 +61,8 @@ else
 fi
 
 # .npmrc must force package manager strictness
-rg -qF 'package-manager-strict=true' .npmrc || fail ".npmrc missing package-manager-strict=true"
-rg -qF 'package-manager-strict-version=true' .npmrc || fail ".npmrc missing package-manager-strict-version=true"
-ok ".npmrc package-manager strict + strict-version"
+rg -qF 'package-manager-strict=true' .npmrc || rg -qF 'pmOnFail: error' pnpm-workspace.yaml || fail "missing pmOnFail: error (pnpm v11) / legacy package-manager-strict"
+rg -qF 'package-manager-strict-version=true' .npmrc || rg -qF 'pmOnFail: error' pnpm-workspace.yaml || fail "missing pmOnFail: error (pnpm v11)"
+ok "package-manager strict via pmOnFail: error"
 
 echo "toolchain pin check passed."

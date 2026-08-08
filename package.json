@@ -3,9 +3,15 @@
   "version": "0.1.1",
   "private": true,
   "description": "Fee Juice L1→L2 bridge monorepo (core, CLI, API, web)",
-  "packageManager": "pnpm@10.33.2+sha512.a90faf6feeab71ad6c6e57f94e0fe1a12f5dcc22cd754db40ae9593eb6a3e0b6b12e3540218bb37ae083404b1f2ce6db2a4121e979829b4aff94b99f49da1cf8",
+  "packageManager": "pnpm@11.20.0+sha512.9a6f330a95b66446ea088faf1521405a8a01f07fde7124cc9958dfed52d4bb436737e65b08f85f37b46fcba375092558ac51262b816844b22f63406ed166bfee",
   "scripts": {
     "preinstall": "node ./scripts/enforce-pnpm.mjs",
+    "dev": "bash scripts/dev-mprocs.sh",
+    "dev:shell": "bash scripts/dev-local.sh",
+    "dev:aztec": "bash scripts/dev-aztec.sh",
+    "dev:web": "bash scripts/dev-web.sh",
+    "fund:local-juice": "node --import tsx scripts/fund-local-juice.ts",
+    "tick:local": "node --import tsx scripts/local-network-tick.ts",
     "typecheck": "pnpm run build:libs && pnpm -r run typecheck",
     "build": "pnpm run build:libs && pnpm -r run build",
     "build:libs": "pnpm --filter @df-bridge/core --filter @df-bridge/browser-sdk run build",
@@ -13,7 +19,11 @@
     "api": "pnpm --filter @df-bridge/api run dev",
     "web": "pnpm --filter @df-bridge/web run dev",
     "web:clean": "pnpm --filter @df-bridge/web run dev:clean",
+    "compile:private-chat": "bash -c 'export PATH=\"$HOME/.aztec/bin:$HOME/.aztec/current/bin:$PATH\" && cd contracts/aztec/private_chat && aztec compile && aztec codegen target -o ../../../packages/browser-sdk/src/generated && cp target/private_chat_contract-PrivateChat.json ../../../packages/browser-sdk/src/generated/PrivateChat.json'",
+    "compile:whitelisted-fpc": "bash -c 'export PATH=\"$HOME/.aztec/bin:$HOME/.aztec/current/bin:$PATH\" && cd contracts/aztec/whitelisted_fpc && aztec compile && aztec codegen target -o ../../../packages/browser-sdk/src/generated && cp target/whitelisted_fpc_contract-WhitelistedFPC.json ../../../packages/browser-sdk/src/generated/WhitelistedFPC.json'",
     "deploy-l1-bridge": "node --import tsx scripts/deploy-l1-bridge.ts",
+    "deploy-l1-chat-registry": "node --import tsx scripts/deploy-l1-chat-registry.ts",
+    "deploy-aztec-chat": "node --import tsx scripts/deploy-aztec-chat.ts",
     "check:artifacts": "bash scripts/check-artifacts.sh",
     "check:pnpm": "bash scripts/check-pnpm-hardening.sh",
     "check:toolchain": "bash scripts/check-toolchain.sh",
@@ -22,18 +32,8 @@
     "audit": "pnpm audit --prod"
   },
   "engines": {
-    "node": "22.23.2",
-    "pnpm": "10.33.2"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "leveldown",
-      "lmdb",
-      "msgpackr-extract",
-      "protobufjs",
-      "@reown/appkit"
-    ]
+    "node": "24.12.0",
+    "pnpm": "11.20.0"
   },
   "devDependencies": {
     "@df-bridge/core": "workspace:*",

@@ -29,8 +29,10 @@ This kit must not be used with production funds until Critical and High findings
 ## Dependency / pnpm posture
 
 - Always `pnpm install --frozen-lockfile` (CI, Netlify, local).
-- Pin Node via `.nvmrc` / `.node-version` → **22.23.2**; pnpm via Corepack `packageManager` **sha512** (see `tooling/TOOLCHAIN.pins`).
-- Lifecycle scripts only via `pnpm.onlyBuiltDependencies`; see [docs/PNPM_HARDENING.md](docs/PNPM_HARDENING.md).
+- Pin Node via `.nvmrc` / `.node-version` → **24.12.0**; pnpm via Corepack `packageManager` **sha512** (see `tooling/TOOLCHAIN.pins`).
+- Lifecycle scripts only via `allowBuilds` in `pnpm-workspace.yaml`; see [docs/PNPM_HARDENING.md](docs/PNPM_HARDENING.md).
+- Audit overrides in `pnpm-workspace.yaml#overrides` force patched transitive versions (`hono`, `@hono/node-server`, `undici`, `systeminformation`, `ws`, `axios`, `brace-expansion`, OpenTelemetry, `uuid`). Keep majors compatible with `@aztec/*`.
+- CI runs `pnpm audit --prod --audit-level=high` (fails the job on high/critical).
 - Run `pnpm check:toolchain` and `pnpm check:pnpm` after changing toolchain pins, `.npmrc`, the lockfile, or install docs.
 
 See also [docs/OPS.md](docs/OPS.md) for monitoring signals and [CODEOWNERS](CODEOWNERS) for review paths.

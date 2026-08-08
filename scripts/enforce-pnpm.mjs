@@ -11,11 +11,19 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const pm = String(pkg.packageManager || "");
 const wantVer = pm.split("@")[1]?.split("+")[0] || "";
+const engPnpm = String(pkg.engines?.pnpm || "");
 const ua = process.env.npm_config_user_agent || "";
 
-if (!/^pnpm@10\.33\.2\+sha512\.[a-f0-9]{128}$/.test(pm)) {
+if (!/^pnpm@\d+\.\d+\.\d+\+sha512\.[a-f0-9]{128}$/.test(pm)) {
   console.error(
-    `[enforce-pnpm] package.json#packageManager must be pnpm@10.33.2+sha512.<128-hex> (got ${pm || "empty"})`,
+    `[enforce-pnpm] package.json#packageManager must be pnpm@<ver>+sha512.<128-hex> (got ${pm || "empty"})`,
+  );
+  process.exit(1);
+}
+
+if (engPnpm && wantVer && engPnpm !== wantVer) {
+  console.error(
+    `[enforce-pnpm] engines.pnpm=${engPnpm} ≠ packageManager version ${wantVer}`,
   );
   process.exit(1);
 }

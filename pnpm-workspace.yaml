@@ -1,3 +1,51 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# pnpm v11+ config (was package.json#pnpm + most of .npmrc)
+autoInstallPeers: true
+engineStrict: true
+fund: false
+preferFrozenLockfile: true
+lockfile: true
+shamefullyHoist: false
+confirmModulesPurge: false
+strictDepBuilds: true
+strictStorePkgContentCheck: true
+verifyDepsBeforeRun: error
+blockExoticSubdeps: true
+trustPolicy: no-downgrade
+# Committed lockfile is the trusted base (CI / closed-source). Skip re-checking every
+# entry against live registry provenance — older pins (semver@6, undici@5, …) false-positive
+# as "trust downgrades" vs newer releases that adopted OIDC/provenance.
+trustLockfile: true
+minimumReleaseAge: 1440
+minimumReleaseAgeStrict: false
+# Fail when running pnpm ≠ packageManager pin (Corepack).
+pmOnFail: error
+
+# Force patched transitive versions (audit high+ cleared). Keep majors compatible with @aztec/*.
+overrides:
+  hono: "4.12.34"
+  "@hono/node-server": "2.1.0"
+  systeminformation: "5.33.1"
+  brace-expansion: "5.0.9"
+  ws: "8.21.3"
+  axios: "1.19.0"
+  undici: "6.28.0"
+  "@opentelemetry/propagator-jaeger": "2.10.0"
+  "@opentelemetry/core": "2.10.0"
+  uuid: "11.1.1"
+
+# Only these packages may run install/build lifecycle scripts.
+allowBuilds:
+  esbuild: true
+  leveldown: true
+  lmdb: true
+  msgpackr-extract: true
+  protobufjs: true
+  "@reown/appkit": true
+
+minimumReleaseAgeExclude:
+  - ws@8.21.3
+  - "@hono/node-server@2.1.0"
