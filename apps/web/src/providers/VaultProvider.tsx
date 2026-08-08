@@ -20,7 +20,10 @@ import {
   lockVault,
   setupVault,
   subscribeVault,
+  unlockAndReplacePasskey,
   unlockVault,
+  wipeVaultProfileWithPassword,
+  attachVaultPasskey,
   VaultError,
 } from "../lib/vault.ts";
 import {
@@ -33,7 +36,7 @@ import {
 } from "../components/vault/VaultUnlockModal.tsx";
 import { useUi } from "./UiProvider.tsx";
 import { pushDappLog } from "../lib/dapp-log.ts";
-import { registerVaultPasskey } from "../lib/vault-passkey.ts";
+import { PasskeyError, registerVaultPasskey } from "../lib/vault-passkey.ts";
 import { startVaultIdleLock } from "../lib/vault-idle-lock.ts";
 
 type EnsureReason = "setup" | "unlock" | "secrets" | "vault-page";
@@ -92,6 +95,7 @@ export function VaultProvider(props: { children: ReactNode }) {
   const [modalError, setModalError] = useState<string | null>(null);
   const [modalRequired, setModalRequired] = useState(false);
   const [modalPasskeyRequired, setModalPasskeyRequired] = useState(false);
+  const [modalPasskeyRecovery, setModalPasskeyRecovery] = useState(false);
   const [modalAddress, setModalAddress] = useState<string | null>(null);
 
   const pendingResolve = useRef<((ok: boolean) => void) | null>(null);
@@ -123,6 +127,7 @@ export function VaultProvider(props: { children: ReactNode }) {
     setModalError(null);
     setModalRequired(false);
     setModalPasskeyRequired(false);
+    setModalPasskeyRecovery(false);
     pendingResolve.current?.(ok);
     pendingResolve.current = null;
   }, []);
@@ -141,6 +146,7 @@ export function VaultProvider(props: { children: ReactNode }) {
         setModalRequired(required);
         setModalError(null);
         setModalPasskeyRequired(false);
+        setModalPasskeyRecovery(false);
         setModalAddress(aztecAddress ?? null);
         setModalOpen(true);
         if (mode === "unlock" && aztecAddress) {
@@ -256,6 +262,7 @@ export function VaultProvider(props: { children: ReactNode }) {
 
       setModalBusy(true);
       setModalError(null);
+      setModalPasskeyRecovery(false);
       try {
         if (modalMode === "setup") {
           if (!active?.address) {
@@ -321,7 +328,15 @@ export function VaultProvider(props: { children: ReactNode }) {
         finishModal(true);
       } catch (e) {
         setModalBusy(false);
-        setModalError(e instanceof Error ? e.message : String(e));
+        const msg = e instanceof Error ? e.message : String(e);
+        setModalError(msg);
+        if (
+          modalMode === "unlock" &&
+          e instanceof PasskeyError &&
+          (e.code === "host_mismatch" || e.code === "missing_on_device" || e.code === "cancelled")
+        ) {
+          setModalPasskeyRecovery(true);
+        }
       }
     },
     [
@@ -332,6 +347,90 @@ export function VaultProvider(props: { children: ReactNode }) {
       refreshVaultAvailability,
       setPxeAccount,
     ],
+  );
+
+  const onReplacePasskey = useCallback(
+    async (password: string) => {
+      const active = pxeAccountRef.current;
+      const unlockAddr = modalAddress ?? active?.address ?? null;
+      if (!unlockAddr) {
+        setModalError("No vault profile address selected.");
+        return;
+      }
+      setModalBusy(true);
+      setModalError(null);
+      try {
+        pushDappLog({
+          kind: "info",
+          title: "Replace passkey",
+          detail: "Password check, then register a new passkey for this host…",
+          ttlMs: 20_000,
+        });
+        await unlockVault({
+          aztecAddress: unlockAddr,
+          password,
+          signingKey: active?.signingKey,
+          skipPasskey: true,
+        });
+        const passkey = await registerVaultPasskey({ aztecAddress: unlockAddr });
+        await attachVaultPasskey(passkey);
+        const restored = await loadAccountFromUnlockedVault(unlockAddr);
+        if (restored) setPxeAccount(restored);
+        pushDappLog({
+          kind: "announce",
+          title: "Passkey replaced",
+          detail: `New passkey registered for ${window.location.hostname}. Vault unlocked.`,
+          ttlMs: 12_000,
+        });
+        await refreshVaultAvailability();
+        finishModal(true);
+      } catch (e) {
+        setModalBusy(false);
+        setModalError(e instanceof Error ? e.message : String(e));
+        setModalPasskeyRecovery(true);
+      }
+    },
+    [finishModal, modalAddress, refreshVaultAvailability, setPxeAccount],
+  );
+
+  const onRecoverViaJson = useCallback(
+    async (password: string) => {
+      const active = pxeAccountRef.current;
+      const unlockAddr = modalAddress ?? active?.address ?? null;
+      if (!unlockAddr) {
+        setModalError("No vault profile address selected.");
+        return;
+      }
+      const confirmed = window.confirm(
+        "Wipe this host’s IndexedDB vault for this address after password check?\n\n" +
+          "You must re-import dfpunk-account-*.json and set a new password (+ passkey). " +
+          "Claim credentials JSON downloads are separate and are not deleted.",
+      );
+      if (!confirmed) return;
+      setModalBusy(true);
+      setModalError(null);
+      try {
+        await wipeVaultProfileWithPassword({
+          aztecAddress: unlockAddr,
+          password,
+          signingKey: active?.signingKey,
+        });
+        setPxeAccount(null);
+        pushDappLog({
+          kind: "announce",
+          title: "Vault wiped on this host",
+          detail: "Import DF Punk JSON again, then create a new vault + passkey for this site.",
+          ttlMs: 16_000,
+        });
+        await refreshVaultAvailability();
+        finishModal(false);
+      } catch (e) {
+        setModalBusy(false);
+        setModalError(e instanceof Error ? e.message : String(e));
+        setModalPasskeyRecovery(true);
+      }
+    },
+    [finishModal, modalAddress, refreshVaultAvailability, setPxeAccount],
   );
 
   const secretsVisible = !!(pxeAccount && unlocked);
@@ -377,7 +476,10 @@ export function VaultProvider(props: { children: ReactNode }) {
         busy={modalBusy}
         error={modalError}
         passkeyRequired={modalPasskeyRequired}
+        passkeyRecovery={modalPasskeyRecovery}
         onSubmit={onSubmitPassword}
+        onReplacePasskey={modalPasskeyRecovery ? onReplacePasskey : undefined}
+        onRecoverViaJson={modalPasskeyRecovery ? onRecoverViaJson : undefined}
         onCancel={modalRequired ? undefined : () => finishModal(false)}
       />
     </VaultContext.Provider>

@@ -18,7 +18,9 @@ echo "Starting web on local Aztec…"
 echo "Ready:"
 echo "  Aztec node:  ${AZTEC_URL}"
 echo "  Vite:        http://localhost:5173/"
-echo "  Chat local:  http://localhost:5173/chat/local"
+if [[ -d contracts/aztec/private_chat ]]; then
+  echo "  Chat local:  http://localhost:5173/chat/local"
+fi
 echo ""
 
 exec pnpm --filter @df-bridge/web run dev

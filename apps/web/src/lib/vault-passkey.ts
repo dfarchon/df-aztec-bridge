@@ -58,14 +58,42 @@ function rpId(): string {
   return window.location.hostname;
 }
 
+/** Current page hostname used as WebAuthn rpId. */
+export function currentPasskeyRpId(): string {
+  if (typeof window === "undefined") return "";
+  return window.location.hostname;
+}
+
+/**
+ * When stored passkey rpId ≠ current host (e.g. Netlify vs localhost), return a clear message.
+ * Returns null when hosts match or passkey has no rpId.
+ */
+export function describePasskeyHostMismatch(passkey: VaultPasskeyMeta): string | null {
+  const stored = (passkey.rpId || "").trim().toLowerCase();
+  const current = currentPasskeyRpId().trim().toLowerCase();
+  if (!stored || !current || stored === current) return null;
+  return (
+    `This vault's passkey was registered for "${passkey.rpId}", but you are on "${currentPasskeyRpId()}". ` +
+    `Passkeys and IndexedDB do not transfer across hosts (localhost ≠ Netlify). ` +
+    `Open the original site to unlock, or replace the passkey on this host after entering your password.`
+  );
+}
+
 function vaultRpName(): string {
   return "DF Aztec Bridge Vault";
 }
 
 export class PasskeyError extends Error {
-  constructor(message: string) {
+  /** Machine-readable recovery hint for the unlock UI. */
+  readonly code?: "host_mismatch" | "missing_on_device" | "cancelled" | "other";
+
+  constructor(
+    message: string,
+    code: PasskeyError["code"] = "other",
+  ) {
     super(message);
     this.name = "PasskeyError";
+    this.code = code;
   }
 }
 
@@ -74,10 +102,17 @@ function mapWebAuthnError(err: unknown, action: "create" | "get"): PasskeyError 
   const name = e?.name ?? "";
   const msg = e?.message ?? String(err);
   if (name === "NotAllowedError") {
+    if (action === "get") {
+      const host = currentPasskeyRpId() || "this site";
+      return new PasskeyError(
+        `No usable passkey for "${host}" on this device (cancelled, timed out, or never registered here). ` +
+          `Enter your password and use “Replace passkey for this host”, or re-import DF Punk JSON to create a new vault.`,
+        "missing_on_device",
+      );
+    }
     return new PasskeyError(
-      action === "create"
-        ? "Passkey registration was cancelled or timed out. Try again, or use another authenticator."
-        : "Passkey verification was cancelled or timed out. Unlock the device and try again.",
+      "Passkey registration was cancelled or timed out. Try again, or use another authenticator.",
+      "cancelled",
     );
   }
   if (name === "InvalidStateError") {
@@ -90,7 +125,8 @@ function mapWebAuthnError(err: unknown, action: "create" | "get"): PasskeyError 
   }
   if (name === "SecurityError") {
     return new PasskeyError(
-      "Passkeys require a secure context (HTTPS or localhost) and matching site origin.",
+      "Passkeys require a secure context (HTTPS or localhost) and a matching site origin (rpId).",
+      "host_mismatch",
     );
   }
   return new PasskeyError(msg || `Passkey ${action} failed.`);
@@ -183,6 +219,11 @@ export async function assertVaultPasskey(passkey: VaultPasskeyMeta): Promise<voi
     throw new PasskeyError("Vault passkey metadata is missing credentialId.");
   }
 
+  const mismatch = describePasskeyHostMismatch(passkey);
+  if (mismatch) {
+    throw new PasskeyError(mismatch, "host_mismatch");
+  }
+
   const challenge = crypto.getRandomValues(new Uint8Array(32));
   const allow: PublicKeyCredentialDescriptor = {
     type: "public-key",
@@ -206,11 +247,11 @@ export async function assertVaultPasskey(passkey: VaultPasskeyMeta): Promise<voi
   }
 
   if (!cred || cred.type !== "public-key") {
-    throw new PasskeyError("Passkey verification failed.");
+    throw new PasskeyError("Passkey verification failed.", "missing_on_device");
   }
   const pk = cred as PublicKeyCredential;
   const gotId = b64Encode(pk.rawId);
   if (gotId !== passkey.credentialId) {
-    throw new PasskeyError("Passkey credential did not match this vault.");
+    throw new PasskeyError("Passkey credential did not match this vault.", "missing_on_device");
   }
 }

@@ -167,6 +167,47 @@ export async function attachVaultPasskey(passkey: VaultPasskeyMeta): Promise<voi
   notify();
 }
 
+/**
+ * After password verifies: unlock without the old passkey, then store a new passkey for this host.
+ * Use when the device has no matching WebAuthn credential (localhost vs Netlify, cleared OS keys, …).
+ */
+export async function unlockAndReplacePasskey(opts: {
+  aztecAddress: string;
+  password: string;
+  signingKey?: string;
+  passkey: VaultPasskeyMeta;
+}): Promise<void> {
+  await unlockVault({
+    aztecAddress: opts.aztecAddress,
+    password: opts.password,
+    signingKey: opts.signingKey,
+    skipPasskey: true,
+  });
+  await attachVaultPasskey(opts.passkey);
+}
+
+/** Delete vault profile after password check (skip passkey). User can re-import DF Punk JSON + setup. */
+export async function wipeVaultProfileWithPassword(opts: {
+  aztecAddress: string;
+  password: string;
+  signingKey?: string;
+}): Promise<void> {
+  await unlockVault({
+    aztecAddress: opts.aztecAddress,
+    password: opts.password,
+    signingKey: opts.signingKey,
+    skipPasskey: true,
+  });
+  const address = opts.aztecAddress.trim();
+  await backend.deleteProfile(address);
+  cek = null;
+  unlocked = false;
+  if (activeAddress?.toLowerCase() === address.toLowerCase()) {
+    activeAddress = null;
+  }
+  notify();
+}
+
 export async function unlockVault(opts: {
   aztecAddress: string;
   password: string;

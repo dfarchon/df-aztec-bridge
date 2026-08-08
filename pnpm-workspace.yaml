@@ -23,6 +23,8 @@ minimumReleaseAge: 1440
 minimumReleaseAgeStrict: false
 # Fail when running pnpm ≠ packageManager pin (Corepack).
 pmOnFail: error
+# Pin explicitly — pnpm 11 verifyDepsBeforeRun fails if this flips vs node_modules state.
+enableGlobalVirtualStore: false
 
 # Force patched transitive versions (audit high+ cleared). Keep majors compatible with @aztec/*.
 overrides:

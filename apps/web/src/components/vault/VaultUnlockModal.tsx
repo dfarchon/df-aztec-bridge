@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import {
+  currentPasskeyRpId,
   isWebAuthnAvailable,
   prefersPlatformAuthenticator,
 } from "../../lib/vault-passkey.ts";
@@ -14,7 +15,13 @@ export function VaultUnlockModal(props: {
   error?: string | null;
   /** When unlocking a vault that already has a passkey registered. */
   passkeyRequired?: boolean;
+  /** Show recovery actions after a recoverable passkey failure. */
+  passkeyRecovery?: boolean;
   onSubmit: (password: string, opts: { registerPasskey: boolean }) => void | Promise<void>;
+  /** Password already verified path: register a new passkey for this host. */
+  onReplacePasskey?: (password: string) => void | Promise<void>;
+  /** Wipe vault after password; user re-imports DF Punk JSON. */
+  onRecoverViaJson?: (password: string) => void | Promise<void>;
   onCancel?: () => void;
 }) {
   const {
@@ -24,7 +31,10 @@ export function VaultUnlockModal(props: {
     busy,
     error,
     passkeyRequired,
+    passkeyRecovery,
     onSubmit,
+    onReplacePasskey,
+    onRecoverViaJson,
     onCancel,
   } = props;
   const [password, setPassword] = useState("");
@@ -33,6 +43,7 @@ export function VaultUnlockModal(props: {
   const [platformOk, setPlatformOk] = useState(false);
   const [registerPasskey, setRegisterPasskey] = useState(true);
   const titleId = useId();
+  const host = currentPasskeyRpId() || "this site";
 
   useEffect(() => {
     if (!open) {
@@ -56,8 +67,9 @@ export function VaultUnlockModal(props: {
   const tooShort = mode === "setup" && password.length > 0 && password.length < 8;
   const canSubmit =
     !busy &&
-    password.length >= (mode === "setup" ? 8 : 1) &&
+    password.length >= (mode === "unlock" ? 1 : 8) &&
     (mode === "unlock" || (password === confirm && !tooShort));
+  const canRecover = mode === "unlock" && !!passkeyRecovery && password.length >= 1 && !busy;
 
   const setupPasskeyHint = platformOk
     ? "Uses Face ID, fingerprint, or Windows Hello on this device."
@@ -90,6 +102,9 @@ export function VaultUnlockModal(props: {
         </p>
         {aztecAddress ? (
           <p className="mono small vault-modal-addr">{aztecAddress}</p>
+        ) : null}
+        {mode === "unlock" && passkeyRequired ? (
+          <p className="hint mono small">Site host (passkey rpId): {host}</p>
         ) : null}
         <label className="field">
           <span>Password</span>
@@ -138,7 +153,7 @@ export function VaultUnlockModal(props: {
             password only.
           </p>
         ) : null}
-        {mode === "unlock" && passkeyRequired ? (
+        {mode === "unlock" && passkeyRequired && !passkeyRecovery ? (
           <p className="hint vault-passkey-unlock-hint">
             After password, your device will ask for biometric / PIN / phone confirmation.
           </p>
@@ -146,6 +161,36 @@ export function VaultUnlockModal(props: {
         {tooShort ? <p className="error small">Password must be at least 8 characters.</p> : null}
         {mismatch ? <p className="error small">Passwords do not match.</p> : null}
         {error ? <p className="error small">{error}</p> : null}
+        {passkeyRecovery ? (
+          <div className="vault-passkey-recovery">
+            <p className="hint">
+              Recovery for this host (<span className="mono">{host}</span>): replace the passkey
+              after password check, or wipe this vault and re-import DF Punk JSON.
+            </p>
+            <div className="modal-actions vault-passkey-recovery-actions">
+              {onReplacePasskey ? (
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={!canRecover || !webAuthnOk}
+                  onClick={() => void onReplacePasskey(password)}
+                >
+                  {busy ? "…" : "Replace passkey for this host"}
+                </button>
+              ) : null}
+              {onRecoverViaJson ? (
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={!canRecover}
+                  onClick={() => void onRecoverViaJson(password)}
+                >
+                  {busy ? "…" : "Wipe vault → re-import JSON"}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
         <div className="modal-actions">
           {onCancel ? (
             <button type="button" className="ghost" onClick={onCancel} disabled={busy}>
