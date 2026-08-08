@@ -30,7 +30,7 @@ export function RouterProvider(props: { children: ReactNode }) {
   useEffect(() => {
     const onPop = () => setPath(readPath());
     window.addEventListener("popstate", onPop);
-    // Normalize `/` → `/bridge` once on mount
+    // Normalize `/` → `/bridge` (or keep explorer deep links) once on mount
     const current = window.location.pathname;
     if (normalizePath(current) !== current) {
       window.history.replaceState({}, "", normalizePath(current));

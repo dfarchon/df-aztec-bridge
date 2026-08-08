@@ -1,8 +1,9 @@
 import { useMemo } from "react";
 import {
+  aztecExplorerLinkLabel,
   aztecScanTxEffectUrl,
+  isLocalExplorerOrigin,
   l1TxUrl,
-  resolveAztecScanOrigin,
 } from "../../lib/official-links.ts";
 
 export function TxAnalysisLinks(props: {
@@ -19,11 +20,15 @@ export function TxAnalysisLinks(props: {
   );
   const l2Href = useMemo(() => {
     if (!l2TxHash) return null;
-    const origin = resolveAztecScanOrigin(networkId, aztecExplorerUrl);
-    const hash = l2TxHash.startsWith("0x") ? l2TxHash : `0x${l2TxHash}`;
-    return `${origin}/tx-effects/${hash}`;
+    return aztecScanTxEffectUrl(networkId, l2TxHash, aztecExplorerUrl);
   }, [networkId, aztecExplorerUrl, l2TxHash]);
 
+  const l2Label = aztecExplorerLinkLabel(aztecExplorerUrl);
+  const l2SameOrigin =
+    !!aztecExplorerUrl &&
+    isLocalExplorerOrigin(aztecExplorerUrl) &&
+    typeof window !== "undefined" &&
+    window.location.origin === new URL(aztecExplorerUrl).origin;
 
   if (!l1Href && !l2Href) return null;
 
@@ -36,8 +41,12 @@ export function TxAnalysisLinks(props: {
         </a>
       ) : null}
       {l2Href ? (
-        <a href={l2Href} target="_blank" rel="noopener noreferrer">
-          L2 tx on Aztec Scan ↗
+        <a
+          href={l2Href}
+          target={l2SameOrigin ? undefined : "_blank"}
+          rel={l2SameOrigin ? undefined : "noopener noreferrer"}
+        >
+          L2 tx on {l2Label} ↗
         </a>
       ) : null}
     </div>

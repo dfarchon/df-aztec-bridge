@@ -65,6 +65,8 @@ const NETWORKS_BASE: Record<string, WebNetworkConfig> = {
     l1ChainId: 31337,
     bridgeTiming: "warp",
     l1Backend: "portal",
+    /** In-app AztecScan-shaped explorer served by Vite (`pnpm dev`). */
+    aztecExplorerUrl: "http://localhost:5173",
     // Sandbox L1 addresses vary by version — override if your local deploy differs.
     l1Addresses: {
       l1ChainId: 31337,

@@ -147,7 +147,9 @@ export async function verifyNetworkAgainstOfficial(
     versionMatch,
     officialRpcHost,
     aztecScanLatestBlockUrl:
-      tipForScan !== null ? aztecScanBlockUrl(network.id, tipForScan) : aztecScanBlockUrl(network.id, 0),
+      tipForScan !== null
+        ? aztecScanBlockUrl(network.id, tipForScan, network.aztecExplorerUrl)
+        : aztecScanBlockUrl(network.id, 0, network.aztecExplorerUrl),
     docsNetworksUrl: OFFICIAL_DOCS_NETWORKS,
     errors,
     checkedAt: new Date().toISOString(),

@@ -1,9 +1,10 @@
 # Local stack TUI for `pnpm dev` (system mprocs binary — not an npm dep).
 # Panes:
-#   aztec  — local network (:8080 + anvil :8545)
-#   tick   — mine/warp every 16s so Automine keeps advancing while idle
-#   juice  — post-deploy Fee Juice → config/local-juice-fund.json (exits when done)
-#   web    — wait → libs/pins → Vite :5173
+#   aztec     — local network (:8080 + anvil :8545)
+#   tick      — mine/warp every 16s so Automine keeps advancing while idle
+#   juice     — post-deploy Fee Juice → config/local-juice-fund.json (exits when done)
+#   web       — wait → libs/pins → Vite :5173
+#   explorer  — tip poll + URLs for in-app AztecScan-shaped explorer (not Chicmoz)
 procs:
   aztec:
     shell: bash scripts/dev-aztec.sh
@@ -13,3 +14,5 @@ procs:
     shell: bash scripts/dev-juice.sh
   web:
     shell: bash scripts/dev-web.sh
+  explorer:
+    shell: bash scripts/dev-explorer.sh

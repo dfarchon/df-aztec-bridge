@@ -12,6 +12,8 @@ interface ImportMetaEnv {
   readonly VITE_MAINNET_L1_RPC_URL?: string;
   readonly VITE_LOCAL_AZTEC_NODE_URL?: string;
   readonly VITE_LOCAL_L1_RPC_URL?: string;
+  /** Same cadence as mprocs `tick` / local-network-tick (ms). */
+  readonly VITE_LOCAL_TICK_INTERVAL_MS?: string;
   /** Anonymous Trezor / treasury receiving the 5% L1 AZTEC fee + mainnet ETH service fee. */
   readonly VITE_BRIDGE_FEE_RECIPIENT?: string;
   /** Optional fixed mainnet ETH service fee in wei (else estimated from gas × ~1 L1 tx). */

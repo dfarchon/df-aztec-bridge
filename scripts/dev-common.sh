@@ -35,7 +35,9 @@ export MAX_ALLOWED_ETH_CLIENT_DRIFT_SECONDS="${MAX_ALLOWED_ETH_CLIENT_DRIFT_SECO
 export SEQ_BUILD_CHECKPOINT_IF_EMPTY="${SEQ_BUILD_CHECKPOINT_IF_EMPTY:-true}"
 export SEQ_MIN_TX_PER_BLOCK="${SEQ_MIN_TX_PER_BLOCK:-0}"
 # mprocs `tick` pane / `pnpm tick:local` — aztecDebug_mineBlock interval (ms).
+# Vite local explorer polls tip on the same cadence (VITE_LOCAL_TICK_INTERVAL_MS).
 export LOCAL_TICK_INTERVAL_MS="${LOCAL_TICK_INTERVAL_MS:-4000}"
+export VITE_LOCAL_TICK_INTERVAL_MS="${VITE_LOCAL_TICK_INTERVAL_MS:-$LOCAL_TICK_INTERVAL_MS}"
 
 node_up() {
   curl -sf -X POST "${AZTEC_URL}" \

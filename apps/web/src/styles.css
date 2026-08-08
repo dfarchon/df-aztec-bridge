@@ -3059,3 +3059,82 @@ main.app-main {
   width: 100%;
 }
 
+
+/* Local AztecScan-shaped explorer (pnpm dev / local network) */
+.local-explorer h1 {
+  margin: 0.15rem 0 0.35rem;
+  font-size: 1.35rem;
+  font-weight: 550;
+  letter-spacing: -0.02em;
+}
+
+.local-explorer-subhead {
+  margin: 1.1rem 0 0.45rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.local-explorer-live {
+  margin: 0.35rem 0 0.55rem;
+}
+
+.local-explorer-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.local-explorer-meta {
+  display: grid;
+  gap: 0.55rem 1.25rem;
+  margin: 0.5rem 0 0;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+}
+
+.local-explorer-meta > div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.local-explorer-meta dt {
+  margin: 0;
+  color: var(--dim, #999);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.local-explorer-meta dd {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.local-explorer-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.local-explorer-list a {
+  color: var(--steel, #9ab);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.local-explorer-json {
+  margin: 0.85rem 0 0;
+  padding: 0.85rem 1rem;
+  max-height: min(56vh, 28rem);
+  overflow: auto;
+  border: 1px solid var(--border, #2a2a2a);
+  border-radius: 8px;
+  background: #0e0e0e;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

@@ -95,13 +95,14 @@ import {
 } from "../../lib/wallet-session-guard.ts";
 import { LEGACY_WALLET_RDNS } from "@df-bridge/browser-sdk";
 import { usePath, useNavigate } from "../../app/router.tsx";
-import { ROUTES } from "../../app/routes.ts";
+import { ROUTES, isExplorerPath } from "../../app/routes.ts";
 import { useNetwork } from "../../providers/NetworkProvider.tsx";
 import { useVault } from "../../providers/VaultProvider.tsx";
 import { useUi } from "../../providers/UiProvider.tsx";
 import { TopBar } from "../../components/layout/TopBar.tsx";
 import { WalletDrawer } from "../../components/wallet/WalletDrawer.tsx";
 import { VaultPage } from "../vault/VaultPage.tsx";
+import { LocalExplorerPage } from "../explorer/LocalExplorerPage.tsx";
 import { VaultLockedError } from "../../lib/vault.ts";
 import { ConnectSessionGate } from "../../components/ui/ConnectSessionGate.tsx";
 import { AztecRpcOptionsField } from "../../components/ui/AztecRpcOptionsField.tsx";
@@ -2106,6 +2107,11 @@ export function BridgeWorkspace() {
         shellReady={shellReady}
         onConnect={() => void onConnect()}
       />
+      {isExplorerPath(path) ? (
+        <main className="app-shell app-main">
+          <LocalExplorerPage path={path} />
+        </main>
+      ) : (
       <main className={progress ? "with-progress-panel app-shell app-main" : "app-shell app-main"}>
       {!shellReady ? (
         <ConnectSessionGate
@@ -3132,6 +3138,7 @@ export function BridgeWorkspace() {
       ) : null}
 
     </main>
+      )}
     </>
   );
 }

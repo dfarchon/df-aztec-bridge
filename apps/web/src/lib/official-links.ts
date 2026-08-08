@@ -56,6 +56,18 @@ export function aztecScanOrigin(networkId: string): string {
   return AZTECSCAN_MAINNET;
 }
 
+/** Loopback HTTP origins for the in-app local explorer (pnpm dev). */
+export function isLocalExplorerOrigin(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "http:") return false;
+    const host = u.hostname.toLowerCase();
+    return host === "localhost" || host === "127.0.0.1" || host === "[::1]";
+  } catch {
+    return false;
+  }
+}
+
 /** Prefer network preset explorer URL when provided. */
 export function resolveAztecScanOrigin(
   networkId: string,
@@ -65,6 +77,8 @@ export function resolveAztecScanOrigin(
     try {
       const u = new URL(aztecExplorerUrl);
       if (u.protocol === "https:") return u.origin;
+      // Local in-app explorer only (never other http hosts).
+      if (isLocalExplorerOrigin(aztecExplorerUrl)) return u.origin;
     } catch {
       /* fall through */
     }
@@ -72,17 +86,37 @@ export function resolveAztecScanOrigin(
   return aztecScanOrigin(networkId);
 }
 
-export function aztecScanBlockUrl(networkId: string, blockNumber: number | bigint): string {
-  return `${aztecScanOrigin(networkId)}/blocks/${blockNumber}`;
+export function aztecScanBlockUrl(
+  networkId: string,
+  blockNumber: number | bigint,
+  aztecExplorerUrl?: string,
+): string {
+  return `${resolveAztecScanOrigin(networkId, aztecExplorerUrl)}/blocks/${blockNumber}`;
 }
 
-export function aztecScanTxEffectUrl(networkId: string, txHash: string): string {
+export function aztecScanTxEffectUrl(
+  networkId: string,
+  txHash: string,
+  aztecExplorerUrl?: string,
+): string {
   const hash = txHash.startsWith("0x") ? txHash : `0x${txHash}`;
-  return `${aztecScanOrigin(networkId)}/tx-effects/${hash}`;
+  return `${resolveAztecScanOrigin(networkId, aztecExplorerUrl)}/tx-effects/${hash}`;
 }
 
-export function aztecScanAddressUrl(networkId: string, address: string): string {
-  return `${aztecScanOrigin(networkId)}/address/${address}`;
+export function aztecScanAddressUrl(
+  networkId: string,
+  address: string,
+  aztecExplorerUrl?: string,
+): string {
+  return `${resolveAztecScanOrigin(networkId, aztecExplorerUrl)}/address/${address}`;
+}
+
+/** Label for L2 explorer links (public Aztec Scan vs local Vite explorer). */
+export function aztecExplorerLinkLabel(aztecExplorerUrl?: string): string {
+  if (aztecExplorerUrl && isLocalExplorerOrigin(aztecExplorerUrl)) {
+    return "Local explorer";
+  }
+  return "Aztec Scan";
 }
 
 export function l1TxUrl(explorerOrigin: string | undefined, txHash: string): string | null {

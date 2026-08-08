@@ -3,10 +3,13 @@ import {
   AZTECSCAN_MAINNET,
   AZTECSCAN_TESTNET,
   OFFICIAL_DOCS_NETWORKS,
+  aztecExplorerLinkLabel,
   aztecScanBlockUrl,
   aztecScanTxEffectUrl,
+  isLocalExplorerOrigin,
   isOfficialHttpsUrl,
   l1TxUrl,
+  resolveAztecScanOrigin,
 } from "./official-links.ts";
 import { redactForLog } from "./privacy.ts";
 
@@ -31,6 +34,21 @@ describe("official-links", () => {
     expect(isOfficialHttpsUrl("https://lb.drpc.live/aztec-mainnet/x")).toBe(true);
     expect(isOfficialHttpsUrl("http://aztecscan.xyz/")).toBe(false);
     expect(isOfficialHttpsUrl("https://evil.example/")).toBe(false);
+  });
+
+  it("accepts loopback HTTP for local in-app explorer only", () => {
+    expect(isLocalExplorerOrigin("http://localhost:5173")).toBe(true);
+    expect(isLocalExplorerOrigin("http://127.0.0.1:5173")).toBe(true);
+    expect(isLocalExplorerOrigin("http://evil.example")).toBe(false);
+    expect(isLocalExplorerOrigin("https://localhost:5173")).toBe(false);
+    expect(resolveAztecScanOrigin("local", "http://localhost:5173")).toBe(
+      "http://localhost:5173",
+    );
+    expect(aztecScanBlockUrl("local", 9, "http://localhost:5173")).toBe(
+      "http://localhost:5173/blocks/9",
+    );
+    expect(aztecExplorerLinkLabel("http://localhost:5173")).toBe("Local explorer");
+    expect(aztecExplorerLinkLabel("https://aztecscan.xyz")).toBe("Aztec Scan");
   });
 
   it("builds HTTPS L1 explorer tx links", () => {

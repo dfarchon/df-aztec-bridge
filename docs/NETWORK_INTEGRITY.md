@@ -7,6 +7,8 @@ Public UI (no private API key from the DApp):
 - Mainnet: [https://aztecscan.xyz/](https://aztecscan.xyz/)
 - Testnet: [https://testnet.aztecscan.xyz](https://testnet.aztecscan.xyz)
 
+**Local network (`pnpm dev`):** the Vite app serves an AztecScan-shaped explorer at `http://localhost:5173/explorer` (and `/blocks/{n}`, `/tx-effects/{0x…}`, `/address/{addr}`) against `http://localhost:8080`. Tip and route data refresh on the same cadence as mprocs `tick` / `local-network-tick` (`LOCAL_TICK_INTERVAL_MS` → `VITE_LOCAL_TICK_INTERVAL_MS`). Viewing the tip block follows the head as it advances. This is a lightweight JSON-RPC tip viewer — not the full [Chicmoz](https://github.com/aztec-scan/chicmoz) indexer stack.
+
 Deep links used by the web app:
 
 | Kind | Path |
