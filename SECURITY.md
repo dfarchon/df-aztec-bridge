@@ -12,8 +12,9 @@ Never commit:
 - `account.json` / `account*.json` exports
 - `.env` files
 - API job dumps under `data/`
+- Keyed dRPC path URLs in `VITE_*` (Vite bakes them into the browser). Public default: `https://aztec-mainnet.drpc.org`. Keyed endpoints only in private/non-`VITE_` env (CLI/API) or Netlify UI for non-client use.
 
-If secrets were ever committed, **deleting the files does not revoke them**. Rotate accounts, move assets from a clean machine, and treat the old keys as burned.
+If secrets were ever committed, **deleting the files does not revoke them**. Rotate accounts / provider keys, move assets from a clean machine, and treat the old keys as burned.
 
 ### C-01 rotation checklist (mainnet L2 accounts previously in git history)
 
@@ -22,17 +23,46 @@ If secrets were ever committed, **deleting the files does not revoke them**. Rot
 3. Inspect onchain / app activity since first exposure (commit `aebfbe8`, 21 July 2026).
 4. Only after rotation, consider history rewriting with coordinated disclosure.
 
-## Production posture
+## Production posture (app controls — re-verified)
 
-This kit must not be used with production funds until Critical and High findings from the security review are remediated and independently re-tested. The HTTP API must stay loopback-only (or offline) unless authentication, authorization, spend limits, and secret handling are verified.
+| Control | Status |
+|---------|--------|
+| `API_AUTH_TOKEN` (≥32) on `/v1/*` | Required; Vite `/api` proxy injects from server env (never `VITE_`) |
+| `POST /v1/bridge` | Always **403** (no L1 keys over HTTP) |
+| `POST /v1/claim` | **Off** unless `API_ENABLE_CLAIM=true` **and** loopback `API_HOST`; still auth-gated |
+| Loopback bind | Default `127.0.0.1`; non-loopback needs `API_ALLOW_NON_LOOPBACK=true` |
+| Rate limit identity | TCP peer hash by default; `X-Forwarded-For` only if `API_TRUST_PROXY=true` |
+| API security headers | nosniff / DENY / no-referrer / no-store / CSP `default-src 'none'` |
+| Browser claim (Netlify) | `VITE_ENABLE_BROWSER_CLAIM=true`; remote `VITE_API_BASE` rejected |
+| CSP | Explicit allowlist (`csp.ts` ≡ `netlify.toml`); no bare `https:`/`wss:`; no `*.drpc.*` / `*.publicnode.com`. WC/Reown wildcards remain (required) |
+| RPC overrides | Localhost or `OFFICIAL_HTTPS_HOST_ALLOWLIST` only |
+| Vault | Meta AES-GCM at rest; idle 15m / tab-hidden 5m auto-lock |
+| DevGate | Client defense-in-depth; **Netlify visitor password required** on preview hosts |
+
+This kit must not be used with production funds until Critical and High findings from the security review are remediated, C-01 rotation is confirmed, and controls are independently re-tested.
 
 ## Dependency / pnpm posture
 
 - Always `pnpm install --frozen-lockfile` (CI, Netlify, local).
 - Pin Node via `.nvmrc` / `.node-version` → **24.12.0**; pnpm via Corepack `packageManager` **sha512** (see `tooling/TOOLCHAIN.pins`).
 - Lifecycle scripts only via `allowBuilds` in `pnpm-workspace.yaml`; see [docs/PNPM_HARDENING.md](docs/PNPM_HARDENING.md).
-- Audit overrides in `pnpm-workspace.yaml#overrides` force patched transitive versions (`hono`, `@hono/node-server`, `undici`, `systeminformation`, `ws`, `axios`, `brace-expansion`, OpenTelemetry, `uuid`). Keep majors compatible with `@aztec/*`.
-- CI runs `pnpm audit --prod --audit-level=high` (fails the job on high/critical).
+- Audit overrides in `pnpm-workspace.yaml#overrides` force patched transitive versions (`hono`, `@hono/node-server`, `undici`, `ws`, `axios`, … plus Vite toolchain `postcss@8.5.23`, `nanoid@3.3.18`).
+- CI / local gate: `pnpm audit --prod --audit-level=high` (must stay clean). Root script: `pnpm audit` → `--prod`.
 - Run `pnpm check:toolchain` and `pnpm check:pnpm` after changing toolchain pins, `.npmrc`, the lockfile, or install docs.
+
+### Audit status (2026-08-08)
+
+| Scope | Result |
+|-------|--------|
+| `pnpm audit --prod` | **No known vulnerabilities** |
+| `pnpm audit --prod --audit-level=high` | **Clean** |
+| `pnpm audit` (includes dev) | **1 low** residual: `elliptic@≤6.6.1` via `vite-plugin-node-polyfills` → `crypto-browserify` ([GHSA-848j-6mx2-7j84](https://github.com/advisories/GHSA-848j-6mx2-7j84)). Advisory lists patch `≥6.6.2`, but **6.6.2 is not on npm yet** — accepted until published; then add an override. |
+
+**Cleared this pass (dev/build chain):**
+
+- High [GHSA-2v37-7h3g-55p8](https://github.com/advisories/GHSA-2v37-7h3g-55p8) `nanoid` → override `3.3.18`
+- Moderate [GHSA-fxqj-rqcc-2cmp](https://github.com/advisories/GHSA-fxqj-rqcc-2cmp) / CVE-2026-69153 `postcss` → override `8.5.23`
+
+Re-check after dependency bumps: `pnpm audit --prod` and `pnpm audit`.
 
 See also [docs/OPS.md](docs/OPS.md) for monitoring signals and [CODEOWNERS](CODEOWNERS) for review paths.

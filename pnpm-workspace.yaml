@@ -36,6 +36,9 @@ overrides:
   "@opentelemetry/propagator-jaeger": "2.10.0"
   "@opentelemetry/core": "2.10.0"
   uuid: "11.1.1"
+  # Vite toolchain (dev/build — Aug 2026 advisories; not in --prod)
+  postcss: "8.5.23"
+  nanoid: "3.3.18"
 
 # Only these packages may run install/build lifecycle scripts.
 allowBuilds:
@@ -49,3 +52,4 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - ws@8.21.3
   - "@hono/node-server@2.1.0"
+  - nanoid@3.3.18

@@ -114,9 +114,8 @@ export const OFFICIAL_TIP_CHECK_RPC: Record<string, string> = {
 };
 
 /**
- * Aztec Mainnet node defaults.
- * Primary: authenticated dRPC load balancer. Public fallback: open dRPC endpoint.
+ * Aztec Mainnet node defaults (public). Optional keyed provider URLs belong in
+ * VITE_MAINNET_AZTEC_NODE_URL / Netlify UI — never commit path credentials as source defaults.
  */
-export const AZTEC_MAINNET_NODE_DEFAULT =
-  "https://lb.drpc.live/aztec-mainnet/AnUkBxJDjUo3ksEkgPshPngqoSJzkNIR8YO-RoYgFhqK";
 export const AZTEC_MAINNET_NODE_PUBLIC = "https://aztec-mainnet.drpc.org";
+export const AZTEC_MAINNET_NODE_DEFAULT = AZTEC_MAINNET_NODE_PUBLIC;

@@ -1,0 +1,16 @@
+---
+description: API agent — loopback, CORS, claim auth, rate limits
+globs: "apps/api/**"
+alwaysApply: false
+---
+
+# API agent
+
+- Default bind `127.0.0.1`. Non-loopback requires explicit `API_ALLOW_NON_LOOPBACK=true` plus warnings.
+- Keep `POST /v1/bridge` disabled (403). Never accept `l1PrivateKey` over HTTP.
+- `/v1/*` must require `API_AUTH_TOKEN` (Bearer or `X-API-Key`, timing-safe). Vite `/api` proxy injects token from server env — never `VITE_` for the token.
+- `POST /v1/claim` stays **off** unless `API_ENABLE_CLAIM=true` **and** loopback `API_HOST`. Prefer browser claim on Netlify; never enable claim on a public bind.
+- CORS: empty allowlist = default-deny; no `credentials: true` unless intentionally designed.
+- Rate-limit identity: hash TCP peer by default; ignore `X-Forwarded-For` unless `API_TRUST_PROXY=true` and a trusted proxy overwrites client IP.
+- Claim jobs: redact secrets in errors/logs; public job JSON must never include L2 secret keys.
+- Keep API security headers middleware on all responses.

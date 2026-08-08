@@ -5,6 +5,8 @@ import { createReadStream, copyFileSync, existsSync, mkdirSync, readdirSync } fr
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { buildDevCsp } from "./src/lib/csp.ts";
+import { DEV_GATE_PUBLISHED_EXAMPLE_HASH } from "./src/lib/dev-gate.ts";
 
 const webDir = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(webDir, "../..");
@@ -159,6 +161,47 @@ export default defineConfig(({ mode }) => {
   const browserClaim = env.VITE_ENABLE_BROWSER_CLAIM !== "false";
   const bbBrowser = resolveAztecBbBrowser();
   const pinoBrowser = resolvePinoBrowser();
+  const apiAuthToken = env.API_AUTH_TOKEN?.trim() ?? "";
+  const gateHash = env.VITE_DEV_GATE_PASSWORD_HASH?.trim().toLowerCase() ?? "";
+  if (env.VITE_DEV_GATE === "true") {
+    if (!/^[0-9a-f]{64}$/.test(gateHash) || gateHash === DEV_GATE_PUBLISHED_EXAMPLE_HASH) {
+      throw new Error(
+        "VITE_DEV_GATE=true requires a unique VITE_DEV_GATE_PASSWORD_HASH (64 hex). The published example hash is blocked.",
+      );
+    }
+  }
+  // Path-keyed dRPC URLs must never ship in the browser bundle (VITE_* is public).
+  const viteMainnetNode = env.VITE_MAINNET_AZTEC_NODE_URL?.trim() ?? "";
+  if (/lb\.drpc\.live\/aztec-mainnet\/[^/\s?#]+/i.test(viteMainnetNode)) {
+    throw new Error(
+      "VITE_MAINNET_AZTEC_NODE_URL must not include a dRPC path key (baked into the client). " +
+        "Use https://aztec-mainnet.drpc.org, or put a keyed URL only in non-VITE MAINNET_AZTEC_NODE_URL for CLI/API.",
+    );
+  }
+  if (!browserClaim && !apiAuthToken) {
+    throw new Error(
+      "VITE_ENABLE_BROWSER_CLAIM=false requires API_AUTH_TOKEN (≥32) so the /api proxy can authenticate /v1/claim.",
+    );
+  }
+  if (!browserClaim && apiAuthToken.length > 0 && apiAuthToken.length < 32) {
+    throw new Error("API_AUTH_TOKEN must be at least 32 characters.");
+  }
+  if (!browserClaim && env.API_ENABLE_CLAIM !== "true") {
+    throw new Error(
+      "VITE_ENABLE_BROWSER_CLAIM=false requires API_ENABLE_CLAIM=true on the local API (loopback only). Prefer browser claim for Netlify.",
+    );
+  }
+  const viteApiBase = env.VITE_API_BASE?.trim() || "/api";
+  if (
+    viteApiBase !== "/api" &&
+    !viteApiBase.startsWith("/api/") &&
+    !/^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?(\/|$)/i.test(viteApiBase)
+  ) {
+    throw new Error(
+      "VITE_API_BASE must be /api or a loopback http(s) URL. Remote claim API bases are blocked " +
+        "(would require baking API_AUTH_TOKEN into the client). Prefer VITE_ENABLE_BROWSER_CLAIM=true.",
+    );
+  }
 
   return {
     envDir: rootDir,
@@ -294,14 +337,21 @@ export default defineConfig(({ mode }) => {
         "X-Frame-Options": "DENY",
         "Permissions-Policy":
           "camera=(), microphone=(), geolocation=(), payment=(), publickey-credentials-get=(self), publickey-credentials-create=(self)",
-        "Content-Security-Policy":
-          "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'; worker-src 'self' blob:; connect-src 'self' data: blob: https: wss: http://127.0.0.1:* http://localhost:*; child-src 'self' blob:",
+        "Content-Security-Policy": buildDevCsp({ unsafeInlineScripts: true }),
       },
       proxy: {
         "/api": {
           target: "http://127.0.0.1:8787",
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, ""),
+          configure: (proxy) => {
+            proxy.on("proxyReq", (proxyReq) => {
+              if (!apiAuthToken) return;
+              if (!proxyReq.getHeader("authorization") && !proxyReq.getHeader("x-api-key")) {
+                proxyReq.setHeader("Authorization", `Bearer ${apiAuthToken}`);
+              }
+            });
+          },
         },
       },
     },
@@ -314,8 +364,7 @@ export default defineConfig(({ mode }) => {
         "X-Frame-Options": "DENY",
         "Permissions-Policy":
           "camera=(), microphone=(), geolocation=(), payment=(), usb=(), publickey-credentials-get=(self), publickey-credentials-create=(self)",
-        "Content-Security-Policy":
-          "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' data: blob: https: wss: http://127.0.0.1:* http://localhost:*; child-src 'self' blob:",
+        "Content-Security-Policy": buildDevCsp({ unsafeInlineScripts: false }),
       },
     },
   };

@@ -1,0 +1,14 @@
+---
+description: Web / Netlify agent — CSP, vault, OPFS assets, pages
+globs: "apps/web/**,netlify.toml,apps/web/vite.config.ts"
+alwaysApply: false
+---
+
+# Web / Netlify agent
+
+- Prefer `VITE_ENABLE_BROWSER_CLAIM=true` for static Netlify; do not require a public claim API.
+- CSP: keep `script-src` tight (`'self' 'wasm-unsafe-eval'` in prod). Prefer explicit `connect-src` host allowlists over bare `https:` / `wss:` when changing CSP.
+- Vite must emit `/a/sqlite3.wasm` and `/a/sqlite3-opfs-async-proxy.js` (SPA fallback must not serve HTML for those paths).
+- Vault: encrypt secrets in `docs`; `meta` may hold public address + KDF params — never store seed/signing keys in plaintext IDB or localStorage.
+- Wallet sessions: EIP-6963 / WalletConnect only; refuse anonymous `window.ethereum` injection in production.
+- No `dangerouslySetInnerHTML` / `eval` / `innerHTML` for user content. Preserve brand links and fee recipient addresses unless the user asks and you re-verify.

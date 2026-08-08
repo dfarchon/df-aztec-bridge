@@ -1,0 +1,14 @@
+---
+description: Supply-chain agent — pnpm pins, overrides, lockfile
+globs: package.json,pnpm-workspace.yaml,pnpm-lock.yaml,.npmrc,.nvmrc,tooling/TOOLCHAIN.pins,.github/workflows/**
+alwaysApply: false
+---
+
+# Supply-chain agent
+
+- Pin Node / pnpm via `.nvmrc`, `engines`, and Corepack `packageManager` sha512 (`tooling/TOOLCHAIN.pins`).
+- Hardening lives in `pnpm-workspace.yaml` (pnpm v11+): `preferFrozenLockfile`, `allowBuilds`, `trustPolicy: no-downgrade`, `trustLockfile`, audit `overrides`.
+- `.npmrc` is registry/auth only on pnpm v11+.
+- Lifecycle scripts only via `allowBuilds` whitelist. Do not widen without user approval.
+- After override or pin changes: refresh lockfile deliberately, restore `trustPolicy: no-downgrade`, then `pnpm check:toolchain` + `pnpm check:pnpm`.
+- CI must keep `pnpm audit --prod --audit-level=high` failing the job (no silent `continue-on-error`).

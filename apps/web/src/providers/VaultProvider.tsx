@@ -34,6 +34,7 @@ import {
 import { useUi } from "./UiProvider.tsx";
 import { pushDappLog } from "../lib/dapp-log.ts";
 import { registerVaultPasskey } from "../lib/vault-passkey.ts";
+import { startVaultIdleLock } from "../lib/vault-idle-lock.ts";
 
 type EnsureReason = "setup" | "unlock" | "secrets" | "vault-page";
 
@@ -113,6 +114,8 @@ export function VaultProvider(props: { children: ReactNode }) {
       void refreshVaultAvailability();
     });
   }, [refreshVaultAvailability]);
+
+  useEffect(() => startVaultIdleLock(), []);
 
   const finishModal = useCallback((ok: boolean) => {
     setModalOpen(false);

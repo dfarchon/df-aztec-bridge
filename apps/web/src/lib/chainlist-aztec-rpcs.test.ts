@@ -33,8 +33,7 @@ describe("chainlist-aztec-rpcs", () => {
   it("puts current url first, then default, preferred fallback, chainlist", () => {
     const opts = buildAztecRpcOptions({
       currentUrl: "https://custom.example/aztec",
-      networkDefaultUrl:
-        "https://lb.drpc.live/aztec-mainnet/AnUkBxJDjUo3ksEkgPshPngqoSJzkNIR8YO-RoYgFhqK",
+      networkDefaultUrl: "https://aztec-mainnet.drpc.org",
       preferredUrls: ["https://aztec-mainnet.drpc.org"],
       chainlistUrls: ["https://aztec-mainnet.drpc.org", "https://other.example"],
     });
@@ -42,10 +41,10 @@ describe("chainlist-aztec-rpcs", () => {
     expect(opts[0]?.source).toBe("current");
     expect(opts.map((o) => o.url)).toEqual([
       "https://custom.example/aztec",
-      "https://lb.drpc.live/aztec-mainnet/AnUkBxJDjUo3ksEkgPshPngqoSJzkNIR8YO-RoYgFhqK",
       "https://aztec-mainnet.drpc.org",
       "https://other.example",
     ]);
-    expect(opts[2]?.source).toBe("fallback");
+    expect(opts[1]?.source).toBe("network-default");
   });
 });
+

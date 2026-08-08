@@ -1,13 +1,20 @@
 /**
  * Native IndexedDB helpers for the password vault (no npm deps).
+ *
+ * Profile meta (address / salt / verifier) is encrypted at rest with a
+ * non-extractable per-origin AES-GCM device key so Application-panel dumps
+ * are not plaintext. Unlock still needs the user password (and passkey).
  */
 
 import type { VaultEnvelope, VaultProfileMeta } from "./vault-crypto.ts";
 
 export const VAULT_DB_NAME = "df-bridge-vault";
-export const VAULT_DB_VERSION = 1;
+export const VAULT_DB_VERSION = 2;
 export const META_STORE = "meta";
 export const DOCS_STORE = "docs";
+export const DEVICE_STORE = "device";
+
+const DEVICE_KEY_ID = "meta-wrap-key";
 
 export type VaultBackend = {
   getMeta(address: string): Promise<VaultProfileMeta | null>;
@@ -20,12 +27,32 @@ export type VaultBackend = {
   deleteProfile(address: string): Promise<void>;
 };
 
+type EncMetaBlob = {
+  v: "enc1";
+  iv: string;
+  ct: string;
+};
+
 function metaKey(address: string): string {
   return `profile:${address.trim().toLowerCase()}`;
 }
 
 function docKey(address: string, docId: string): string {
   return `${address.trim().toLowerCase()}:${docId}`;
+}
+
+function b64Encode(bytes: ArrayBuffer | Uint8Array): string {
+  const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  let s = "";
+  for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]!);
+  return btoa(s);
+}
+
+function b64Decode(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -39,6 +66,9 @@ function openDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(DOCS_STORE)) {
         db.createObjectStore(DOCS_STORE);
+      }
+      if (!db.objectStoreNames.contains(DEVICE_STORE)) {
+        db.createObjectStore(DEVICE_STORE);
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -60,15 +90,89 @@ function txDone(tx: IDBTransaction): Promise<void> {
   });
 }
 
+async function getOrCreateDeviceKey(db: IDBDatabase): Promise<CryptoKey> {
+  const tx = db.transaction(DEVICE_STORE, "readwrite");
+  const store = tx.objectStore(DEVICE_STORE);
+  const existing = await idbReq(store.get(DEVICE_KEY_ID));
+  if (existing instanceof CryptoKey) {
+    await txDone(tx);
+    return existing;
+  }
+  const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, [
+    "encrypt",
+    "decrypt",
+  ]);
+  store.put(key, DEVICE_KEY_ID);
+  await txDone(tx);
+  return key;
+}
+
+function looksLikePlainMeta(raw: unknown): raw is VaultProfileMeta {
+  return (
+    !!raw &&
+    typeof raw === "object" &&
+    typeof (raw as VaultProfileMeta).aztecAddress === "string" &&
+    typeof (raw as VaultProfileMeta).verifier === "string" &&
+    typeof (raw as VaultProfileMeta).salt === "string"
+  );
+}
+
+function looksLikeEncBlob(raw: unknown): raw is EncMetaBlob {
+  return (
+    !!raw &&
+    typeof raw === "object" &&
+    (raw as EncMetaBlob).v === "enc1" &&
+    typeof (raw as EncMetaBlob).iv === "string" &&
+    typeof (raw as EncMetaBlob).ct === "string"
+  );
+}
+
+async function encryptMeta(key: CryptoKey, meta: VaultProfileMeta): Promise<EncMetaBlob> {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const pt = new TextEncoder().encode(JSON.stringify(meta));
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, pt);
+  return { v: "enc1", iv: b64Encode(iv), ct: b64Encode(ct) };
+}
+
+async function decryptMeta(key: CryptoKey, blob: EncMetaBlob): Promise<VaultProfileMeta> {
+  const iv = b64Decode(blob.iv);
+  const ct = b64Decode(blob.ct);
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+  return JSON.parse(new TextDecoder().decode(pt)) as VaultProfileMeta;
+}
+
+async function decodeStoredMeta(
+  key: CryptoKey,
+  raw: unknown,
+): Promise<{ meta: VaultProfileMeta | null; needsRewrite: boolean }> {
+  if (!raw) return { meta: null, needsRewrite: false };
+  if (looksLikeEncBlob(raw)) {
+    try {
+      return { meta: await decryptMeta(key, raw), needsRewrite: false };
+    } catch {
+      return { meta: null, needsRewrite: false };
+    }
+  }
+  if (looksLikePlainMeta(raw)) {
+    return { meta: raw, needsRewrite: true };
+  }
+  return { meta: null, needsRewrite: false };
+}
+
 export function createIdbVaultBackend(): VaultBackend {
   return {
     async getMeta(address) {
       const db = await openDb();
       try {
+        const key = await getOrCreateDeviceKey(db);
         const tx = db.transaction(META_STORE, "readonly");
         const raw = await idbReq(tx.objectStore(META_STORE).get(metaKey(address)));
         await txDone(tx);
-        return (raw as VaultProfileMeta | undefined) ?? null;
+        const { meta, needsRewrite } = await decodeStoredMeta(key, raw);
+        if (meta && needsRewrite) {
+          await this.putMeta(meta);
+        }
+        return meta;
       } finally {
         db.close();
       }
@@ -77,8 +181,10 @@ export function createIdbVaultBackend(): VaultBackend {
     async putMeta(meta) {
       const db = await openDb();
       try {
+        const key = await getOrCreateDeviceKey(db);
+        const blob = await encryptMeta(key, meta);
         const tx = db.transaction(META_STORE, "readwrite");
-        tx.objectStore(META_STORE).put(meta, metaKey(meta.aztecAddress));
+        tx.objectStore(META_STORE).put(blob, metaKey(meta.aztecAddress));
         await txDone(tx);
       } finally {
         db.close();
@@ -88,10 +194,20 @@ export function createIdbVaultBackend(): VaultBackend {
     async listMeta() {
       const db = await openDb();
       try {
+        const key = await getOrCreateDeviceKey(db);
         const tx = db.transaction(META_STORE, "readonly");
         const raw = await idbReq(tx.objectStore(META_STORE).getAll());
         await txDone(tx);
-        return (raw as VaultProfileMeta[]).filter(
+        const out: VaultProfileMeta[] = [];
+        for (const item of raw as unknown[]) {
+          const { meta, needsRewrite } = await decodeStoredMeta(key, item);
+          if (!meta) continue;
+          out.push(meta);
+          if (needsRewrite) {
+            await this.putMeta(meta);
+          }
+        }
+        return out.filter(
           (m) => m && typeof m.aztecAddress === "string" && typeof m.verifier === "string",
         );
       } finally {

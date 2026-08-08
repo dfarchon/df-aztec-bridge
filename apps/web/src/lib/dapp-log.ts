@@ -76,7 +76,7 @@ export function formatDappError(error: unknown): { title: string; detail: string
     return {
       title: "PXE / network fetch failed",
       detail:
-        "Could not reach the Aztec node or load PXE assets. Check node URL, HTTPS, and that connect-src allows data: blob: https: wss:.",
+        "Could not reach the Aztec node or load PXE assets. Check node URL, HTTPS, and that the host is on the CSP connect-src allowlist.",
     };
   }
   if (/User rejected|denied|ACTION_REJECTED/i.test(raw)) {

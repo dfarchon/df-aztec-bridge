@@ -42,8 +42,8 @@ const NETWORKS_BASE: Record<string, WebNetworkConfig> = {
   mainnet: {
     id: "mainnet",
     name: "Aztec Alpha (Mainnet)",
-    aztecNodeUrl:
-      "https://lb.drpc.live/aztec-mainnet/AnUkBxJDjUo3ksEkgPshPngqoSJzkNIR8YO-RoYgFhqK",
+    // Public endpoint in source. Optional keyed lb.drpc.live URL via VITE_MAINNET_AZTEC_NODE_URL only.
+    aztecNodeUrl: "https://aztec-mainnet.drpc.org",
     l1RpcUrl: "https://ethereum-rpc.publicnode.com",
     l1ChainId: 1,
     bridgeTiming: "poll",

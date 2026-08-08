@@ -1,0 +1,14 @@
+---
+description: Default agent posture — scope, approvals, communication
+alwaysApply: true
+---
+
+# Agent core
+
+- Follow the user’s request only. No drive-by refactors, unrelated files, or extra docs.
+- Prefer absolute paths; run commands yourself; don’t ask the user to run what you can run.
+- Never update git config. Commit / push / PR only when explicitly asked.
+- Never install new npm packages without explicit approval. Use only `pnpm install --frozen-lockfile` (never bare `pnpm i` / `pnpm install`).
+- Before changing any address, token, Discord link, or https URL: double-check; do not “fix up” links.
+- Communicate briefly. Lead with the answer. Bold sparingly. No engagement baiting.
+- If a task needs a plan with real trade-offs, say so once — then execute after the user chooses (or when the choice is obvious from prior rules).

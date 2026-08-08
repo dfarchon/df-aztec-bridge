@@ -127,6 +127,32 @@ async function boot() {
     return;
   }
 
+  const { isDevGateRequired, hasDevGateUnlock } = await import("./lib/dev-gate.ts");
+  if (isDevGateRequired() && !hasDevGateUnlock()) {
+    setSplashHint("Dev preview gate…");
+    const { DevGatePage } = await import("./components/ui/DevGatePage.tsx");
+    const root = createRoot(document.getElementById("root")!);
+    const continueBoot = () => {
+      void (async () => {
+        setSplashHint("Loading app bundle…");
+        const { App } = await import("./app/App.tsx");
+        await warmupPxeIfEnabled();
+        root.render(
+          <StrictMode>
+            <App />
+          </StrictMode>,
+        );
+      })().catch(showBootFailure);
+    };
+    root.render(
+      <StrictMode>
+        <DevGatePage onUnlocked={continueBoot} />
+      </StrictMode>,
+    );
+    dismissBootSplash();
+    return;
+  }
+
   setSplashHint("Loading app bundle…");
   const { App } = await import("./app/App.tsx");
   await warmupPxeIfEnabled();

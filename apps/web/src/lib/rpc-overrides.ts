@@ -1,8 +1,12 @@
 /**
  * Per-network RPC URL overrides persisted as encrypted JSON in the vault.
  * Empty / missing fields fall back to baked-in network defaults.
+ *
+ * Custom hosts must be loopback or on OFFICIAL_HTTPS_HOST_ALLOWLIST — arbitrary
+ * https:// (including random *.drpc.* subdomains) is rejected.
  */
 
+import { isOfficialHttpsUrl } from "./official-links.ts";
 import { isVaultUnlocked, vaultGetJson, vaultSetJson, VaultLockedError } from "./vault.ts";
 
 export type RpcOverrides = {
@@ -47,6 +51,23 @@ export function isRpcUrlSchemeAllowed(url: string, { allowHttpLocal = true } = {
   }
 }
 
+function isLoopbackRpcUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    return host === "localhost" || host === "127.0.0.1" || host === "::1";
+  } catch {
+    return false;
+  }
+}
+
+/** Allowlisted official HTTPS or local http(s) loopback only. */
+export function isAllowedRpcOverrideUrl(url: string): boolean {
+  if (!isRpcUrlSchemeAllowed(url)) return false;
+  if (isLoopbackRpcUrl(url)) return true;
+  return isOfficialHttpsUrl(url);
+}
+
 export function validateRpcOverrides(overrides: RpcOverrides): string | null {
   for (const [label, value] of [
     ["Aztec node URL", overrides.aztecNodeUrl],
@@ -55,6 +76,9 @@ export function validateRpcOverrides(overrides: RpcOverrides): string | null {
     if (!value) continue;
     if (!isRpcUrlSchemeAllowed(value)) {
       return `${label} must use https:// (or http:// only for localhost).`;
+    }
+    if (!isAllowedRpcOverrideUrl(value)) {
+      return `${label} host is not on the official allowlist (or localhost). Arbitrary RPCs (including unlisted *.drpc.*) are blocked.`;
     }
   }
   return null;
@@ -94,4 +118,4 @@ export function hasRpcOverrides(overrides: RpcOverrides): boolean {
 }
 
 export const RPC_OVERRIDE_WARNING =
-  "Custom RPC URLs can expose metadata to a malicious operator. Prefer HTTPS and verify the host before signing.";
+  "Custom RPC URLs must be localhost or on the official host allowlist. Prefer baked-in defaults; malicious RPCs can observe metadata.";

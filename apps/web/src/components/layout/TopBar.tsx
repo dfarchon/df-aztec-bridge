@@ -29,10 +29,11 @@ export function TopBar(props: {
             Menu
           </button>
         ) : null}
-        <div className="app-topbar-brand">
-          <p className="label brand-kicker">df/archon · fee juice</p>
-          <h1 className="app-topbar-title">DF Aztec Bridge</h1>
-        </div>
+      </div>
+
+      <div className="app-topbar-brand">
+        <p className="label brand-kicker">df/archon · fee juice</p>
+        <h1 className="app-topbar-title">DF Aztec Bridge</h1>
       </div>
 
       <div className="app-topbar-right">

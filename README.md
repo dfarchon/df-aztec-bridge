@@ -124,11 +124,11 @@ JSON defaults live in `config/networks/*.json` (currently publicnode L1 RPCs). A
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/v1/networks` | Network ids |
+| GET | `/v1/networks` | Network ids (requires `API_AUTH_TOKEN`) |
 | GET | `/v1/networks/:id` | Network config + L1 contract addresses |
-| POST | `/v1/bridge` | Full pipeline (server L1 key) |
-| POST | `/v1/claim` | L2 wait + claim from credentials |
-| GET | `/v1/jobs/:id` | Job status |
+| POST | `/v1/bridge` | **Disabled (403)** — use CLI or browser wallet; never send L1 keys over HTTP |
+| POST | `/v1/claim` | L2 wait + claim — **off by default**; requires `API_ENABLE_CLAIM=true`, loopback `API_HOST`, and auth. Prefer browser claim on Netlify |
+| GET | `/v1/jobs/:id` | Job status (no L2 secrets in public job JSON) |
 
 ## Packages
 
@@ -151,7 +151,7 @@ JSON defaults live in `config/networks/*.json` (currently publicnode L1 RPCs). A
   Local `pnpm web`: copy `.env.example` → `.env`, restart Vite (Netlify UI env does not apply).
   Private GitHub ≠ private site URL: enable Netlify **visitor password / access control** if the live app must stay closed.
   Browser claim is enabled by default, so auto-claim does not need an API.
-- Auto-claim **API** (`VITE_ENABLE_BROWSER_CLAIM=false`): still needs `VITE_API_BASE` + Node `/v1/claim`.
+- Auto-claim **API** (`VITE_ENABLE_BROWSER_CLAIM=false`): local loopback only — needs `API_AUTH_TOKEN`, `API_ENABLE_CLAIM=true`, and `VITE_API_BASE=/api` (remote bases are rejected).
 - Optional URL overrides: `VITE_TESTNET_AZTEC_NODE_URL`, `VITE_MAINNET_L1_RPC_URL`, etc.
 - Browser claim needs COOP/COEP headers (Vite / Netlify set them when the flag is on).
 

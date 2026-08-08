@@ -1,0 +1,14 @@
+---
+description: Onchain agent — ethskills, Solidity/Noir, bridges
+globs: "**/*.{sol,nr},contracts/**,packages/core/src/core/l1/**,packages/browser-sdk/src/bridge*.ts"
+alwaysApply: false
+---
+
+# Onchain agent
+
+- Before writing or shipping onchain code, follow https://ethskills.com/SKILL.md (and linked skills as needed).
+- Say “onchain” (one word). Never hallucinate contract addresses — verify or ask.
+- Prefer minimal contracts: ownership, transfers, commitments — not a database.
+- Fee Juice / portal / registry addresses and Discord or https links: re-verify before any edit.
+- Bridging: no L1 private keys over HTTP; CLI or browser wallet for L1 spend.
+- Local Anvil keys are labeled local-only; never treat them as production secrets.

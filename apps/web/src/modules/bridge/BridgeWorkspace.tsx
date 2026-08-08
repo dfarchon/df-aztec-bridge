@@ -105,10 +105,12 @@ import { VaultPage } from "../vault/VaultPage.tsx";
 import { VaultLockedError } from "../../lib/vault.ts";
 import { ConnectSessionGate } from "../../components/ui/ConnectSessionGate.tsx";
 import { AztecRpcOptionsField } from "../../components/ui/AztecRpcOptionsField.tsx";
+import { assertSafeClaimApiBase } from "../../lib/api-base.ts";
 
 type NetworkMeta = WebNetworkConfig;
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
+assertSafeClaimApiBase(API_BASE);
 const WC_PROJECT_ID = (import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as string | undefined)?.trim() ?? "";
 /** Anonymous Trezor / treasury — 5% AZTEC + mainnet ETH service fee. */
 const BRIDGE_FEE_RECIPIENT = (import.meta.env.VITE_BRIDGE_FEE_RECIPIENT as string | undefined)?.trim() ?? "";
@@ -1247,6 +1249,7 @@ export function BridgeWorkspace() {
       // Server-side claim: nothing runs in this tab, so the step panel would be
       // misleading — the polling status line covers it instead.
       setProgress(null);
+      assertSafeClaimApiBase(API_BASE);
       const res = await fetch(`${API_BASE}/v1/claim`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1710,6 +1713,11 @@ export function BridgeWorkspace() {
     if (!claimJobId || claimJobId === "browser" || !l1TxHash) return;
     const currentL1Hash = l1TxHash;
     const t = setInterval(() => {
+      try {
+        assertSafeClaimApiBase(API_BASE);
+      } catch {
+        return;
+      }
       void fetch(`${API_BASE}/v1/jobs/${claimJobId}`)
         .then((response) =>
           readJsonResponse<{
