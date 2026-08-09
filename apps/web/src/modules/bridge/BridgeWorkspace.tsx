@@ -1541,6 +1541,11 @@ export function BridgeWorkspace() {
           return;
         }
 
+        const unlocked = await ensureUnlocked("secrets");
+        if (!unlocked) {
+          throw new Error("Unlock the vault to import claim credentials into this browser.");
+        }
+
         const entry = await upsertSession(networkId, {
           l1TxHash: parsed.l1TxHash,
           phase: "ready-to-claim",
@@ -1557,7 +1562,7 @@ export function BridgeWorkspace() {
         setCredentialsImportError(e instanceof Error ? e.message : String(e));
       }
     },
-    [networkId, refreshSessions, selectRecoverySession],
+    [networkId, refreshSessions, selectRecoverySession, ensureUnlocked],
   );
 
   const retryResumeL1 = useCallback(
@@ -2551,9 +2556,11 @@ export function BridgeWorkspace() {
 
           {recoverySessions.length === 0 ? (
             <div className="card recovery-empty">
-              <strong>No unfinished claim found</strong>
+              <strong>No unfinished claim found in this browser</strong>
               <p className="hint">
-                This browser has no saved claim sessions. Return to Bridge to start a new deposit.
+                Saved sessions appear here after an L1 deposit on this device. To finish a claim
+                from another browser, import the downloaded{" "}
+                <span className="mono">claim-*.json</span> below.
               </p>
             </div>
           ) : (
@@ -2612,8 +2619,6 @@ export function BridgeWorkspace() {
             </div>
           )}
 
-          {/* Hidden for now — uncomment to re-enable importing a claim-*.json.
-              The handler (onClaimCredentialsFile) and parser are still in place.
           <div className="card credentials-import-card">
             <strong>Add a claim from a credentials JSON</strong>
             <p className="hint">
@@ -2643,7 +2648,6 @@ export function BridgeWorkspace() {
               </p>
             ) : null}
           </div>
-          */}
 
           {selectedSession ? (
             <div className="card claim-recovery-guide" id="recovery-session-guide">

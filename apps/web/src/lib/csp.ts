@@ -17,6 +17,9 @@ export const CSP_CONNECT_HOSTS = [
   "https://testnet.aztecscan.xyz",
   "https://devnet.aztecscan.xyz",
   "https://v5.testnet.rpc.aztec-labs.com",
+  // Aztec proving CRS (bb / embedded PXE) — required for browser claim proofs.
+  "https://crs.aztec-cdn.foundation",
+  "https://crs.aztec-labs.com",
   "https://aztec-mainnet.drpc.org",
   "https://lb.drpc.live",
   "https://ethereum-rpc.publicnode.com",

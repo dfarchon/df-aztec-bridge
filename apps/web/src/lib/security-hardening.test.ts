@@ -40,6 +40,12 @@ describe("csp", () => {
     expect(csp).not.toContain("https://*.drpc.org");
     expect(csp).not.toContain("https://*.publicnode.com");
   });
+
+  it("allows Aztec CRS hosts required for browser proving", () => {
+    const csp = buildProductionCsp();
+    expect(csp).toContain("https://crs.aztec-cdn.foundation");
+    expect(csp).toContain("https://crs.aztec-labs.com");
+  });
 });
 
 describe("dev-gate hash policy", () => {
