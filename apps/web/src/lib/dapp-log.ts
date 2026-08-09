@@ -3,9 +3,23 @@
  * Boot code can push before React mounts; the toaster drains the queue.
  */
 
-import { redactForLog } from "./privacy.ts";
+import {
+  aztecExplorerLinkLabel,
+  aztecScanTxEffectUrl,
+  l1ExplorerLinkLabel,
+  l1TxUrl,
+} from "./official-links.ts";
+import { formatForDappToast, redactForLog } from "./privacy.ts";
 
 export type DappLogKind = "tx" | "info" | "error" | "announce";
+
+/** Explorer deep-link for a toast (hash kept raw; title/detail still toast-formatted). */
+export type DappLogTxLink = {
+  layer: "l1" | "l2";
+  hash: string;
+  href: string | null;
+  explorerLabel: string;
+};
 
 export type DappLogInput = {
   kind: DappLogKind;
@@ -13,6 +27,8 @@ export type DappLogInput = {
   detail?: string;
   /** Auto-dismiss ms; 0 = sticky until dismissed. Defaults by kind. */
   ttlMs?: number;
+  /** Optional explorer link for L1 / L2 transaction toasts. */
+  txLink?: DappLogTxLink;
 };
 
 export type DappLogEntry = DappLogInput & {
@@ -40,8 +56,15 @@ export function defaultTtlMs(kind: DappLogKind): number {
 export function pushDappLog(input: DappLogInput): void {
   const entry: DappLogInput = {
     ...input,
-    title: redactForLog(input.title),
-    detail: input.detail ? redactForLog(input.detail) : undefined,
+    title: formatForDappToast(input.title),
+    detail: input.detail ? formatForDappToast(input.detail) : undefined,
+    // Keep raw hash / href for the link row (do not toast-format href).
+    txLink: input.txLink
+      ? {
+          ...input.txLink,
+          hash: input.txLink.hash.trim(),
+        }
+      : undefined,
   };
   if (listeners.size === 0) {
     pending.push(entry);
@@ -49,6 +72,51 @@ export function pushDappLog(input: DappLogInput): void {
     return;
   }
   for (const listener of listeners) listener(entry);
+}
+
+export function pushL1TxDappLog(opts: {
+  title: string;
+  txHash: string;
+  l1ExplorerUrl?: string;
+  ttlMs?: number;
+}): void {
+  const hash = opts.txHash.trim();
+  const href = l1TxUrl(opts.l1ExplorerUrl, hash);
+  pushDappLog({
+    kind: "tx",
+    title: opts.title,
+    detail: hash,
+    ttlMs: opts.ttlMs,
+    txLink: {
+      layer: "l1",
+      hash,
+      href,
+      explorerLabel: l1ExplorerLinkLabel(opts.l1ExplorerUrl),
+    },
+  });
+}
+
+export function pushL2TxDappLog(opts: {
+  title: string;
+  txHash: string;
+  networkId: string;
+  aztecExplorerUrl?: string;
+  ttlMs?: number;
+}): void {
+  const hash = opts.txHash.trim();
+  const href = aztecScanTxEffectUrl(opts.networkId, hash, opts.aztecExplorerUrl);
+  pushDappLog({
+    kind: "tx",
+    title: opts.title,
+    detail: hash,
+    ttlMs: opts.ttlMs,
+    txLink: {
+      layer: "l2",
+      hash,
+      href,
+      explorerLabel: aztecExplorerLinkLabel(opts.aztecExplorerUrl),
+    },
+  });
 }
 
 /** Subscribe; immediately drains any boot-time pending entries. */

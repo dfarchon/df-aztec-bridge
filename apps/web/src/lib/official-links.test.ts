@@ -8,6 +8,7 @@ import {
   aztecScanTxEffectUrl,
   isLocalExplorerOrigin,
   isOfficialHttpsUrl,
+  l1ExplorerLinkLabel,
   l1TxUrl,
   resolveAztecScanOrigin,
 } from "./official-links.ts";
@@ -54,6 +55,8 @@ describe("official-links", () => {
   it("builds HTTPS L1 explorer tx links", () => {
     expect(l1TxUrl("https://etherscan.io", "0xdead")).toBe("https://etherscan.io/tx/0xdead");
     expect(l1TxUrl("http://etherscan.io", "0xdead")).toBeNull();
+    expect(l1ExplorerLinkLabel("https://etherscan.io")).toBe("Etherscan");
+    expect(l1ExplorerLinkLabel("https://sepolia.etherscan.io")).toBe("Sepolia Etherscan");
     expect(OFFICIAL_DOCS_NETWORKS).toContain("docs.aztec.network");
   });
 });

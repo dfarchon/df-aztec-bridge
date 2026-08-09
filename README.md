@@ -2,6 +2,8 @@
 
 Fee Juice **L1 → L2** bridge monorepo: shared core, headless CLI/API, and a web UI that bridges via **MetaMask / EIP-1193** wallets.
 
+**Learn the product in plain language:** [docs/education/](docs/education/README.md) — privacy, vault, hardening, bridge flow, recovery (with ASCII schemas).
+
 ## Workspace layout
 
 ```text

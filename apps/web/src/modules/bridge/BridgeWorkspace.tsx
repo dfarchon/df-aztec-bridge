@@ -75,7 +75,7 @@ import {
 import { NetworkIntegrityPanel } from "../network/NetworkIntegrityPanel.tsx";
 import { TxAnalysisLinks } from "../../components/ui/TxAnalysisLinks.tsx";
 import { ActionHintButton } from "../../components/ui/ActionHintButton.tsx";
-import { formatDappError, logDappError, pushDappLog } from "../../lib/dapp-log.ts";
+import { formatDappError, logDappError, pushDappLog, pushL1TxDappLog, pushL2TxDappLog } from "../../lib/dapp-log.ts";
 import { importDfPunkFileIntoPxe, registerDfPunkAccountIntoPxe } from "../../lib/df-pxe-import.ts";
 import { saveAztecWallet } from "../../lib/aztec-wallet-store.ts";
 import {
@@ -1799,31 +1799,35 @@ export function BridgeWorkspace() {
   useEffect(() => {
     if (!l1TxHash || lastL1LogRef.current === l1TxHash) return;
     lastL1LogRef.current = l1TxHash;
-    pushDappLog({
-      kind: "tx",
+    pushL1TxDappLog({
       title: "L1 bridge submitted",
-      detail: l1TxHash,
+      txHash: l1TxHash,
+      l1ExplorerUrl: networkMeta?.l1ExplorerUrl,
     });
-  }, [l1TxHash]);
+  }, [l1TxHash, networkMeta?.l1ExplorerUrl]);
 
   const lastL2LogRef = useRef<string | null>(null);
   useEffect(() => {
     if (!l2TxHash || lastL2LogRef.current === l2TxHash) return;
     lastL2LogRef.current = l2TxHash;
-    pushDappLog({
-      kind: "tx",
+    pushL2TxDappLog({
       title: "L2 claim confirmed",
-      detail: l2TxHash,
+      txHash: l2TxHash,
+      networkId,
+      aztecExplorerUrl: networkMeta?.aztecExplorerUrl,
     });
-  }, [l2TxHash]);
+  }, [l2TxHash, networkId, networkMeta?.aztecExplorerUrl]);
 
   const lastPhaseLogRef = useRef<string | null>(null);
   useEffect(() => {
     if (!bridgePhase || busy) return;
     if (lastPhaseLogRef.current === bridgePhase) return;
+    // Avoid a second toast that only repeats the L1/L2 hash we already linked.
+    if (l1TxHash && bridgePhase.includes(l1TxHash)) return;
+    if (l2TxHash && bridgePhase.includes(l2TxHash)) return;
     lastPhaseLogRef.current = bridgePhase;
     pushDappLog({ kind: "info", title: bridgePhase, ttlMs: 8_000 });
-  }, [bridgePhase, busy]);
+  }, [bridgePhase, busy, l1TxHash, l2TxHash]);
 
   const amountCheck = parseBridgeAmount(amountFj);
   const feeSplit =
@@ -2809,12 +2813,13 @@ export function BridgeWorkspace() {
         <ProgressPanel
           progress={progress}
           detail={bridgePhase}
+          aztecNodeUrl={networkMeta?.aztecNodeUrl}
+          networkId={networkId}
           onDismiss={() => {
             setProgress(null);
             setBridgePhase(null);
           }}
-        />
-      ) : null}
+        />      ) : null}
         </>
       )}
 

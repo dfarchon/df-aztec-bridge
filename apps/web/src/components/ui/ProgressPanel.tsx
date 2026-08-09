@@ -7,12 +7,16 @@ import {
   type ProgressState,
   type ProgressStepState,
 } from "../../lib/progress-track.ts";
+import { AztecBlockEstimate } from "./AztecBlockEstimate.tsx";
 
 interface ProgressPanelProps {
   progress: ProgressState;
   /** Free-form message from the running flow, shown verbatim under the steps. */
   detail: string | null;
   onDismiss: () => void;
+  /** When set, show Aztec tip + next-block countdown for L2 claim tracks. */
+  aztecNodeUrl?: string | null;
+  networkId?: string;
 }
 
 function markerFor(state: ProgressStepState, index: number) {
@@ -28,7 +32,17 @@ function markerFor(state: ProgressStepState, index: number) {
   }
 }
 
-export function ProgressPanel({ progress, detail, onDismiss }: ProgressPanelProps) {
+function showAztecEstimate(track: ProgressState["track"]): boolean {
+  return track === "claim" || track === "wait-l2";
+}
+
+export function ProgressPanel({
+  progress,
+  detail,
+  onDismiss,
+  aztecNodeUrl,
+  networkId,
+}: ProgressPanelProps) {
   const running = progress.runState === "running";
   const [collapsed, setCollapsed] = useState(false);
   const [elapsed, setElapsed] = useState(() => Date.now() - progress.startedAt);
@@ -43,6 +57,10 @@ export function ProgressPanel({ progress, detail, onDismiss }: ProgressPanelProp
 
   const track = getTrack(progress.track);
   const activeStep = track.steps[progress.stepIndex] ?? track.steps[0];
+  const estimate =
+    running && showAztecEstimate(progress.track) && aztecNodeUrl ? (
+      <AztecBlockEstimate aztecNodeUrl={aztecNodeUrl} networkId={networkId} />
+    ) : null;
 
   return (
     <section
@@ -103,6 +121,8 @@ export function ProgressPanel({ progress, detail, onDismiss }: ProgressPanelProp
           </button>
         )}
       </div>
+
+      {estimate}
 
       {running ? (
         shouldBlockUnload(progress) ? (

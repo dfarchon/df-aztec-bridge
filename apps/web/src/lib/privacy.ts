@@ -9,9 +9,22 @@ const HEX_64 = /0x[a-fA-F0-9]{64}/g;
 const IPV4 = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
 const IPV6 = /\b(?:[A-F0-9]{1,4}:){2,7}[A-F0-9]{1,4}\b/gi;
 
+/** Full wipe for console / error dumps — never emit raw 32-byte fields. */
 export function redactForLog(input: string): string {
   return input
     .replace(HEX_64, "0x[REDACTED]")
+    .replace(IPV4, "[IP_REDACTED]")
+    .replace(IPV6, "[IP_REDACTED]");
+}
+
+/**
+ * Toast-safe formatting: keep a short public identifier for tx hashes /
+ * addresses so the DAPP LOG is usable, still strip IPs, and never leave a
+ * full 32-byte field in the UI (covers accidental secretKey leaks).
+ */
+export function formatForDappToast(input: string): string {
+  return input
+    .replace(HEX_64, (hex) => `${hex.slice(0, 10)}…${hex.slice(-6)}`)
     .replace(IPV4, "[IP_REDACTED]")
     .replace(IPV6, "[IP_REDACTED]");
 }

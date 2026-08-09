@@ -12,7 +12,10 @@ import {
   type DappLogEntry,
   type DappLogInput,
   type DappLogKind,
+  type DappLogTxLink,
 } from "../../lib/dapp-log.ts";
+import { isLocalExplorerOrigin } from "../../lib/official-links.ts";
+import { formatForDappToast } from "../../lib/privacy.ts";
 
 const MAX_VISIBLE = 8;
 
@@ -27,6 +30,44 @@ function kindLabel(kind: DappLogKind): string {
     default:
       return "info";
   }
+}
+
+function shortTxDisplay(hash: string): string {
+  return formatForDappToast(hash);
+}
+
+function TxExplorerLink(props: { link: DappLogTxLink }) {
+  const { link } = props;
+  const display = shortTxDisplay(link.hash);
+  if (!link.href) {
+    return (
+      <p className="dapp-log-tx-link dapp-log-tx-link-plain mono" title={link.hash}>
+        {display}
+      </p>
+    );
+  }
+  const sameOrigin =
+    isLocalExplorerOrigin(link.href) &&
+    typeof window !== "undefined" &&
+    (() => {
+      try {
+        return window.location.origin === new URL(link.href!).origin;
+      } catch {
+        return false;
+      }
+    })();
+  return (
+    <a
+      className="dapp-log-tx-link mono"
+      href={link.href}
+      target={sameOrigin ? undefined : "_blank"}
+      rel={sameOrigin ? undefined : "noopener noreferrer"}
+      title={link.hash}
+    >
+      <span className="dapp-log-tx-hash">{display}</span>
+      <span className="dapp-log-tx-explorer">{link.explorerLabel} ↗</span>
+    </a>
+  );
 }
 
 function LogLine(props: { text: string; className?: string }) {
@@ -83,6 +124,7 @@ function LogCard(props: {
   onDismiss: (id: string) => void;
 }) {
   const { entry, onDismiss } = props;
+  const showDetail = entry.detail && !entry.txLink;
   return (
     <article className={`dapp-log-card dapp-log-${entry.kind}`} role="status">
       <header className="dapp-log-card-head">
@@ -110,7 +152,8 @@ function LogCard(props: {
         </button>
       </header>
       <LogLine text={entry.title} className="dapp-log-title" />
-      {entry.detail ? <LogLine text={entry.detail} className="dapp-log-detail" /> : null}
+      {entry.txLink ? <TxExplorerLink link={entry.txLink} /> : null}
+      {showDetail ? <LogLine text={entry.detail!} className="dapp-log-detail" /> : null}
     </article>
   );
 }

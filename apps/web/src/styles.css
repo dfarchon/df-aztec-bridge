@@ -1655,6 +1655,99 @@ main.with-progress-panel {
   font-variant-numeric: tabular-nums;
 }
 
+.aztec-block-estimate {
+  margin: 0.75rem 0 0;
+  padding: 0.55rem 0.7rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid #2f3b55;
+  background: #121722;
+}
+
+.aztec-block-estimate-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.aztec-block-estimate-row + .aztec-block-estimate-row {
+  margin-top: 0.28rem;
+}
+
+.aztec-block-estimate-label {
+  color: #8b95b0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  min-width: 4.5rem;
+}
+
+.aztec-block-estimate-tip,
+.aztec-block-estimate-timer {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+  color: #e6ecff;
+}
+
+.aztec-block-estimate-pace {
+  font-size: 0.78rem;
+  color: #8b95b0;
+}
+
+.aztec-block-estimate-meter {
+  margin-top: 0.45rem;
+  height: 4px;
+  border-radius: 999px;
+  background: #1e2436;
+  overflow: hidden;
+}
+
+.aztec-block-estimate-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.25s linear, background-color 0.2s ease;
+}
+
+.aztec-block-estimate-on-time {
+  border-color: #3f7d48;
+}
+
+.aztec-block-estimate-on-time .aztec-block-estimate-timer,
+.aztec-block-estimate-on-time .aztec-block-estimate-pace {
+  color: #9adba0;
+}
+
+.aztec-block-estimate-on-time .aztec-block-estimate-fill {
+  background: #4caf6a;
+}
+
+.aztec-block-estimate-due {
+  border-color: #b07d1f;
+}
+
+.aztec-block-estimate-due .aztec-block-estimate-timer,
+.aztec-block-estimate-due .aztec-block-estimate-pace {
+  color: #ffcf6b;
+}
+
+.aztec-block-estimate-due .aztec-block-estimate-fill {
+  background: #e0a84a;
+}
+
+.aztec-block-estimate-behind {
+  border-color: #a14a42;
+}
+
+.aztec-block-estimate-behind .aztec-block-estimate-timer,
+.aztec-block-estimate-behind .aztec-block-estimate-pace {
+  color: #ff8a80;
+}
+
+.aztec-block-estimate-behind .aztec-block-estimate-fill {
+  background: #e57373;
+}
+
 .progress-spinner {
   flex-shrink: 0;
   width: 1.15rem;
@@ -2310,6 +2403,46 @@ main.with-progress-panel {
   margin-top: 0.15rem;
   color: var(--steel);
   font-size: 0.74rem;
+}
+
+.dapp-log-tx-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.55rem;
+  margin: 0.28rem 0 0;
+  padding: 0.28rem 0.4rem;
+  border-radius: 6px;
+  border: 1px solid rgba(125, 255, 163, 0.22);
+  background: rgba(125, 255, 163, 0.06);
+  color: var(--ok);
+  text-decoration: none;
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.dapp-log-tx-link:hover {
+  border-color: rgba(125, 255, 163, 0.45);
+  background: rgba(125, 255, 163, 0.12);
+}
+
+.dapp-log-tx-link-plain {
+  border-style: dashed;
+  border-color: var(--faint);
+  background: transparent;
+  color: var(--steel);
+  margin: 0.28rem 0 0;
+  padding: 0.28rem 0.4rem;
+}
+
+.dapp-log-tx-hash {
+  color: var(--ink);
+}
+
+.dapp-log-tx-explorer {
+  color: var(--ok);
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
 }
 
 .dapp-log-line.is-overflow {

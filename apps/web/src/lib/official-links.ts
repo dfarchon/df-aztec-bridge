@@ -131,6 +131,21 @@ export function l1TxUrl(explorerOrigin: string | undefined, txHash: string): str
   }
 }
 
+/** Human label for L1 explorer toast / analysis links. */
+export function l1ExplorerLinkLabel(explorerOrigin: string | undefined): string {
+  if (!explorerOrigin) return "L1 explorer";
+  try {
+    const host = new URL(explorerOrigin).hostname.toLowerCase();
+    if (host === "etherscan.io" || host.endsWith(".etherscan.io")) {
+      if (host.startsWith("sepolia.")) return "Sepolia Etherscan";
+      return "Etherscan";
+    }
+  } catch {
+    /* fall through */
+  }
+  return "L1 explorer";
+}
+
 export function l1TokenUrl(explorerOrigin: string | undefined, token: string): string | null {
   if (!explorerOrigin) return null;
   try {
