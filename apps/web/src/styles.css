@@ -684,6 +684,33 @@ main.app-main:has(.bridge-layout) {
   box-sizing: border-box;
 }
 
+.under-construction {
+  margin: 0 0 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius);
+  background: var(--ok-dim);
+  box-shadow: 0 0 0 1px var(--ok-glow);
+}
+
+.under-construction-kicker {
+  margin: 0 0 0.25rem;
+  color: var(--accent);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.under-construction strong {
+  display: block;
+  color: var(--ink);
+}
+
+.under-construction p:last-child {
+  margin: 0.35rem 0 0;
+  color: var(--steel);
+}
+
 .bridge-layout {
   display: flex;
   flex-direction: column;
@@ -1764,11 +1791,12 @@ main.with-progress-panel {
   box-sizing: border-box;
   width: min(100vw, 660px);
   padding: 0.9rem 1.1rem 1.1rem;
-  border: 1px solid #3d5afe;
+  border: 1px solid var(--accent);
   border-bottom: none;
   border-radius: 14px 14px 0 0;
-  background: #141824;
-  box-shadow: 0 -14px 44px rgba(0, 0, 0, 0.55);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 -14px 44px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--ok-glow);
   overflow: hidden;
 }
 
@@ -1786,7 +1814,7 @@ main.with-progress-panel {
   left: 0;
   height: 3px;
   width: 40%;
-  background: linear-gradient(90deg, transparent, #3d5afe, transparent);
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
   animation: progress-sweep 1.6s ease-in-out infinite;
 }
 
@@ -1812,12 +1840,12 @@ main.with-progress-panel {
 
 .progress-panel-title strong {
   font-size: 1rem;
-  color: #eef1ff;
+  color: var(--accent);
 }
 
 .progress-panel-step {
   margin: 0.15rem 0 0;
-  color: #aab4d4;
+  color: var(--steel);
   font-size: 0.88rem;
 }
 
@@ -1825,8 +1853,9 @@ main.with-progress-panel {
   flex-shrink: 0;
   padding: 0.15rem 0.45rem;
   border-radius: 6px;
-  background: #1e2436;
-  color: #c5d0e6;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1929,8 +1958,8 @@ main.with-progress-panel {
   height: 1.15rem;
   margin-top: 0.15rem;
   border-radius: 50%;
-  border: 2px solid #2f3b55;
-  border-top-color: #6c86ff;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
   animation: icon-spin 0.85s linear infinite;
 }
 
@@ -2016,9 +2045,9 @@ main.with-progress-panel {
   height: 1.2rem;
   margin-top: 0.1rem;
   border-radius: 50%;
-  border: 1px solid #333c52;
-  background: #1a2030;
-  color: #6f7a94;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--dim);
   font-size: 0.7rem;
   font-weight: 600;
 }
@@ -2030,13 +2059,13 @@ main.with-progress-panel {
 }
 
 .progress-step-label {
-  color: #7b8499;
+  color: var(--steel);
   font-size: 0.9rem;
 }
 
 .progress-step-note {
   margin-top: 0.15rem;
-  color: #aab4d4;
+  color: var(--steel);
   font-size: 0.8rem;
 }
 
@@ -2051,13 +2080,13 @@ main.with-progress-panel {
 }
 
 .progress-step-active .progress-step-marker {
-  border-color: #6c86ff;
-  background: #6c86ff;
+  border-color: var(--accent);
+  background: var(--accent);
   animation: progress-pulse 1.4s ease-in-out infinite;
 }
 
 .progress-step-active .progress-step-label {
-  color: #eef1ff;
+  color: var(--accent);
   font-weight: 600;
 }
 
@@ -2074,15 +2103,15 @@ main.with-progress-panel {
 
 @keyframes progress-pulse {
   50% {
-    box-shadow: 0 0 0 5px rgba(108, 134, 255, 0.18);
+    box-shadow: 0 0 0 5px var(--ok-glow);
   }
 }
 
 .progress-detail {
   margin: 0.8rem 0 0;
   padding-top: 0.65rem;
-  border-top: 1px solid #232a3c;
-  color: #8d97ad;
+  border-top: 1px solid var(--line);
+  color: var(--steel);
   max-height: 3.4rem;
   overflow-y: auto;
 }

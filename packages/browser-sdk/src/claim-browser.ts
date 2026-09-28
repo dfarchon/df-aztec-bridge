@@ -76,14 +76,33 @@ function createBrowserNode(url: string, apiKey?: string) {
   return createAztecNodeClient(url, undefined, fetchFn);
 }
 
+/**
+ * Aztec 5.0.0 stopped deriving the Schnorr signing key from the privacy secret.
+ * `createSchnorrAccount(secret, salt, signingKey)` is the 5.2 fee-juice account.
+ * One registration only — the browser PXE rejects overlapping account jobs.
+ * https://docs.aztec.network/developers/docs/resources/migration_notes
+ */
 async function registerAccount(
   wallet: EmbeddedWallet,
   secret: Fr,
   salt: Fr,
-  signingKeyHex?: string,
+  signingKeyHex: string | undefined,
+  expected?: AztecAddress,
 ) {
+  if (!signingKeyHex?.trim()) {
+    throw new Error(
+      "Aztec 5.2 requires the account file's signingKey. Since 5.0.0 the signing key is not derived from the secret, so a 5.0.1 dfpunk account cannot be opened from secret and salt alone.",
+    );
+  }
   const signingKey = resolveSigningKey(secret, signingKeyHex);
-  return wallet.createSchnorrInitializerlessAccount(secret, salt, signingKey, "main");
+  const manager = await wallet.createSchnorrAccount(secret, salt, signingKey, "main");
+  if (expected && !manager.address.equals(expected)) {
+    throw new Error(
+      `Aztec 5.2.0 registered ${manager.address.toString()}, but this claim recipient is ${expected.toString()}. ` +
+        `That address was produced by the 5.0.1 account contract. The 5.0.0 migration made the signing key independent of the secret, and 5.2 uses a different Schnorr account class, so the same secret, salt, and signingKey do not recreate a 5.0.1 address.`,
+    );
+  }
+  return manager;
 }
 
 async function sendClaimTx(wallet: Wallet, caller: AztecAddress, claim: ClaimCredentials) {
@@ -334,14 +353,8 @@ export async function waitAndClaimInBrowser(params: {
   });
 
   progress("account", "Registering claimer account…");
-  const manager = await registerAccount(wallet, secret, salt, params.signingKey);
   const expected = AztecAddress.fromStringUnsafe(params.credentials.recipient);
-  if (!manager.address.equals(expected)) {
-    throw new Error(
-      `Registered account ${manager.address} does not match claim recipient ${expected}. ` +
-        `Wrong salt/signingKey — for dfpunk accounts pass the file's signingKey (do not derive from secret).`,
-    );
-  }
+  const manager = await registerAccount(wallet, secret, salt, params.signingKey, expected);
 
   if (messageStatus === "l2-sync-pending") {
     progress(
@@ -459,21 +472,13 @@ export async function importDfpunkAccountIntoPxe(params: {
 
   const secret = Fr.fromHexString(params.secretKey.trim());
   const salt = Fr.fromHexString(params.salt.trim());
-  const signingKey = resolveSigningKey(secret, params.signingKey);
-  const manager = await wallet.createSchnorrInitializerlessAccount(
+  const manager = await registerAccount(
+    wallet,
     secret,
     salt,
-    signingKey,
-    "main",
+    params.signingKey,
+    AztecAddress.fromStringUnsafe(params.address.trim()),
   );
-
-  const derived = manager.address.toString().toLowerCase();
-  const expected = params.address.trim().toLowerCase();
-  if (derived !== expected) {
-    throw new Error(
-      `Imported keys derive ${manager.address.toString()}, but the file says ${params.address}. Check secretKey / salt / signingKey from the DF client export.`,
-    );
-  }
 
   params.onProgress?.("account", `PXE registered ${manager.address.toString()}`);
   return { address: manager.address.toString() };

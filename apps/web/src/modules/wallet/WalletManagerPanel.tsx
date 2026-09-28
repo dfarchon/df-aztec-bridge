@@ -229,7 +229,7 @@ export function WalletManagerPanel(props: {
       const restored = await unlockExistingVault();
       if (!restored) throw new Error("Vault unlock cancelled.");
       assertDfClientAccount(restored);
-      let stored = { ...restored, fromDfClient: true as const };
+      let stored: ImportedAztecAccount = { ...restored, fromDfClient: true };
       if (restored.pxeRegistered) {
         setStatus("Vault unlocked — using the saved PXE account.");
       } else {

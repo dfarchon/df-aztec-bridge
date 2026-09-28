@@ -142,6 +142,23 @@ async function readJsonResponse<T>(response: Response, label: string): Promise<T
   }
 }
 
+/** Prefer the typed signing key; fall back to the imported DF Punk account when it is the claim recipient. */
+function resolveClaimSigningKey(
+  recipient: string,
+  typed: string,
+  account: ImportedAztecAccount | null,
+): string | undefined {
+  const explicit = typed.trim();
+  if (explicit) return explicit;
+  if (
+    account?.signingKey?.trim() &&
+    account.address.toLowerCase() === recipient.trim().toLowerCase()
+  ) {
+    return account.signingKey.trim();
+  }
+  return undefined;
+}
+
 function storageErrorMessage(e: unknown): string {
   if (e instanceof BridgeStorageError) return e.message;
   if (e instanceof VaultLockedError) return e.message;
@@ -412,7 +429,7 @@ export function BridgeWorkspace() {
       const restored = await unlockExistingVault();
       if (!restored) throw new Error("Vault unlock cancelled.");
       assertDfClientAccount(restored);
-      let stored = { ...restored, fromDfClient: true as const };
+      let stored: ImportedAztecAccount = { ...restored, fromDfClient: true };
       if (restored.pxeRegistered) {
         setBridgePhase("Vault unlocked — using the saved PXE account.");
       } else {
@@ -1476,7 +1493,13 @@ export function BridgeWorkspace() {
 
       if (autoClaim) {
         setBridgePhase("Starting L2 claim…");
-        await startClaimJob(result.l1TxHash, result.credentials, l2Secret.trim(), l2Salt, l2SigningKey);
+        await startClaimJob(
+          result.l1TxHash,
+          result.credentials,
+          l2Secret.trim(),
+          l2Salt,
+          resolveClaimSigningKey(result.credentials.recipient, l2SigningKey, dfPxeAccount),
+        );
         // Browser claim already set the final phase / L2 tx; API claim stays "queued".
         if (!BROWSER_CLAIM) {
           setBridgePhase("L2 claim job queued — polling status…");
@@ -1703,7 +1726,7 @@ export function BridgeWorkspace() {
           session.credentials,
           l2Secret.trim(),
           l2Salt,
-          l2SigningKey,
+          resolveClaimSigningKey(session.credentials.recipient, l2SigningKey, dfPxeAccount),
         );
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : String(e));
@@ -1712,7 +1735,7 @@ export function BridgeWorkspace() {
         await refreshSessions();
       }
     },
-    [l2Secret, l2Salt, l2SigningKey, startClaimJob, refreshSessions],
+    [l2Secret, l2Salt, l2SigningKey, dfPxeAccount, startClaimJob, refreshSessions],
   );
 
   const onRemoveSession = useCallback(
@@ -1883,14 +1906,18 @@ export function BridgeWorkspace() {
     return () => setShellReady(false);
   }, [dfPxeReady, setShellReady]);
 
+  const bridgeUnderConstruction = true;
   const canBridge =
+    !bridgeUnderConstruction &&
     dfPxeReady &&
     !!networkMeta &&
     !amountCheck.error &&
     !shortfall &&
     !!BRIDGE_FEE_RECIPIENT &&
     (!autoClaim || !!l2Secret.trim());
-  const bridgeButtonLabel = !wallet
+  const bridgeButtonLabel = bridgeUnderConstruction
+    ? "Under construction — bridge and claim disabled"
+    : !wallet
     ? "Connect wallet first"
     : !ethSessionOk
       ? "Validate connector session"
@@ -1923,6 +1950,7 @@ export function BridgeWorkspace() {
   };
 
   const requestBridge = () => {
+    if (bridgeUnderConstruction) return;
     if (!dfPxeReady) {
       setError(
         "Bridge is locked until MetaMask/WalletConnect is validated and a DF Punk account is imported into PXE.",
@@ -2126,6 +2154,16 @@ export function BridgeWorkspace() {
           autoComplete="off"
         />
       </label>
+      <label>
+        Signing key (required for DF Punk accounts)
+        <input
+          value={l2SigningKey}
+          onChange={(e) => setL2SigningKey(e.target.value)}
+          placeholder="0x… from dfpunk-account JSON"
+          type={showL2Secret ? "text" : "password"}
+          autoComplete="off"
+        />
+      </label>
     </div>
     );
   };
@@ -2246,6 +2284,14 @@ export function BridgeWorkspace() {
       {path === ROUTES.bridge ? (
         <>
       <div className="bridge-layout">
+      <section className="under-construction" role="status">
+        <p className="under-construction-kicker">Under construction</p>
+        <strong>Bridge and L2 claim are paused</strong>
+        <p>
+          This page is not ready to send a bridge or claim. The button stays off until the flow is
+          reopened.
+        </p>
+      </section>
       {hasRpcOverrides(rpcOverrides) ? (
         <p className="hint bridge-layout-hint">
           Custom RPC overrides active — verify hosts before signing.
@@ -2532,12 +2578,18 @@ export function BridgeWorkspace() {
             </p>
           )}
 
-          <ActionHintButton
-            label={busy ? "Working…" : bridgeButtonLabel}
-            ready={canBridge}
-            busy={busy}
-            onClick={requestBridge}
-          />
+          {bridgeUnderConstruction ? (
+            <button type="button" className="primary" disabled>
+              Under construction — bridge and claim disabled
+            </button>
+          ) : (
+            <ActionHintButton
+              label={busy ? "Working…" : bridgeButtonLabel}
+              ready={canBridge}
+              busy={busy}
+              onClick={requestBridge}
+            />
+          )}
         </div>
       </div>
 
