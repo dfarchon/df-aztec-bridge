@@ -9,8 +9,9 @@ Report vulnerabilities privately to the maintainers. Do not open public issues t
 Never commit:
 
 - L1 / L2 private keys or secret keys
-- `account.json` / `account*.json` exports
-- `.env` files
+- `account.json` / `account*.json` exports and `claim-*.json`
+- `.env` files (templates `.env.example` and `.env.netlify.example` are the only env files in git)
+- Netlify CLI link state under `.netlify/` (site id)
 - API job dumps under `data/`
 - Keyed dRPC path URLs in `VITE_*` (Vite bakes them into the browser). Public default: `https://aztec-mainnet.drpc.org`. Keyed endpoints only in private/non-`VITE_` env (CLI/API) or Netlify UI for non-client use.
 

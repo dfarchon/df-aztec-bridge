@@ -75,7 +75,7 @@ Open the Vite URL (default `http://localhost:5173`):
 1. Connect MetaMask (or any EIP-1193 wallet).
 2. Enter the **Aztec L2 address** to fund.
 3. Sign the L1 bridge transaction in the wallet.
-4. Optionally submit **L2 wait + claim** via API (requires the **L2 secret** for that Aztec account).
+4. Auto-claim runs in the browser (default). It needs the **L2 secret** for that Aztec account, kept in the vault — not sent to a public API.
 
 The web app never asks for an L1 private key.
 
@@ -151,6 +151,7 @@ JSON defaults live in `config/networks/*.json` (currently publicnode L1 RPCs). A
   UI values override `netlify.toml` if both are set.
   After env changes: **Clear cache and deploy**.
   Local `pnpm web`: copy `.env.example` → `.env`, restart Vite (Netlify UI env does not apply).
+  Git ignores `.env`, `.env.*` (except the two `*.example` templates), `.netlify/`, `account*.json`, and `claim-*.json`. Do not force-add them. Netlify must not receive `L1_PRIVATE_KEY`, `API_AUTH_TOKEN`, or a keyed dRPC URL in any `VITE_*` variable — those values are baked into the public bundle.
   Private GitHub ≠ private site URL: enable Netlify **visitor password / access control** if the live app must stay closed.
   Browser claim is enabled by default, so auto-claim does not need an API.
 - Auto-claim **API** (`VITE_ENABLE_BROWSER_CLAIM=false`): local loopback only — needs `API_AUTH_TOKEN`, `API_ENABLE_CLAIM=true`, and `VITE_API_BASE=/api` (remote bases are rejected).
