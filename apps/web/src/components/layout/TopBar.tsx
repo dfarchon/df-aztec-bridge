@@ -33,7 +33,7 @@ export function TopBar(props: {
         {shellReady ? (
           <button
             type="button"
-            className={`icon-btn settings-btn${hasRpcOverrides(rpcOverrides) ? " active" : ""}`}
+            className={`icon-btn utility-control settings-btn${hasRpcOverrides(rpcOverrides) ? " active" : ""}`}
             aria-label="RPC settings"
             title="RPC settings"
             onClick={openSettings}

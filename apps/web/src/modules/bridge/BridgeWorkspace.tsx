@@ -95,7 +95,7 @@ import {
 } from "../../lib/wallet-session-guard.ts";
 import { LEGACY_WALLET_RDNS } from "@df-bridge/browser-sdk";
 import { usePath, useNavigate } from "../../app/router.tsx";
-import { ROUTES, isExplorerPath } from "../../app/routes.ts";
+import { ROUTES } from "../../app/routes.ts";
 import { useNetwork } from "../../providers/NetworkProvider.tsx";
 import { useVault } from "../../providers/VaultProvider.tsx";
 import { useUi } from "../../providers/UiProvider.tsx";
@@ -103,7 +103,6 @@ import { TopBar } from "../../components/layout/TopBar.tsx";
 import { WalletDrawer } from "../../components/wallet/WalletDrawer.tsx";
 import { WalletManagerPanel } from "../wallet/WalletManagerPanel.tsx";
 import { VaultPage } from "../vault/VaultPage.tsx";
-import { LocalExplorerPage } from "../explorer/LocalExplorerPage.tsx";
 import { VaultLockedError } from "../../lib/vault.ts";
 import { ConnectSessionGate } from "../../components/ui/ConnectSessionGate.tsx";
 import { AztecRpcOptionsField } from "../../components/ui/AztecRpcOptionsField.tsx";
@@ -169,12 +168,9 @@ export function BridgeWorkspace() {
   const navigate = useNavigate();
   const networkApi = useNetwork();
   const {
-    networks,
     networkId,
-    setNetworkId,
     networkMeta,
     l1Backend,
-    setL1Backend,
     rpcOverrides,
     settingsOpen,
     openSettings,
@@ -505,7 +501,6 @@ export function BridgeWorkspace() {
       const started = Date.now();
       if (spin) {
         setBalanceRefreshing(true);
-        setFeeBalance(null);
         setBalanceError(null);
       }
       try {
@@ -544,7 +539,6 @@ export function BridgeWorkspace() {
       const started = Date.now();
       if (spin) {
         setL2BalanceRefreshing(true);
-        setL2FeeBalance(null);
         setL2BalanceError(null);
       }
       try {
@@ -1322,10 +1316,7 @@ export function BridgeWorkspace() {
     try {
       const live = await validateConnectedWalletSession(wallet);
       setWallet(live);
-      const pxe = assertBridgeReadyDfPxeAccount(dfPxeAccount, live.address);
-      if (recipient.trim().toLowerCase() !== pxe.address.toLowerCase()) {
-        throw new Error("Recipient must match the DF Punk PXE account (anti-inject lock).");
-      }
+      assertBridgeReadyDfPxeAccount(dfPxeAccount, live.address);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
       return;
@@ -1876,7 +1867,6 @@ export function BridgeWorkspace() {
     ethSessionOk &&
     isTrustedConnector(wallet) &&
     isBridgeReadyDfPxeAccount(dfPxeAccount, wallet?.address) &&
-    recipient.trim().toLowerCase() === dfPxeAccount.address.toLowerCase() &&
     !fundingSponsoredFpc;
 
   useEffect(() => {
@@ -2098,7 +2088,7 @@ export function BridgeWorkspace() {
           />
           <button
             type="button"
-            className="ghost secret-toggle"
+            className="icon-btn utility-control secret-toggle"
             disabled={!l2Secret}
             aria-label={showL2Secret ? "Hide L2 secret" : "Show L2 secret"}
             title={showL2Secret ? "Hide" : "Show"}
@@ -2147,11 +2137,6 @@ export function BridgeWorkspace() {
         shellReady={shellReady}
         onConnect={() => void onConnect()}
       />
-      {isExplorerPath(path) ? (
-        <main className="app-shell app-main">
-          <LocalExplorerPage path={path} />
-        </main>
-      ) : (
       <main className={progress ? "with-progress-panel app-shell app-main" : "app-shell app-main"}>
       {!shellReady ? (
         <ConnectSessionGate
@@ -2172,11 +2157,7 @@ export function BridgeWorkspace() {
           onUnlockVault={unlockVaultFromGate}
           walletPanel={
             <WalletManagerPanel
-              networks={networks}
               networkId={networkId}
-              setNetworkId={setNetworkId}
-              l1Backend={l1Backend}
-              setL1Backend={setL1Backend}
               rpcOverrides={rpcOverrides}
               aztecNodeUrl={networkMeta?.aztecNodeUrl ?? null}
               browserClaimEnabled={BROWSER_CLAIM}
@@ -2229,7 +2210,9 @@ export function BridgeWorkspace() {
             Bridging is <strong>one-way and irreversible</strong>. Once on Aztec, your
             $AZTEC becomes Fee Juice — it cannot be withdrawn, transferred to another
             account, or bridged back to Ethereum or another chain.{" "}
-            <strong className="fee-juice-emphasis">Only bridge the amount you need.</strong>
+            <strong className="fee-juice-emphasis">Only bridge the amount you need.</strong>{" "}
+            A {BRIDGE_FEE_BPS / 100}% AZTEC fee, plus a mainnet ETH service fee of about one L1
+            transaction, goes to the DF Archon team.
           </p>
         </div>
         <button
@@ -2273,6 +2256,7 @@ export function BridgeWorkspace() {
           <p className="bridge-col-kicker">01 · From Ethereum</p>
           {wallet ? (
             <div className="card wallet-status">
+              <div className="wallet-identity-row">
               <div className="wallet-status-account">
                 <strong>L1 account</strong>
                 <div className="wallet-card-address">
@@ -2312,9 +2296,48 @@ export function BridgeWorkspace() {
                     : " Mainnet requires L1 AZTEC + ETH for gas."}
                 </p>
               </div>
+              <div className="wallet-status-account">
+                <strong>PXE account</strong>
+                {recipient.trim() ? (
+                  <div className="wallet-card-address">
+                    <span className="mono">
+                      {recipient.slice(0, 10)}…{recipient.slice(-8)}
+                    </span>
+                    <button
+                      type="button"
+                      className="copy-address-btn"
+                      aria-label="Copy PXE address"
+                      title="Copy PXE address"
+                      onClick={() => void copyPxeAddress()}
+                    >
+                      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                        <path
+                          fill="currentColor"
+                          d="M8 7V5c0-1.1.9-2 2-2h9c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2h-2v2c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h2Zm2 0h5c1.1 0 2 .9 2 2v5h2V5h-9v2Zm-4 2v9h9V9H6Z"
+                        />
+                      </svg>
+                    </button>
+                    {pxeAddressCopied ? (
+                      <span className="copy-success" role="status">
+                        Copied!
+                      </span>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="hint">Import a DF Punk account into PXE.</p>
+                )}
+                {dfPxeReady ? (
+                  <p className="hint storage-status-ok">
+                    Locked to this connector
+                  </p>
+                ) : (
+                  <p className="hint">Bridge stays locked until this PXE session is ready.</p>
+                )}
+              </div>
+              </div>
               <div className="wallet-status-balance">
                 <div className="wallet-status-balance-main">
-                  {balanceRefreshing ? null : feeBalance ? (
+                  {feeBalance ? (
                     <span
                       className="balance-amount mono"
                       title={`${feeBalance.formatted} ${feeBalance.symbol}`}
@@ -2324,18 +2347,23 @@ export function BridgeWorkspace() {
                     </span>
                   ) : (
                     <span className={`balance-amount hint ${balanceError ? "error" : ""}`}>
-                      {balanceError ? "Failed" : "Loading…"}
+                      {balanceError ? "Failed" : balanceRefreshing ? "…" : "—"}
                     </span>
                   )}
                   <button
                     type="button"
-                    className={`icon-btn${balanceRefreshing ? " spinning" : ""}`}
+                    className={`icon-btn utility-control${balanceRefreshing ? " spinning" : ""}`}
                     aria-label="Refresh balance"
                     title="Refresh balance"
                     disabled={busy || !networkMeta || balanceRefreshing}
                     onClick={() => {
                       if (wallet && networkMeta) {
                         void refreshFeeBalance(wallet, networkMeta, { spin: true });
+                      }
+                      if (dfPxeAccount?.address && networkMeta?.aztecNodeUrl) {
+                        void refreshL2FeeBalance(dfPxeAccount.address, networkMeta.aztecNodeUrl, {
+                          spin: true,
+                        });
                       }
                     }}
                   >
@@ -2346,12 +2374,40 @@ export function BridgeWorkspace() {
                       />
                     </svg>
                   </button>
+                  {dfPxeReady ? (
+                    <span className="balance-inline-fj mono" title={l2FeeBalance != null ? `${formatFjAmount(l2FeeBalance)} FJ` : undefined}>
+                      {l2FeeBalance != null ? (
+                        <>
+                          {formatFjAmount(l2FeeBalance, 5)} <span className="balance-symbol">FJ</span>
+                        </>
+                      ) : (
+                        "— FJ"
+                      )}
+                    </span>
+                  ) : null}
                 </div>
                 {!balanceRefreshing && balanceError ? (
                   <p className="hint error balance-error">{balanceError}</p>
                 ) : null}
               </div>
             </div>
+          ) : null}
+
+          <label className="bridge-recipient-field">
+            Aztec recipient
+            <input
+              value={recipient}
+              onChange={(e) => setRecipient(e.target.value)}
+              placeholder="0x… PXE address"
+              spellCheck={false}
+              autoComplete="off"
+            />
+          </label>
+          {dfPxeAccount &&
+          recipient.trim().toLowerCase() === dfPxeAccount.address.toLowerCase() ? (
+            <p className="hint">Locked PXE wallet. Edit this field to bridge to another address.</p>
+          ) : recipient.trim() ? (
+            <p className="hint">Bridging to a different PXE address than the unlocked wallet.</p>
           ) : null}
 
           {dfPxeReady ? null : (
@@ -2362,103 +2418,16 @@ export function BridgeWorkspace() {
             </p>
           )}
 
-          <div className="card bridge-recipient-card">
-          <label className="bridge-recipient-field">
-            Aztec recipient (DF Punk PXE)
-            <div className="pxe-address-row">
-            <input
-              value={recipient}
-              onChange={(e) => {
-                if (dfPxeAccount) return;
-                setRecipient(e.target.value);
-                setDfPxeAccount(null);
-              }}
-              readOnly={!!dfPxeAccount}
-              placeholder="Import DF Punk account into PXE first"
-            />
-            <button
-              type="button"
-              className="copy-address-btn"
-              aria-label="Copy PXE address"
-              title="Copy PXE address"
-              disabled={!recipient.trim()}
-              onClick={() => void copyPxeAddress()}
-            >
-              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M8 7V5c0-1.1.9-2 2-2h9c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2h-2v2c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h2Zm2 0h5c1.1 0 2 .9 2 2v5h2V5h-9v2Zm-4 2v9h9V9H6Z"
-                />
-              </svg>
-            </button>
-            {pxeAddressCopied ? (
-              <span className="copy-success" role="status">
-                Copied!
-              </span>
-            ) : null}
-            </div>
-          </label>
-          {dfPxeReady ? (
-            <p className="hint storage-status-ok">
-              Locked to PXE session · bound{" "}
-              <span className="mono">{shortHash(wallet!.address)}</span>
-            </p>
-          ) : (
-            <p className="hint">
-              Bridge stays locked until a DF Punk account is imported into PXE for this connector.
-            </p>
-          )}
-          </div>
-          {dfPxeReady ? (
-            <div className="card pxe-balance-card">
-              <div className="pxe-balance-head">
-                <strong>Aztec PXE Fee Juice</strong>
-                <button
-                  type="button"
-                  className={`icon-btn${l2BalanceRefreshing ? " spinning" : ""}`}
-                  aria-label="Refresh Aztec Fee Juice balance"
-                  title="Refresh L2 Fee Juice"
-                  disabled={busy || l2BalanceRefreshing || !networkMeta?.aztecNodeUrl}
-                  onClick={() => {
-                    if (dfPxeAccount?.address && networkMeta?.aztecNodeUrl) {
-                      void refreshL2FeeBalance(dfPxeAccount.address, networkMeta.aztecNodeUrl, {
-                        spin: true,
-                      });
-                    }
-                  }}
-                >
-                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-                    <path
-                      fill="currentColor"
-                      d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.1A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35Z"
-                    />
-                  </svg>
-                </button>
-              </div>
-              <div className="pxe-balance-main">
-                {l2BalanceRefreshing ? (
-                  <span className="balance-amount hint">Loading…</span>
-                ) : l2FeeBalance != null ? (
-                  <span className="balance-amount mono" title={`${formatFjAmount(l2FeeBalance)} FJ`}>
-                    {formatFjAmount(l2FeeBalance, 5)} <span className="balance-symbol">FJ</span>
-                  </span>
-                ) : (
-                  <span className={`balance-amount hint ${l2BalanceError ? "error" : ""}`}>
-                    {l2BalanceError ? "Failed" : "—"}
-                  </span>
-                )}
-              </div>
-              {!l2BalanceRefreshing && l2BalanceError ? (
-                <p className="hint error balance-error">{l2BalanceError}</p>
-              ) : (
-                <p className="hint">Public Fee Juice on Aztec for this PXE account.</p>
-              )}
-            </div>
-          ) : null}
           {isSponsoredFpcAddress(recipient) ? (
             <p className="error">
               Sponsored FPC is not a DF Punk user account — bridge button stays locked. Use DF
               client import → PXE for play accounts.
+            </p>
+          ) : null}
+          {progress ? null : bridgePhase ? (
+            <p className={`bridge-phase${busy ? " active" : ""}`}>
+              {busy ? "⏳ " : "✓ "}
+              {bridgePhase}
             </p>
           ) : null}
         </div>
@@ -2885,12 +2854,12 @@ export function BridgeWorkspace() {
         </>
       ) : null}
 
-      {progress ? null : bridgePhase ? (
+      {path === ROUTES.bridge || progress || !bridgePhase ? null : (
         <p className={`bridge-phase${busy ? " active" : ""}`}>
           {busy ? "⏳ " : "✓ "}
           {bridgePhase}
         </p>
-      ) : null}
+      )}
 
       {error ? <p className="error">{error}</p> : null}
 
@@ -2909,11 +2878,7 @@ export function BridgeWorkspace() {
       )}
 
       <WalletDrawer
-        networks={networks}
         networkId={networkId}
-        setNetworkId={setNetworkId}
-        l1Backend={l1Backend}
-        setL1Backend={setL1Backend}
         rpcOverrides={rpcOverrides}
         aztecNodeUrl={networkMeta?.aztecNodeUrl ?? null}
         busy={busy}
@@ -3232,7 +3197,6 @@ export function BridgeWorkspace() {
       ) : null}
 
     </main>
-      )}
     </>
   );
 }

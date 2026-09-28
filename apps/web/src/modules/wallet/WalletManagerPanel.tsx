@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ConnectedWallet, L1BridgeBackend } from "@df-bridge/browser-sdk";
+import type { ConnectedWallet } from "@df-bridge/browser-sdk";
 import type { ImportedAztecAccount } from "../../lib/account-import.ts";
 import { assertDfClientAccount } from "../../lib/account-import.ts";
 import { isBridgeReadyDfPxeAccount } from "../../lib/df-pxe-bridge-guard.ts";
@@ -29,11 +29,7 @@ import { isVaultUnlocked } from "../../lib/vault.ts";
 import { importDfPunkFileIntoPxe, registerDfPunkAccountIntoPxe } from "../../lib/df-pxe-import.ts";
 
 export function WalletManagerPanel(props: {
-  networks: string[];
   networkId: string;
-  setNetworkId: (id: string) => void;
-  l1Backend: L1BridgeBackend;
-  setL1Backend: (v: L1BridgeBackend) => void;
   rpcOverrides: RpcOverrides;
   aztecNodeUrl: string | null;
   browserClaimEnabled: boolean;
@@ -48,11 +44,7 @@ export function WalletManagerPanel(props: {
   onClearAztecAccount?: () => void;
 }) {
   const {
-    networks,
     networkId,
-    setNetworkId,
-    l1Backend,
-    setL1Backend,
     rpcOverrides,
     aztecNodeUrl,
     browserClaimEnabled,
@@ -312,45 +304,12 @@ export function WalletManagerPanel(props: {
         )}
       </p>
 
-      <div className="wallet-manager-network">
-        <p className="label">network setup</p>
-        <div className="network-row">
-          <label>
-            Network
-            <select
-              value={networkId}
-              disabled
-              title="Locked to mainnet for now"
-              onChange={(e) => setNetworkId(e.target.value)}
-            >
-              {networks.map((id) => (
-                <option key={id} value={id}>
-                  {id}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            L1 backend
-            <select
-              value={l1Backend}
-              disabled
-              title="Locked to portal for now"
-              onChange={(e) => setL1Backend(e.target.value as L1BridgeBackend)}
-            >
-              <option value="portal">portal</option>
-              <option value="gobridge">gobridge</option>
-            </select>
-          </label>
-        </div>
+      {hasRpcOverrides(rpcOverrides) ? (
         <p className="hint">
-          Network locked to <span className="mono">mainnet</span>; L1 backend locked to{" "}
-          <span className="mono">portal</span>. Addresses are baked into the frontend config.
-          {hasRpcOverrides(rpcOverrides)
-            ? " Custom RPC overrides active (gear) — verify hosts before signing; custom RPCs can see request metadata."
-            : null}
+          Custom RPC overrides active (gear) — verify hosts before signing; custom RPCs can see
+          request metadata.
         </p>
-      </div>
+      ) : null}
 
       <div className={`wallet-manager-grid${dfUnlocked ? "" : " wallet-manager-grid-solo"}`}>
         <div className="wallet-manager-col">

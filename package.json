@@ -6,12 +6,7 @@
   "packageManager": "pnpm@11.20.0+sha512.9a6f330a95b66446ea088faf1521405a8a01f07fde7124cc9958dfed52d4bb436737e65b08f85f37b46fcba375092558ac51262b816844b22f63406ed166bfee",
   "scripts": {
     "preinstall": "node ./scripts/enforce-pnpm.mjs",
-    "dev": "bash scripts/dev-mprocs.sh",
-    "dev:shell": "bash scripts/dev-local.sh",
-    "dev:aztec": "bash scripts/dev-aztec.sh",
-    "dev:web": "bash scripts/dev-web.sh",
-    "fund:local-juice": "node --import tsx scripts/fund-local-juice.ts",
-    "tick:local": "node --import tsx scripts/local-network-tick.ts",
+    "dev": "pnpm --filter @df-bridge/web run dev",
     "typecheck": "pnpm run build:libs && pnpm -r run typecheck",
     "build": "pnpm run build:libs && pnpm -r run build",
     "build:libs": "pnpm --filter @df-bridge/core --filter @df-bridge/browser-sdk run build",

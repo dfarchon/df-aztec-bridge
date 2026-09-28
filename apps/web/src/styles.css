@@ -842,6 +842,26 @@ input.bridge-amount-input:focus {
   margin-top: 0.35rem;
 }
 
+.pxe-split.is-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr);
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+.pxe-split.is-pair .card {
+  margin-top: 0;
+  height: 100%;
+}
+
+.pxe-split.is-pair .pxe-balance-card {
+  order: 1;
+}
+
+.pxe-split.is-pair .bridge-recipient-card {
+  order: 2;
+}
+
 .pxe-balance-card {
   margin: 0;
   padding: 0.65rem 0.75rem;
@@ -878,7 +898,7 @@ input.bridge-amount-input:focus {
   }
 
   .bridge-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 
   .bridge-amount-input,
@@ -1028,6 +1048,10 @@ button.action-hint.is-overflow .action-hint-wave {
   background: var(--surface);
   color: var(--steel);
   font-size: 0.78rem;
+}
+
+.bridge-col-account > .bridge-phase {
+  margin-top: auto;
 }
 
 .bridge-phase.active {
@@ -1248,13 +1272,32 @@ label.check {
   align-items: flex-start;
   gap: 0.6rem;
   margin-top: 1.25rem;
-  color: #ddd;
+  color: var(--ink);
   cursor: pointer;
 }
 
-label.check input {
-  width: auto;
-  margin-top: 0.25rem;
+label.check input[type="checkbox"] {
+  appearance: none;
+  width: 1.05rem;
+  height: 1.05rem;
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background-color: color-mix(in srgb, var(--surface) 82%, transparent);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 0.72rem 0.72rem;
+}
+
+label.check input[type="checkbox"]:checked {
+  border-color: var(--ok);
+  background-color: var(--ok-dim);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.2 8.2 6.4 11.4 12.8 4.6' fill='none' stroke='%23ff4dac' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+html[data-theme="light"] label.check input[type="checkbox"]:checked {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.2 8.2 6.4 11.4 12.8 4.6' fill='none' stroke='%239d275f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 .claim-opts {
@@ -1362,8 +1405,15 @@ label.check input {
   padding: 0.7rem 0.75rem;
 }
 
+.wallet-identity-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.85rem 1.25rem;
+}
+
 .wallet-status-account {
   padding-right: 0.25rem;
+  min-width: 0;
 }
 
 .wallet-status-account .mono {
@@ -1397,10 +1447,21 @@ label.check input {
 }
 
 .wallet-status-balance-main {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.65rem;
   max-width: 100%;
+}
+
+.wallet-status-balance-main > .icon-btn {
+  justify-self: center;
+}
+
+.balance-inline-fj {
+  justify-self: end;
+  color: var(--ok);
+  font-size: 0.95rem;
 }
 
 .balance-amount {
@@ -1458,7 +1519,8 @@ label.check input {
   opacity: 0.45;
 }
 
-.icon-btn.spinning {
+.icon-btn.spinning,
+.icon-btn.spinning:disabled {
   opacity: 1;
   cursor: wait;
 }
@@ -2682,6 +2744,10 @@ main.app-main {
   box-sizing: border-box;
 }
 
+main.app-main:has(.bridge-layout) {
+  max-width: 72rem;
+}
+
 .app-lead {
   margin: 0 0 0.75rem;
   font-size: 0.8rem;
@@ -3531,6 +3597,35 @@ html[data-theme="light"] .wallet-float-panel {
   border-radius: 2px !important;
 }
 
+button,
+.icon-btn,
+.copy-address-btn,
+.wallet-chip,
+.wallet-option {
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.utility-control:hover:not(:disabled),
+.icon-btn:hover:not(:disabled),
+.copy-address-btn:hover:not(:disabled),
+button.ghost:hover:not(:disabled),
+button:not(:disabled):hover,
+.wallet-chip:hover,
+.wallet-option:hover {
+  box-shadow: 0 0 0 1px var(--ok), 0 0 16px var(--ok-glow);
+}
+
+.utility-control:hover:not(:disabled),
+.icon-btn.utility-control:hover:not(:disabled) {
+  border-color: var(--ok) !important;
+  color: var(--ok) !important;
+  background: var(--ok-dim) !important;
+}
+
 .theme-tip {
   position: fixed;
   z-index: 90;
@@ -3620,15 +3715,19 @@ html[data-theme="light"] {
   --ink: #321d28;
   --steel: #765c69;
   --dim: #8a6b78;
-  --faint: #cba9b9;
-  --line: #cba9b9;
+  --faint: #e4c9d4;
+  --line: #e4c9d4;
   --accent: #9d275f;
   --ok: #9d275f;
-  --ok-dim: rgba(157, 39, 95, 0.12);
-  --ok-glow: rgba(157, 39, 95, 0.14);
-  --surface: rgba(255, 250, 252, 0.92);
-  --surface-2: #f8eaf0;
+  --ok-dim: rgba(157, 39, 95, 0.1);
+  --ok-glow: rgba(157, 39, 95, 0.12);
+  --surface: #ffffff;
+  --surface-2: #ffffff;
+  --warn: #8a5a12;
+  --warn-bg: #fff8ec;
+  --warn-line: #ead7a8;
   --danger: #aa2047;
+  color-scheme: light;
   color: #321d28;
   background: #f6edf1;
 }
@@ -3658,6 +3757,76 @@ html[data-theme="light"] .sound-popover {
 
 html[data-theme="light"] .app-sidebar-link.is-active {
   color: #9d275f;
+}
+
+html[data-theme="light"] .card,
+html[data-theme="light"] .wallet-manager,
+html[data-theme="light"] .wallet-manager-col,
+html[data-theme="light"] .integrity-panel,
+html[data-theme="light"] .connect-gate-card,
+html[data-theme="light"] .modal,
+html[data-theme="light"] .dapp-log-shell {
+  background: #ffffff;
+  color: var(--ink);
+}
+
+html[data-theme="light"] .dapp-log-shell {
+  box-shadow:
+    0 0 0 1px rgba(157, 39, 95, 0.08),
+    0 18px 48px rgba(80, 30, 50, 0.12);
+}
+
+html[data-theme="light"] .dapp-log-card {
+  background: #fff7fa;
+  border-color: #f0d5e2;
+}
+
+html[data-theme="light"] input,
+html[data-theme="light"] select,
+html[data-theme="light"] textarea {
+  background: #ffffff;
+  color: #321d28;
+}
+
+html[data-theme="light"] button:not(.icon-btn):not(.copy-address-btn):not(.account-menu-item):not(.notice-details-btn):not(.action-hint):not(.ghost):not(.dapp-log-toggle):not(.wallet-manager-pick) {
+  background: #ffffff;
+  color: var(--ok);
+  border-color: rgba(157, 39, 95, 0.35);
+  box-shadow: none;
+}
+
+html[data-theme="light"] button:not(.icon-btn):not(.action-hint):not(.ghost):hover:not(:disabled) {
+  background: #fff5f9;
+}
+
+html[data-theme="light"] button.action-hint,
+html[data-theme="light"] button.action-hint:hover:not(:disabled) {
+  background: #ffffff;
+}
+
+html[data-theme="light"] .fee-juice-notice {
+  color: #5c4520;
+}
+
+html[data-theme="light"] .notice-details-btn {
+  background: #fff8ec !important;
+}
+
+html[data-theme="light"] .wallet-option {
+  background: #ffffff;
+  color: var(--ink);
+}
+
+html[data-theme="light"] .icon-btn {
+  background: #ffffff;
+  color: #9d275f;
+  border-color: #e4c9d4;
+}
+
+html[data-theme="light"] .icon-btn:hover:not(:disabled) {
+  background: #fff5f9;
+  color: #9d275f;
+  border-color: #9d275f;
 }
 
 @keyframes terminal-blink {

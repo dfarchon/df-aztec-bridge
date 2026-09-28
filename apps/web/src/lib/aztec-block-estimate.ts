@@ -2,7 +2,7 @@
  * Aztec tip / next-block pace helpers for claim progress UI.
  *
  * Public networks: ~6s sequencer block sub-slots (SEQ_BLOCK_DURATION_MS).
- * Local: follow VITE_LOCAL_TICK_INTERVAL_MS (same as explorer tip poll).
+ * Local: a short fixed interval for the claim progress estimate.
  */
 
 export type BlockPace = "on-time" | "due" | "behind";
@@ -14,11 +14,7 @@ export const DEFAULT_AZTEC_BLOCK_MS = 6_000;
 export const DUE_FRACTION = 0.25;
 
 export function defaultBlockIntervalMs(networkId: string | undefined): number {
-  if (networkId === "local") {
-    const raw = import.meta.env.VITE_LOCAL_TICK_INTERVAL_MS;
-    const n = Number(raw ?? "4000");
-    return Math.max(1_000, Number.isFinite(n) && n > 0 ? n : 4_000);
-  }
+  if (networkId === "local") return 4_000;
   return DEFAULT_AZTEC_BLOCK_MS;
 }
 
