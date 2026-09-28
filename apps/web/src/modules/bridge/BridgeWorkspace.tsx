@@ -68,6 +68,7 @@ import {
   startProgress,
   type ProgressState,
 } from "../../lib/progress-track.ts";
+import { DecodeText } from "../../theme/DecodeText.tsx";
 import { ProgressPanel } from "../../components/ui/ProgressPanel.tsx";
 import {
   hasRpcOverrides,
@@ -2258,7 +2259,9 @@ export function BridgeWorkspace() {
             <div className="card wallet-status">
               <div className="wallet-identity-row">
               <div className="wallet-status-account">
-                <strong>L1 account</strong>
+                <strong className="account-kicker">
+                  <DecodeText>L1 account</DecodeText>
+                </strong>
                 <div className="wallet-card-address">
                   <span className="mono">
                     {wallet.address.slice(0, 10)}…{wallet.address.slice(-8)}
@@ -2297,7 +2300,9 @@ export function BridgeWorkspace() {
                 </p>
               </div>
               <div className="wallet-status-account">
-                <strong>PXE account</strong>
+                <strong className="account-kicker">
+                  <DecodeText>PXE account</DecodeText>
+                </strong>
                 {recipient.trim() ? (
                   <div className="wallet-card-address">
                     <span className="mono">

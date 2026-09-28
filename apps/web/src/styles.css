@@ -1416,6 +1416,18 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
   min-width: 0;
 }
 
+.account-kicker {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.account-kicker .decode-text {
+  display: inline;
+}
+
 .wallet-status-account .mono {
   margin: 0.25rem 0 0.2rem;
 }
@@ -2910,7 +2922,7 @@ main.app-main:has(.bridge-layout) {
 }
 
 .app-topbar-title::before {
-  content: "// ";
+  content: "> ";
   color: var(--ok);
 }
 
