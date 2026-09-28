@@ -76,12 +76,11 @@ function createBrowserNode(url: string, apiKey?: string) {
   return createAztecNodeClient(url, undefined, fetchFn);
 }
 
-/**
- * Aztec 5.0.0 stopped deriving the Schnorr signing key from the privacy secret.
- * `createSchnorrAccount(secret, salt, signingKey)` is the 5.2 fee-juice account.
- * One registration only — the browser PXE rejects overlapping account jobs.
- * https://docs.aztec.network/developers/docs/resources/migration_notes
- */
+function logRegister(step: string, detail: Record<string, unknown>) {
+  console.info(`[claim][register] ${step}`, detail);
+}
+
+/** Same registration as publishedRound1: Aztec 5.1 initializerless Schnorr account. */
 async function registerAccount(
   wallet: EmbeddedWallet,
   secret: Fr,
@@ -89,19 +88,30 @@ async function registerAccount(
   signingKeyHex: string | undefined,
   expected?: AztecAddress,
 ) {
-  if (!signingKeyHex?.trim()) {
-    throw new Error(
-      "Aztec 5.2 requires the account file's signingKey. Since 5.0.0 the signing key is not derived from the secret, so a 5.0.1 dfpunk account cannot be opened from secret and salt alone.",
-    );
-  }
+  const expectedAddress = expected?.toString() ?? null;
   const signingKey = resolveSigningKey(secret, signingKeyHex);
-  const manager = await wallet.createSchnorrAccount(secret, salt, signingKey, "main");
-  if (expected && !manager.address.equals(expected)) {
+  logRegister("1-start", {
+    sdk: "5.1.0",
+    create: "initializerless",
+    expected: expectedAddress,
+    salt: salt.toString(),
+    signingKeyFromFile: Boolean(signingKeyHex?.trim()),
+  });
+  const manager = await wallet.createSchnorrInitializerlessAccount(
+    secret,
+    salt,
+    signingKey,
+    "main",
+  );
+  const derived = manager.address.toString();
+  const match = expected ? manager.address.equals(expected) : true;
+  logRegister("2-created", { derived, expected: expectedAddress, match });
+  if (!match) {
     throw new Error(
-      `Aztec 5.2.0 registered ${manager.address.toString()}, but this claim recipient is ${expected.toString()}. ` +
-        `That address was produced by the 5.0.1 account contract. The 5.0.0 migration made the signing key independent of the secret, and 5.2 uses a different Schnorr account class, so the same secret, salt, and signingKey do not recreate a 5.0.1 address.`,
+      `Aztec 5.1 initializerless account is ${derived}, claim recipient is ${expectedAddress}.`,
     );
   }
+  logRegister("3-ok", { address: derived });
   return manager;
 }
 
@@ -326,6 +336,12 @@ export async function waitAndClaimInBrowser(params: {
    * signing key (e.g. dfpunk). Omit to derive from secret (CLI / aztec-kit convention).
    */
   signingKey?: string;
+  /**
+   * When the 5.2 Schnorr address does not match the backup, also try the
+   * initializerless account and a signing key derived from the secret.
+   * Still runs inside the 5.2 wallet. Stops at the first address match.
+   */
+  legacyAccountStyles?: boolean;
   timeoutMs?: number;
   onProgress?: (phase: BrowserClaimProgress, detail?: string) => void;
   /** Fired as soon as the L2 claim tx hash is known (after prove + submit). */
@@ -354,6 +370,14 @@ export async function waitAndClaimInBrowser(params: {
 
   progress("account", "Registering claimer account…");
   const expected = AztecAddress.fromStringUnsafe(params.credentials.recipient);
+  logRegister("0-claim-inputs", {
+    recipient: params.credentials.recipient,
+    saltRaw: params.salt ?? "",
+    signingKeyPresent: Boolean(params.signingKey?.trim()),
+    signingKeyLen: params.signingKey?.trim().length ?? 0,
+    secretLen: params.l2SecretKey.trim().length,
+    legacyAccountStyles: Boolean(params.legacyAccountStyles),
+  });
   const manager = await registerAccount(wallet, secret, salt, params.signingKey, expected);
 
   if (messageStatus === "l2-sync-pending") {

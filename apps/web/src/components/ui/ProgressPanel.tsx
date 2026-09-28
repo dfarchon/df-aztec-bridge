@@ -88,7 +88,7 @@ export function ProgressPanel({
         </span>
         <button
           type="button"
-          className="icon-btn"
+          className="icon-btn utility-control"
           aria-expanded={!collapsed}
           aria-label={collapsed ? "Show all steps" : "Hide step details"}
           title={collapsed ? "Show all steps" : "Hide step details"}
@@ -107,7 +107,7 @@ export function ProgressPanel({
         {running ? null : (
           <button
             type="button"
-            className="icon-btn"
+            className="icon-btn utility-control"
             aria-label="Dismiss progress"
             title="Dismiss"
             onClick={onDismiss}

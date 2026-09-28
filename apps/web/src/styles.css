@@ -684,33 +684,6 @@ main.app-main:has(.bridge-layout) {
   box-sizing: border-box;
 }
 
-.under-construction {
-  margin: 0 0 1rem;
-  padding: 0.9rem 1rem;
-  border: 1px dashed var(--accent);
-  border-radius: var(--radius);
-  background: var(--ok-dim);
-  box-shadow: 0 0 0 1px var(--ok-glow);
-}
-
-.under-construction-kicker {
-  margin: 0 0 0.25rem;
-  color: var(--accent);
-  font-size: 0.75rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.under-construction strong {
-  display: block;
-  color: var(--ink);
-}
-
-.under-construction p:last-child {
-  margin: 0.35rem 0 0;
-  color: var(--steel);
-}
-
 .bridge-layout {
   display: flex;
   flex-direction: column;
@@ -1849,13 +1822,20 @@ main.with-progress-panel {
   font-size: 0.88rem;
 }
 
+.progress-panel .icon-btn {
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  color: var(--accent);
+}
+
 .progress-elapsed {
   flex-shrink: 0;
   padding: 0.15rem 0.45rem;
-  border-radius: 6px;
-  background: var(--surface-2);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
   border: 1px solid var(--line);
-  color: var(--ink);
+  color: var(--accent);
   font-variant-numeric: tabular-nums;
 }
 

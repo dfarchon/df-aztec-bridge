@@ -12,7 +12,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@aztec/bb.js": "5.2.0",
+    "@aztec/bb.js": "5.1.0",
     "@df-bridge/browser-sdk": "workspace:*",
     "assert": "^2.1.0",
     "hash.js": "^1.1.7",

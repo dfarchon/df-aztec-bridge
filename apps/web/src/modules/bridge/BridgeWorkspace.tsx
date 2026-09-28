@@ -240,6 +240,8 @@ export function BridgeWorkspace() {
   const [l2Secret, setL2Secret] = useState("");
   const [l2Salt, setL2Salt] = useState("");
   const [l2SigningKey, setL2SigningKey] = useState("");
+  /** Try initializerless and secret-derived signing keys when the 5.2 address misses the backup. */
+  const [legacyAccountStyles, setLegacyAccountStyles] = useState(true);
   const [showL2Secret, setShowL2Secret] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1142,7 +1144,14 @@ export function BridgeWorkspace() {
   }, [networkMeta, networkId, selectedRecoveryHash, refreshSessions, refreshBalancesAfterAction]);
 
   const startClaimJob = useCallback(
-    async (l1Hash: string, creds: ClaimCredentials, secret: string, salt?: string, signingKey?: string) => {
+    async (
+      l1Hash: string,
+      creds: ClaimCredentials,
+      secret: string,
+      salt?: string,
+      signingKey?: string,
+      legacyStyles?: boolean,
+    ) => {
       if (BROWSER_CLAIM) {
         if (!networkMeta?.aztecNodeUrl) {
           throw new Error("Network meta missing aztecNodeUrl for browser claim.");
@@ -1191,6 +1200,7 @@ export function BridgeWorkspace() {
             l2SecretKey: secret,
             salt,
             signingKey: signingKey?.trim() || undefined,
+            legacyAccountStyles: legacyStyles,
             onProgress: (phase, detail) => {
               setClaimStatus(phase);
               setBridgePhase(detail ?? null);
@@ -1727,6 +1737,7 @@ export function BridgeWorkspace() {
           l2Secret.trim(),
           l2Salt,
           resolveClaimSigningKey(session.credentials.recipient, l2SigningKey, dfPxeAccount),
+          legacyAccountStyles,
         );
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : String(e));
@@ -1735,7 +1746,7 @@ export function BridgeWorkspace() {
         await refreshSessions();
       }
     },
-    [l2Secret, l2Salt, l2SigningKey, dfPxeAccount, startClaimJob, refreshSessions],
+    [l2Secret, l2Salt, l2SigningKey, dfPxeAccount, legacyAccountStyles, startClaimJob, refreshSessions],
   );
 
   const onRemoveSession = useCallback(
@@ -1906,18 +1917,14 @@ export function BridgeWorkspace() {
     return () => setShellReady(false);
   }, [dfPxeReady, setShellReady]);
 
-  const bridgeUnderConstruction = true;
   const canBridge =
-    !bridgeUnderConstruction &&
     dfPxeReady &&
     !!networkMeta &&
     !amountCheck.error &&
     !shortfall &&
     !!BRIDGE_FEE_RECIPIENT &&
     (!autoClaim || !!l2Secret.trim());
-  const bridgeButtonLabel = bridgeUnderConstruction
-    ? "Under construction — bridge and claim disabled"
-    : !wallet
+  const bridgeButtonLabel = !wallet
     ? "Connect wallet first"
     : !ethSessionOk
       ? "Validate connector session"
@@ -1950,7 +1957,6 @@ export function BridgeWorkspace() {
   };
 
   const requestBridge = () => {
-    if (bridgeUnderConstruction) return;
     if (!dfPxeReady) {
       setError(
         "Bridge is locked until MetaMask/WalletConnect is validated and a DF Punk account is imported into PXE.",
@@ -2284,14 +2290,6 @@ export function BridgeWorkspace() {
       {path === ROUTES.bridge ? (
         <>
       <div className="bridge-layout">
-      <section className="under-construction" role="status">
-        <p className="under-construction-kicker">Under construction</p>
-        <strong>Bridge and L2 claim are paused</strong>
-        <p>
-          This page is not ready to send a bridge or claim. The button stays off until the flow is
-          reopened.
-        </p>
-      </section>
       {hasRpcOverrides(rpcOverrides) ? (
         <p className="hint bridge-layout-hint">
           Custom RPC overrides active — verify hosts before signing.
@@ -2578,18 +2576,12 @@ export function BridgeWorkspace() {
             </p>
           )}
 
-          {bridgeUnderConstruction ? (
-            <button type="button" className="primary" disabled>
-              Under construction — bridge and claim disabled
-            </button>
-          ) : (
-            <ActionHintButton
-              label={busy ? "Working…" : bridgeButtonLabel}
-              ready={canBridge}
-              busy={busy}
-              onClick={requestBridge}
-            />
-          )}
+          <ActionHintButton
+            label={busy ? "Working…" : bridgeButtonLabel}
+            ready={canBridge}
+            busy={busy}
+            onClick={requestBridge}
+          />
         </div>
       </div>
 
@@ -2871,6 +2863,17 @@ export function BridgeWorkspace() {
                     },
                   })}
                   {renderClaimKeyFields()}
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={legacyAccountStyles}
+                      onChange={(e) => setLegacyAccountStyles(e.target.checked)}
+                    />
+                    <span>
+                      Also try older account styles if the 5.2 address does not match this backup.
+                      Runs in the 5.2 wallet, one style at a time. Does not mark the old account as lost.
+                    </span>
+                  </label>
                   <label>
                     Aztec recipient address
                     <input
