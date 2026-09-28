@@ -671,9 +671,10 @@ main.app-main:has(.bridge-layout) {
 .bridge-alert-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 0.9rem;
+  column-gap: 1.75rem;
   align-items: stretch;
   margin-top: 0.85rem;
+  margin-bottom: 1.35rem;
 }
 
 .bridge-alert-row .fee-juice-notice,
@@ -689,26 +690,8 @@ main.app-main:has(.bridge-layout) {
   gap: 0.9rem;
 }
 
-.bridge-page-head h2 {
-  margin: 0.2rem 0 0.35rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 1.35rem;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.bridge-page-head h2::before {
-  content: "// ";
-  color: var(--ok);
-}
-
-.bridge-page-head .hint {
-  margin: 0;
-  max-width: 40rem;
-}
-
 .bridge-col {
+  box-sizing: border-box;
   border: 1px solid rgba(255, 77, 172, 0.28);
   background: #090709d9;
   backdrop-filter: blur(9px);
@@ -744,17 +727,11 @@ html[data-theme="light"] .bridge-col {
   margin-bottom: 0;
 }
 
-@media (min-width: 781px) {
-  .bridge-col-account .wallet-status {
-    min-height: 100%;
-  }
-}
-
 .bridge-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-  gap: 0.85rem 1rem;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.85rem 1.75rem;
+  align-items: stretch;
 }
 
 .bridge-col {
@@ -2365,6 +2342,28 @@ main.with-progress-panel {
   font-size: 0.76rem !important;
 }
 
+.df-pxe-import-btn.cta-pulse,
+.connect-gate-cta.cta-pulse {
+  animation: cta-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes cta-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 77, 172, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(255, 77, 172, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .df-pxe-import-btn.cta-pulse,
+  .connect-gate-cta.cta-pulse {
+    animation: none;
+  }
+}
+
 .wallet-manager-locked {
   padding: 0.45rem 0;
   color: var(--dim);
@@ -2837,9 +2836,34 @@ main.app-main {
 
 .app-topbar-title {
   margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 1rem;
   font-weight: 500;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-topbar-title::before {
+  content: "// ";
+  color: var(--ok);
+}
+
+.decode-text {
+  outline: 0;
+  cursor: var(--cursor-hover);
+}
+
+.decode-text:hover,
+.decode-text:focus-visible {
+  color: #fff;
+  text-shadow:
+    1px 0 var(--ok),
+    -1px 0 #7e3659;
+}
+
+html[data-theme="light"] .decode-text:hover,
+html[data-theme="light"] .decode-text:focus-visible {
+  color: #321d28;
 }
 
 .app-topbar .brand-kicker {
@@ -2902,6 +2926,23 @@ main.app-main {
   justify-content: center;
   min-height: min(70vh, 36rem);
   padding: 1.5rem 0.75rem 2rem;
+}
+
+.connect-gate-wallet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.connect-gate-wallet-head .label,
+.connect-gate-wallet-head .ghost {
+  margin: 0;
+}
+
+.connect-gate.is-wallets .connect-gate-card {
+  width: min(44rem, 100%);
 }
 
 .connect-gate-card {
@@ -3064,56 +3105,69 @@ main.app-main {
   }
 }
 
-.wallet-drawer-root {
+.wallet-float-root {
   position: fixed;
   inset: 0;
   z-index: 90;
   pointer-events: none;
 }
 
-.wallet-drawer-backdrop {
+.wallet-float-panel {
   position: absolute;
-  inset: 0;
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: rgba(0, 0, 0, 0.55);
-  cursor: pointer;
-  pointer-events: auto;
-}
-
-.wallet-drawer-panel {
-  position: absolute;
-  top: 0;
-  right: 0;
-  height: 100%;
-  width: min(26rem, 100vw);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(44rem, calc(100vw - 1.5rem));
+  max-height: min(86vh, 52rem);
   pointer-events: auto;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(12, 18, 14, 0.98) 0%, rgba(0, 0, 0, 0.96) 100%);
-  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--ok-glow);
-  animation: wallet-drawer-in 0.22s ease-out;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 77, 172, 0.45);
+  background: #090709f2;
+  color: var(--ink);
+  box-shadow:
+    0 18px 75px #0009,
+    0 0 34px #ff4dac22;
+  backdrop-filter: blur(12px);
 }
 
-.wallet-drawer-head {
+.wallet-float-panel.is-min {
+  width: min(22rem, calc(100vw - 1.5rem));
+  max-height: none;
+}
+
+.wallet-float-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.75rem 0.85rem;
-  border-bottom: 1px solid var(--line);
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid rgba(255, 77, 172, 0.28);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
 }
 
-.wallet-drawer-head .ghost {
-  margin: 0 !important;
-  padding: 0.28rem 0.55rem !important;
-  font-size: 0.72rem !important;
+.wallet-float-head .label {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.wallet-float-controls {
+  display: flex;
+  gap: 0.25rem;
+}
+
+html[data-theme="light"] .wallet-float-panel {
+  background: #fffafcf2;
 }
 
 .wallet-drawer-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 0.75rem 0.85rem 1.25rem;
 }
@@ -3412,9 +3466,13 @@ main.app-main {
   min-width: 0;
 }
 
-.identity-brand span {
+.identity-brand > span {
   display: grid;
   min-width: 0;
+}
+
+.identity-brand b .decode-text {
+  display: inline;
 }
 
 .identity-brand b {
@@ -3423,6 +3481,7 @@ main.app-main {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .identity-brand b::before {

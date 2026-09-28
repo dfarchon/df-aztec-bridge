@@ -9,7 +9,7 @@ import {
 import { privacyFetch, privacyWarn } from "./privacy.ts";
 
 /** Must match @aztec/* pins and docs.aztec.network/networks. */
-export const SUPPORTED_AZTEC_CLIENT_VERSION = "5.1.0";
+export const SUPPORTED_AZTEC_CLIENT_VERSION = "5.2.0";
 
 export interface NodeInfoSnapshot {
   nodeVersion: string;

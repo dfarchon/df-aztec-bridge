@@ -15,6 +15,13 @@ strictStorePkgContentCheck: true
 verifyDepsBeforeRun: error
 blockExoticSubdeps: true
 trustPolicy: no-downgrade
+# Last semver 6 release (2023, npm maintainer lukekarrys). No 6.x build has SLSA
+# provenance; @babel/core still depends on it. Do not widen this list casually.
+trustPolicyExclude:
+  - semver@6.3.1
+  # Official pino 9.14.0 from matteo.collina, npm registry signature, no SLSA attestation.
+  # Already the locked version. 9.13.1 has provenance but pulls slow-redact@0.3.2, which does not.
+  - pino@9.14.0
 # Committed lockfile is the trusted base (CI / closed-source). Skip re-checking every
 # entry against live registry provenance — older pins (semver@6, undici@5, …) false-positive
 # as "trust downgrades" vs newer releases that adopted OIDC/provenance.
@@ -28,6 +35,15 @@ enableGlobalVirtualStore: false
 
 # Force patched transitive versions (audit high+ cleared). Keep majors compatible with @aztec/*.
 overrides:
+  # @types/node@22 asks for undici-types ~6.21.0, which has no SLSA attestation.
+  # 6.23.0 is the same package line, published by GitHub Actions with provenance.
+  "@types/node>undici-types": "6.23.0"
+  # 1.8.0 is paulmillr with a registry signature but no provenance. 1.8.1 is the same author with SLSA.
+  "@walletconnect/relay-auth>@noble/curves": "1.8.1"
+  # 1.7.0 is paulmillr with a registry signature only. 1.7.1 is the next patch with SLSA.
+  "@walletconnect/relay-auth>@noble/hashes": "1.7.1"
+  # pino 10 resolves slow-redact to 0.3.2 (matteo.collina, no provenance). 0.3.1 has SLSA.
+  "pino@10>slow-redact": "0.3.1"
   hono: "4.12.34"
   "@hono/node-server": "2.1.0"
   systeminformation: "5.33.1"

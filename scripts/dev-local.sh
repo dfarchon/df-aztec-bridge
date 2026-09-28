@@ -31,7 +31,7 @@ trap cleanup EXIT INT TERM
 if node_up; then
   echo "Aztec local network already up at ${AZTEC_URL}"
 else
-  echo "Starting Aztec 5.1 local network on :${AZTEC_PORT} …"
+  echo "Starting Aztec 5.2 local network on :${AZTEC_PORT} …"
   aztec start --local-network --port "${AZTEC_PORT}" \
     --sequencer.buildCheckpointIfEmpty "${SEQ_BUILD_CHECKPOINT_IF_EMPTY}" \
     --sequencer.minTxsPerBlock "${SEQ_MIN_TX_PER_BLOCK}" &

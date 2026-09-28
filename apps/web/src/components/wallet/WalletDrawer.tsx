@@ -1,6 +1,6 @@
 import { QRCodeSVG } from "qrcode.react";
 import { createPortal } from "react-dom";
-import type { RefObject } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import type {
   ConnectedWallet,
   EIP6963ProviderDetail,
@@ -45,6 +45,46 @@ export function WalletDrawer(props: {
 }) {
   const { walletPanelOpen, closeWalletPanel } = useUi();
   const pickerBusy = props.busy || !!props.connectingWallet;
+  const [minimized, setMinimized] = useState(false);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const dragRef = useRef<{ dx: number; dy: number; w: number; h: number } | null>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!walletPanelOpen) {
+      setMinimized(false);
+    }
+  }, [walletPanelOpen]);
+
+  const onDragStart = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("button")) return;
+    const rect = panelRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    dragRef.current = {
+      dx: event.clientX - rect.left,
+      dy: event.clientY - rect.top,
+      w: rect.width,
+      h: rect.height,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const onDragMove = (event: ReactPointerEvent<HTMLElement>) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const maxX = Math.max(8, window.innerWidth - drag.w - 8);
+    const maxY = Math.max(8, window.innerHeight - 48);
+    setPos({
+      x: Math.min(maxX, Math.max(8, event.clientX - drag.dx)),
+      y: Math.min(maxY, Math.max(8, event.clientY - drag.dy)),
+    });
+  };
+
+  const onDragEnd = () => {
+    dragRef.current = null;
+  };
 
   const picker =
     props.pickerOpen && typeof document !== "undefined"
@@ -161,28 +201,58 @@ export function WalletDrawer(props: {
 
   return (
     <>
-      {walletPanelOpen ? (
-        <div className="wallet-drawer-root" role="presentation">
-          <button
-            type="button"
-            className="wallet-drawer-backdrop"
-            aria-label="Close wallet panel"
-            onClick={closeWalletPanel}
-          />
+      {walletPanelOpen && typeof document !== "undefined"
+        ? createPortal(
+        <div className="wallet-float-root" role="presentation">
           <aside
-            className="wallet-drawer-panel"
+            ref={panelRef}
+            className={`wallet-float-panel${minimized ? " is-min" : ""}`}
             role="dialog"
-            aria-modal="true"
+            aria-modal="false"
             aria-labelledby="wallet-drawer-title"
+            style={pos == null ? undefined : { left: pos.x, top: pos.y, transform: "none" }}
           >
-            <div className="wallet-drawer-head">
+            <div
+              className="wallet-float-head"
+              onPointerDown={onDragStart}
+              onPointerMove={onDragMove}
+              onPointerUp={onDragEnd}
+              onPointerCancel={onDragEnd}
+            >
               <p className="label" id="wallet-drawer-title">
-                wallet management
+                // wallet manager
               </p>
-              <button type="button" className="ghost" onClick={closeWalletPanel}>
-                Close
-              </button>
+              <div className="wallet-float-controls">
+                <button
+                  type="button"
+                  className="icon-btn"
+                  aria-label={minimized ? "Restore wallet manager" : "Minimize wallet manager"}
+                  title={minimized ? "Restore" : "Minimize"}
+                  onClick={() => {
+                    setMinimized((v) => !v);
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">
+                    <path fill="currentColor" d="M5 13h14v2H5z" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  aria-label="Close wallet manager"
+                  title="Close"
+                  onClick={closeWalletPanel}
+                >
+                  <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">
+                    <path
+                      fill="currentColor"
+                      d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.3 19.71 2.89 18.3 9.17 12 2.89 5.71 4.3 4.29l6.29 6.3 6.3-6.3z"
+                    />
+                  </svg>
+                </button>
+              </div>
             </div>
+            {minimized ? null : (
             <div className="wallet-drawer-body">
               <WalletManagerPanel
                 networks={props.networks}
@@ -204,9 +274,12 @@ export function WalletDrawer(props: {
               />
               {props.connectError ? <p className="error small">{props.connectError}</p> : null}
             </div>
+            )}
           </aside>
-        </div>
-      ) : null}
+        </div>,
+        document.body,
+      )
+        : null}
       {picker}
     </>
   );

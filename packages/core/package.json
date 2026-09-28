@@ -23,12 +23,12 @@
     "test": "node --import tsx --test src/**/*.test.ts"
   },
   "dependencies": {
-    "@aztec/aztec.js": "5.1.0",
-    "@aztec/ethereum": "5.1.0",
-    "@aztec/foundation": "5.1.0",
-    "@aztec/pxe": "5.1.0",
-    "@aztec/stdlib": "5.1.0",
-    "@aztec/wallets": "5.1.0",
+    "@aztec/aztec.js": "5.2.0",
+    "@aztec/ethereum": "5.2.0",
+    "@aztec/foundation": "5.2.0",
+    "@aztec/pxe": "5.2.0",
+    "@aztec/stdlib": "5.2.0",
+    "@aztec/wallets": "5.2.0",
     "viem": "^2.23.0"
   },
   "devDependencies": {

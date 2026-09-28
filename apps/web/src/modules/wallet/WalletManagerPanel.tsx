@@ -237,14 +237,27 @@ export function WalletManagerPanel(props: {
       const restored = await unlockExistingVault();
       if (!restored) throw new Error("Vault unlock cancelled.");
       assertDfClientAccount(restored);
-      setStatus("Restoring DF Punk wallet into PXE…");
-      const stored = await registerDfPunkAccountIntoPxe({
-        account: { ...restored, fromDfClient: true },
-        ethWallet,
-        networkId,
-        aztecNodeUrl,
-        onProgress: (detail) => setStatus(detail),
-      });
+      let stored = { ...restored, fromDfClient: true as const };
+      if (restored.pxeRegistered) {
+        setStatus("Vault unlocked — using the saved PXE account.");
+      } else {
+        setStatus("Restoring DF Punk wallet into PXE…");
+        try {
+          stored = await registerDfPunkAccountIntoPxe({
+            account: stored,
+            ethWallet,
+            networkId,
+            aztecNodeUrl,
+            onProgress: (detail) => setStatus(detail),
+          });
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          if (!/derive/i.test(message)) throw err;
+          setStatus(
+            "Vault unlocked with the saved address. PXE re-registration derived a different address — use Quick Join for this session, or re-import the DF JSON if a claim fails.",
+          );
+        }
+      }
       await saveAztecWallet(stored);
       await refresh();
       onApplyAztecAccount(stored);
@@ -400,7 +413,7 @@ export function WalletManagerPanel(props: {
                   </p>
                   <button
                     type="button"
-                    className="df-pxe-import-btn"
+                    className={`df-pxe-import-btn${ethWallet && sessionOk && !blocked ? " cta-pulse" : ""}`}
                     disabled={blocked}
                     onClick={() => void unlockPxeFromIndexedDb()}
                   >

@@ -17,6 +17,10 @@ type UiContextValue = {
   openWalletPanel: () => void;
   closeWalletPanel: () => void;
   toggleWalletPanel: () => void;
+  /** Fixed center wallet manager while the connect gate is showing. */
+  centerWalletsOpen: boolean;
+  openCenterWallets: () => void;
+  closeCenterWallets: () => void;
   /** True when validated Web3 + DF Punk PXE session unlocks menus / routes. */
   shellReady: boolean;
   setShellReady: (v: boolean) => void;
@@ -35,6 +39,7 @@ function readCollapsed(): boolean {
 export function UiProvider(props: { children: ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsedState] = useState(readCollapsed);
   const [walletPanelOpen, setWalletPanelOpen] = useState(false);
+  const [centerWalletsOpen, setCenterWalletsOpen] = useState(false);
   const [shellReady, setShellReady] = useState(false);
 
   const setSidebarCollapsed = useCallback((v: boolean) => {
@@ -64,13 +69,22 @@ export function UiProvider(props: { children: ReactNode }) {
       setSidebarCollapsed,
       toggleSidebar,
       walletPanelOpen,
-      openWalletPanel: () => setWalletPanelOpen(true),
+      openWalletPanel: () => {
+        setCenterWalletsOpen(false);
+        setWalletPanelOpen(true);
+      },
       closeWalletPanel: () => setWalletPanelOpen(false),
       toggleWalletPanel: () => setWalletPanelOpen((o) => !o),
+      centerWalletsOpen,
+      openCenterWallets: () => {
+        setWalletPanelOpen(false);
+        setCenterWalletsOpen(true);
+      },
+      closeCenterWallets: () => setCenterWalletsOpen(false),
       shellReady,
       setShellReady,
     }),
-    [sidebarCollapsed, setSidebarCollapsed, toggleSidebar, walletPanelOpen, shellReady],
+    [sidebarCollapsed, setSidebarCollapsed, toggleSidebar, walletPanelOpen, centerWalletsOpen, shellReady],
   );
 
   return <UiContext.Provider value={value}>{props.children}</UiContext.Provider>;

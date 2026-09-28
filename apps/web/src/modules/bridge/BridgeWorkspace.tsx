@@ -101,6 +101,7 @@ import { useVault } from "../../providers/VaultProvider.tsx";
 import { useUi } from "../../providers/UiProvider.tsx";
 import { TopBar } from "../../components/layout/TopBar.tsx";
 import { WalletDrawer } from "../../components/wallet/WalletDrawer.tsx";
+import { WalletManagerPanel } from "../wallet/WalletManagerPanel.tsx";
 import { VaultPage } from "../vault/VaultPage.tsx";
 import { LocalExplorerPage } from "../explorer/LocalExplorerPage.tsx";
 import { VaultLockedError } from "../../lib/vault.ts";
@@ -197,7 +198,7 @@ export function BridgeWorkspace() {
     requestUnlock,
     lock: lockVaultUi,
   } = useVault();
-  const { setShellReady, shellReady } = useUi();
+  const { setShellReady, shellReady, closeWalletPanel } = useUi();
 
   const [feeJuiceDetailsOpen, setFeeJuiceDetailsOpen] = useState(false);
   const [bridgeConfirmOpen, setBridgeConfirmOpen] = useState(false);
@@ -268,6 +269,10 @@ export function BridgeWorkspace() {
     setRecoverySessions(sessions);
     return sessions;
   }, [networkId]);
+
+  useEffect(() => {
+    if (!shellReady) closeWalletPanel();
+  }, [shellReady, closeWalletPanel]);
 
   useEffect(() => {
     let cancelled = false;
@@ -410,14 +415,27 @@ export function BridgeWorkspace() {
       const restored = await unlockExistingVault();
       if (!restored) throw new Error("Vault unlock cancelled.");
       assertDfClientAccount(restored);
-      setBridgePhase("Restoring DF Punk wallet into PXE…");
-      const stored = await registerDfPunkAccountIntoPxe({
-        account: { ...restored, fromDfClient: true },
-        ethWallet: wallet,
-        networkId,
-        aztecNodeUrl: networkMeta.aztecNodeUrl,
-        onProgress: (detail) => setBridgePhase(detail),
-      });
+      let stored = { ...restored, fromDfClient: true as const };
+      if (restored.pxeRegistered) {
+        setBridgePhase("Vault unlocked — using the saved PXE account.");
+      } else {
+        setBridgePhase("Restoring DF Punk wallet into PXE…");
+        try {
+          stored = await registerDfPunkAccountIntoPxe({
+            account: stored,
+            ethWallet: wallet,
+            networkId,
+            aztecNodeUrl: networkMeta.aztecNodeUrl,
+            onProgress: (detail) => setBridgePhase(detail),
+          });
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          if (!/derive/i.test(message)) throw err;
+          setBridgePhase(
+            "Vault unlocked with the saved address. Re-import the DF JSON if a later claim rejects the keys.",
+          );
+        }
+      }
       await saveAztecWallet(stored);
       applyImportedAccount(stored);
       pushDappLog({
@@ -2152,6 +2170,34 @@ export function BridgeWorkspace() {
           importError={gateImportError ?? walletConnectError}
           onImportPxeFile={importPxeFromGate}
           onUnlockVault={unlockVaultFromGate}
+          walletPanel={
+            <WalletManagerPanel
+              networks={networks}
+              networkId={networkId}
+              setNetworkId={setNetworkId}
+              l1Backend={l1Backend}
+              setL1Backend={setL1Backend}
+              rpcOverrides={rpcOverrides}
+              aztecNodeUrl={networkMeta?.aztecNodeUrl ?? null}
+              browserClaimEnabled={BROWSER_CLAIM}
+              busy={busy || connectingWallet}
+              ethWallet={wallet}
+              dfpunkPlayUrl={DFPUNK_PLAY_URL}
+              onEthSessionValidated={setEthSessionOk}
+              onConnectEth={() => void onConnect()}
+              onDisconnectEth={() => void onDisconnect()}
+              onApplyAztecAccount={(acc) => applyImportedAccount(acc)}
+              onClearAztecAccount={() => {
+                setDfPxeAccount(null);
+                setVaultPxeAccount(null);
+                lockVaultUi();
+                setRecipient("");
+                setL2Secret("");
+                setL2Salt("0");
+                setL2SigningKey("");
+              }}
+            />
+          }
         />
       ) : (
         <>
@@ -2216,14 +2262,6 @@ export function BridgeWorkspace() {
       {path === ROUTES.bridge ? (
         <>
       <div className="bridge-layout">
-      <header className="bridge-page-head">
-        <p className="label">Fee juice · mainnet portal</p>
-        <h2>Bridge</h2>
-        <p className="hint">
-          Fund an Aztec address from L1, then claim Fee Juice. Protocol fee {BRIDGE_FEE_BPS / 100}% AZTEC
-          + mainnet ETH (~1 L1 tx).
-        </p>
-      </header>
       {hasRpcOverrides(rpcOverrides) ? (
         <p className="hint bridge-layout-hint">
           Custom RPC overrides active — verify hosts before signing.
@@ -2402,7 +2440,7 @@ export function BridgeWorkspace() {
                   <span className="balance-amount hint">Loading…</span>
                 ) : l2FeeBalance != null ? (
                   <span className="balance-amount mono" title={`${formatFjAmount(l2FeeBalance)} FJ`}>
-                    {formatFjAmount(l2FeeBalance)} <span className="balance-symbol">FJ</span>
+                    {formatFjAmount(l2FeeBalance, 5)} <span className="balance-symbol">FJ</span>
                   </span>
                 ) : (
                   <span className={`balance-amount hint ${l2BalanceError ? "error" : ""}`}>

@@ -1,5 +1,6 @@
 import { shortHash } from "../../lib/claim-recovery.ts";
 import { SoundMenu, ThemeToggle } from "../../theme/ThemeSoundControls.tsx";
+import { DecodeText } from "../../theme/DecodeText.tsx";
 import { hasRpcOverrides } from "../../lib/rpc-overrides.ts";
 import { useUi } from "../../providers/UiProvider.tsx";
 import { useNetwork } from "../../providers/NetworkProvider.tsx";
@@ -12,29 +13,18 @@ export function TopBar(props: {
   /** When false, hide menu toggle / settings — session gate is active. */
   shellReady?: boolean;
 }) {
-  const { toggleSidebar, sidebarCollapsed, openWalletPanel, walletPanelOpen } = useUi();
+  const { openWalletPanel, openCenterWallets, walletPanelOpen, centerWalletsOpen } = useUi();
   const { openSettings, rpcOverrides } = useNetwork();
   const shellReady = props.shellReady !== false;
 
   return (
     <header className="app-topbar">
-      <div className="app-topbar-left">
-        {shellReady && sidebarCollapsed ? (
-          <button
-            type="button"
-            className="ghost app-topbar-menu"
-            onClick={toggleSidebar}
-            title="Show menu"
-            aria-label="Show menu"
-          >
-            Menu
-          </button>
-        ) : null}
-      </div>
+      <div className="app-topbar-left" />
 
       <div className="app-topbar-brand">
-        <p className="label brand-kicker">df/archon · fee juice</p>
-        <h1 className="app-topbar-title">DF Aztec Bridge</h1>
+        <h1 className="app-topbar-title">
+          <DecodeText>DF Aztec Bridge</DecodeText>
+        </h1>
       </div>
 
       <div className="app-topbar-right">
@@ -59,12 +49,13 @@ export function TopBar(props: {
 
         <button
           type="button"
-          className={`wallet-chip${walletPanelOpen ? " is-open" : ""}${props.ethSessionOk ? " is-ok" : ""}`}
+          className={`wallet-chip${walletPanelOpen || centerWalletsOpen ? " is-open" : ""}${props.ethSessionOk ? " is-ok" : ""}`}
           onClick={() => {
             if (!props.wallet) props.onConnect();
-            openWalletPanel();
+            if (shellReady) openWalletPanel();
+            else openCenterWallets();
           }}
-          aria-expanded={walletPanelOpen}
+          aria-expanded={shellReady ? walletPanelOpen : centerWalletsOpen}
           aria-haspopup="dialog"
         >
           <span

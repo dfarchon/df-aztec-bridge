@@ -64,15 +64,15 @@ wait_for_node() {
 
 require_aztec_cli() {
   if ! command -v aztec >/dev/null 2>&1; then
-    echo "aztec CLI not found. Install Aztec 5.1.0:"
-    echo "  aztec-up install 5.1.0 && aztec-up use 5.1.0"
+    echo "aztec CLI not found. Install Aztec 5.2.0:"
+    echo "  aztec-up install 5.2.0 && aztec-up use 5.2.0"
     exit 1
   fi
   local ver
   ver="$(aztec --version 2>/dev/null | head -1 || true)"
   echo "Aztec CLI: ${ver}"
-  if [[ "${ver}" != *5.1* ]]; then
-    echo "Warning: expected Aztec 5.1.x (got '${ver}'). Continuing anyway."
+  if [[ "${ver}" != *5.2* ]]; then
+    echo "Warning: expected Aztec 5.2.x (got '${ver}'). Continuing anyway."
   fi
 }
 

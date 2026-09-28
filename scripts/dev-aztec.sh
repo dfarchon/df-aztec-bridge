@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mprocs pane: Aztec 5.1 local network on :8080 (anvil :8545).
+# mprocs pane: Aztec 5.2 local network on :8080 (anvil :8545).
 set -euo pipefail
 # shellcheck disable=SC1091
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/dev-common.sh"
@@ -17,7 +17,7 @@ if node_up; then
   exit 1
 fi
 
-echo "Starting Aztec 5.1 local network on :${AZTEC_PORT} …"
+echo "Starting Aztec 5.2 local network on :${AZTEC_PORT} …"
 echo "MAX_ALLOWED_ETH_CLIENT_DRIFT_SECONDS=${MAX_ALLOWED_ETH_CLIENT_DRIFT_SECONDS} (local anvil idle / WSL clock)"
 echo "SEQ_BUILD_CHECKPOINT_IF_EMPTY=${SEQ_BUILD_CHECKPOINT_IF_EMPTY} SEQ_MIN_TX_PER_BLOCK=${SEQ_MIN_TX_PER_BLOCK} (idle L1/L2 ticks)"
 exec aztec start --local-network --port "${AZTEC_PORT}" \

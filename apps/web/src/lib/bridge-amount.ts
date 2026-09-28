@@ -50,8 +50,15 @@ export interface BridgeShortfall {
 }
 
 /** Trim the trailing zeros `formatUnits` leaves on whole-ish values. */
-export function formatFjAmount(value: bigint): string {
-  const raw = formatUnits(value, FJ_DECIMALS);
+export function formatFjAmount(value: bigint, maxDecimals?: number): string {
+  const decimals =
+    maxDecimals == null ? FJ_DECIMALS : Math.max(0, Math.min(FJ_DECIMALS, Math.floor(maxDecimals)));
+  let shown = value;
+  if (decimals < FJ_DECIMALS) {
+    const scale = 10n ** BigInt(FJ_DECIMALS - decimals);
+    shown = (value + scale / 2n) / scale;
+  }
+  const raw = formatUnits(shown, decimals);
   if (!raw.includes(".")) return raw;
   const trimmed = raw.replace(/0+$/, "").replace(/\.$/, "");
   return trimmed || "0";

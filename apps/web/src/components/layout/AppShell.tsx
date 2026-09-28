@@ -8,13 +8,11 @@ import { ThemeTooltip } from "../../theme/ThemeTooltip.tsx";
 
 /** Frame: collapsible sidebar + main column. Top bar / wallet drawer live in route host. */
 export function AppShell(props: { children: ReactNode }) {
-  const { sidebarCollapsed, shellReady } = useUi();
+  const { shellReady } = useUi();
 
   return (
     <div
-      className={`app-frame${sidebarCollapsed || !shellReady ? " sidebar-collapsed" : ""}${
-        !shellReady ? " session-locked" : ""
-      }`}
+      className={`app-frame${!shellReady ? " sidebar-collapsed session-locked" : ""}`}
     >
       <AsciiField />
       <SoundSystem />

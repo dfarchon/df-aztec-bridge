@@ -3,7 +3,7 @@
  *
  *   AZTEC_DEPLOYER_KEY=0x… pnpm deploy-aztec-chat [local|testnet|mainnet]
  *
- * Requires Aztec toolchain 5.1.0 + compiled artifact at
+ * Requires Aztec toolchain 5.2.0 + compiled artifact at
  *   contracts/aztec/private_chat/target/private_chat_contract-PrivateChat.json
  *
  * Without a compiled artifact, this script validates env/network config and
@@ -82,7 +82,7 @@ function updateDeployments(
     : {};
   current[network] = {
     network,
-    aztecPackageVersion: "5.1.0",
+    aztecPackageVersion: "5.2.0",
     ...(current[network] ?? {}),
     ...patch,
   };
@@ -115,7 +115,7 @@ async function deployWithAztecJs(
   const artifact = loadContractArtifact(artifactJson);
   const node = createAztecNodeClient(aztecNodeUrl);
 
-  // Wallet / PXE bootstrap differs by environment; prefer documented 5.1 pattern.
+  // Wallet / PXE bootstrap differs by environment; prefer documented 5.2 pattern.
   const { getInitialTestAccountsManagers } = await import("@aztec/accounts/testing").catch(
     () => ({ getInitialTestAccountsManagers: null }),
   );
@@ -132,7 +132,7 @@ async function deployWithAztecJs(
       // ephemeral local pxe
     }).catch(async () => {
       throw new Error(
-        "Could not create PXE for local deploy. Start the Aztec local network (5.1) and retry.",
+        "Could not create PXE for local deploy. Start the Aztec local network (5.2) and retry.",
       );
     });
     const managers = await getInitialTestAccountsManagers(pxe as never);
@@ -191,7 +191,7 @@ async function main() {
         : "No compiled artifact found — write placeholder deployment entry.",
     );
     console.error(
-      "Compile with Aztec 5.1: cd contracts/aztec/private_chat && aztec-nargo compile",
+      "Compile with Aztec 5.2: cd contracts/aztec/private_chat && aztec-nargo compile",
     );
     updateDeployments(network, {
       aztecChat: process.env[`VITE_CHAT_AZTEC_ADDRESS_${network.toUpperCase()}`] ?? "",

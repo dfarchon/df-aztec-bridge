@@ -7,9 +7,9 @@ import {
 
 describe("Aztec version guard", () => {
   it("accepts matching versions", () => {
-    assert.equal(SUPPORTED_AZTEC_CLIENT_VERSION, "5.1.0");
-    assert.doesNotThrow(() => assertAztecNodeVersionCompatible("5.1.0"));
-    assert.doesNotThrow(() => assertAztecNodeVersionCompatible("v5.1.0"));
+    assert.equal(SUPPORTED_AZTEC_CLIENT_VERSION, "5.2.0");
+    assert.doesNotThrow(() => assertAztecNodeVersionCompatible("5.2.0"));
+    assert.doesNotThrow(() => assertAztecNodeVersionCompatible("v5.2.0"));
   });
 
   it("rejects mismatches and missing versions", () => {
