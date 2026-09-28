@@ -26,7 +26,6 @@ export function Sidebar() {
               key={item.path}
               to={item.path}
               className={`app-sidebar-link${active ? " is-active" : ""}`}
-              title={item.description}
             >
               <span className="app-sidebar-link-body">
                 <span className="app-sidebar-link-label">{item.label}</span>
