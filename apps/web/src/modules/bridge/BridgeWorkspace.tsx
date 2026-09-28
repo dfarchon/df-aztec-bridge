@@ -208,6 +208,7 @@ export function BridgeWorkspace() {
   const [connectingWallet, setConnectingWallet] = useState(false);
   const [walletConnectError, setWalletConnectError] = useState<string | null>(null);
   const [addressCopied, setAddressCopied] = useState(false);
+  const [pxeAddressCopied, setPxeAddressCopied] = useState(false);
   const [wcUri, setWcUri] = useState<string | null>(null);
   const [wallet, setWallet] = useState<ConnectedWallet | null>(null);
   const [ethSessionOk, setEthSessionOk] = useState(false);
@@ -911,6 +912,18 @@ export function BridgeWorkspace() {
       setError("Could not copy the wallet address. Please copy it manually.");
     }
   }, [wallet]);
+
+  const copyPxeAddress = useCallback(async () => {
+    const value = recipient.trim();
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setPxeAddressCopied(true);
+      window.setTimeout(() => setPxeAddressCopied(false), 2_000);
+    } catch {
+      setError("Could not copy the PXE address. Please copy it manually.");
+    }
+  }, [recipient]);
 
   useEffect(
     () => () => {
@@ -2142,6 +2155,7 @@ export function BridgeWorkspace() {
         />
       ) : (
         <>
+      {path === ROUTES.bridge ? null : (
       <p className="brand-lead app-lead">
         Connect an Ethereum wallet, fund an Aztec address, and claim Fee Juice. Styled for the{" "}
         <a href={BRIDGE_PUBLIC_URL} target="_blank" rel="noreferrer">
@@ -2153,8 +2167,10 @@ export function BridgeWorkspace() {
         </a>
         . Protocol fee {BRIDGE_FEE_BPS / 100}% AZTEC + mainnet ETH (~1 L1 tx) → L1 treasury.
       </p>
+      )}
 
       {path === ROUTES.bridge ? (
+      <div className="bridge-alert-row">
       <div className="fee-juice-notice" role="note">
         <div className="fee-juice-notice-content">
           <strong className="fee-juice-notice-title">
@@ -2185,10 +2201,8 @@ export function BridgeWorkspace() {
           </svg>
         </button>
       </div>
-      ) : null}
-
-      {path === ROUTES.bridge ? (
-        <NetworkIntegrityPanel network={networkMeta} />
+      <NetworkIntegrityPanel network={networkMeta} />
+      </div>
       ) : null}
 
       {path === ROUTES.vault ? (
@@ -2202,15 +2216,23 @@ export function BridgeWorkspace() {
       {path === ROUTES.bridge ? (
         <>
       <div className="bridge-layout">
-      <p className="hint bridge-layout-hint">
-        Bridging on <span className="mono">mainnet</span> via <span className="mono">portal</span>.
-        {hasRpcOverrides(rpcOverrides)
-          ? " Custom RPC overrides active — verify hosts before signing."
-          : null}
-      </p>
+      <header className="bridge-page-head">
+        <p className="label">Fee juice · mainnet portal</p>
+        <h2>Bridge</h2>
+        <p className="hint">
+          Fund an Aztec address from L1, then claim Fee Juice. Protocol fee {BRIDGE_FEE_BPS / 100}% AZTEC
+          + mainnet ETH (~1 L1 tx).
+        </p>
+      </header>
+      {hasRpcOverrides(rpcOverrides) ? (
+        <p className="hint bridge-layout-hint">
+          Custom RPC overrides active — verify hosts before signing.
+        </p>
+      ) : null}
 
       <div className="bridge-grid">
         <div className="bridge-col bridge-col-account">
+          <p className="bridge-col-kicker">01 · From Ethereum</p>
           {wallet ? (
             <div className="card wallet-status">
               <div className="wallet-status-account">
@@ -2302,8 +2324,10 @@ export function BridgeWorkspace() {
             </p>
           )}
 
+          <div className="card bridge-recipient-card">
           <label className="bridge-recipient-field">
             Aztec recipient (DF Punk PXE)
+            <div className="pxe-address-row">
             <input
               value={recipient}
               onChange={(e) => {
@@ -2314,6 +2338,27 @@ export function BridgeWorkspace() {
               readOnly={!!dfPxeAccount}
               placeholder="Import DF Punk account into PXE first"
             />
+            <button
+              type="button"
+              className="copy-address-btn"
+              aria-label="Copy PXE address"
+              title="Copy PXE address"
+              disabled={!recipient.trim()}
+              onClick={() => void copyPxeAddress()}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M8 7V5c0-1.1.9-2 2-2h9c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2h-2v2c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h2Zm2 0h5c1.1 0 2 .9 2 2v5h2V5h-9v2Zm-4 2v9h9V9H6Z"
+                />
+              </svg>
+            </button>
+            {pxeAddressCopied ? (
+              <span className="copy-success" role="status">
+                Copied!
+              </span>
+            ) : null}
+            </div>
           </label>
           {dfPxeReady ? (
             <p className="hint storage-status-ok">
@@ -2325,6 +2370,7 @@ export function BridgeWorkspace() {
               Bridge stays locked until a DF Punk account is imported into PXE for this connector.
             </p>
           )}
+          </div>
           {dfPxeReady ? (
             <div className="card pxe-balance-card">
               <div className="pxe-balance-head">
@@ -2380,6 +2426,7 @@ export function BridgeWorkspace() {
         </div>
 
         <div className="bridge-col bridge-col-action">
+          <p className="bridge-col-kicker">02 · Amount and claim</p>
           <div className="card bridge-amount-card">
             <div className="amount-field">
               <div className="amount-field-head">

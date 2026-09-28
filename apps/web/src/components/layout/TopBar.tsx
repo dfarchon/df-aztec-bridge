@@ -1,4 +1,5 @@
 import { shortHash } from "../../lib/claim-recovery.ts";
+import { SoundMenu, ThemeToggle } from "../../theme/ThemeSoundControls.tsx";
 import { hasRpcOverrides } from "../../lib/rpc-overrides.ts";
 import { useUi } from "../../providers/UiProvider.tsx";
 import { useNetwork } from "../../providers/NetworkProvider.tsx";
@@ -37,6 +38,8 @@ export function TopBar(props: {
       </div>
 
       <div className="app-topbar-right">
+        <ThemeToggle />
+        <SoundMenu />
         {shellReady ? (
           <button
             type="button"

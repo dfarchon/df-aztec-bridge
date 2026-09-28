@@ -3,12 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DF Aztec Bridge · df/archon</title>
+    <title>DF Aztec Bridge · DFaztec</title>
+    <link rel="icon" href="./dfaztec-logo.jpg" type="image/jpeg" />
+    <link rel="apple-touch-icon" href="./dfaztec-logo.jpg" />
     <meta
       name="description"
       content="Bridge Fee Juice to Aztec. DFArchon-styled wallet flow with a 5% L1 protocol fee."
     />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#090809" />
     <meta name="referrer" content="no-referrer" />
     <!-- Fonts are local/system only — no Google Fonts (IP / locale leakage). -->
     <style>
@@ -16,8 +18,11 @@
       body {
         margin: 0;
         min-height: 100%;
-        background: #000;
-        color: #f4f4f5;
+        background: #080608;
+        color: #f6f1f4;
+        cursor:
+          url("./cursors/01_default.png") 2 2,
+          default;
       }
 
       #boot-splash {
@@ -27,8 +32,25 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: #000;
+        background:
+          radial-gradient(circle at 74% 18%, #ff4dac12, transparent 28rem),
+          radial-gradient(circle at 18% 82%, #7c174417, transparent 34rem),
+          #080608;
         transition: opacity 0.28s ease;
+        cursor:
+          url("./cursors/13_busy_02.png") 2 2,
+          wait;
+      }
+
+      #boot-splash::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background-image: radial-gradient(#ff5bacc4 0.7px, transparent 0.8px);
+        background-size: 17px 17px;
+        opacity: 0.28;
+        mask-image: radial-gradient(ellipse at 50% 40%, #000 20%, transparent 72%);
       }
 
       #boot-splash.boot-splash-leave {
@@ -37,6 +59,8 @@
       }
 
       .boot-splash-inner {
+        position: relative;
+        z-index: 1;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -49,8 +73,8 @@
         width: 2rem;
         height: 2rem;
         border-radius: 50%;
-        border: 2px solid #1a1a1c;
-        border-top-color: #f4f4f5;
+        border: 2px solid #2d272d;
+        border-top-color: #ff4dac;
         animation: boot-spin 0.75s linear infinite;
       }
 
@@ -64,7 +88,7 @@
         margin: 0;
         max-width: 18rem;
         font: 400 0.8rem/1.45 "IBM Plex Mono", ui-monospace, monospace;
-        color: #6e6e73;
+        color: #a49ca2;
         letter-spacing: 0.04em;
       }
 
@@ -74,7 +98,9 @@
         background: #f4f4f5;
         color: #000;
         font: 500 0.85rem "Avenir Next", "Segoe UI", system-ui, sans-serif;
-        cursor: pointer;
+        cursor:
+          url("./cursors/02_hover.png") 2 2,
+          pointer;
       }
 
       @keyframes boot-spin {

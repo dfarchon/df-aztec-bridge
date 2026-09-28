@@ -25,7 +25,16 @@ export function VaultPage() {
     }
     try {
       const ids = await vaultListDocs();
-      setDocIds(ids.sort());
+      setDocIds(
+        ids
+          .filter(
+            (id) =>
+              !id.startsWith("chatInvites:") &&
+              !id.startsWith("chatRooms:") &&
+              !id.startsWith("privateChatDeploy:"),
+          )
+          .sort(),
+      );
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

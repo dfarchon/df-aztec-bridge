@@ -1,5 +1,5 @@
 import { Link, usePath } from "../../app/router.tsx";
-import { NAV_ITEMS } from "../../app/routes.ts";
+import { NAV_ITEMS, ROUTES } from "../../app/routes.ts";
 import { useUi } from "../../providers/UiProvider.tsx";
 
 export function Sidebar() {
@@ -12,7 +12,15 @@ export function Sidebar() {
       aria-label="Main navigation"
     >
       <div className="app-sidebar-head">
-        {!sidebarCollapsed ? <p className="label">df/archon</p> : null}
+        <Link className="identity-brand" to={ROUTES.bridge} title="DF Aztec Bridge">
+          <img className="identity-brand-logo" src={`${import.meta.env.BASE_URL}dfaztec-logo.jpg`} alt="" width={34} height={34} />
+          {!sidebarCollapsed ? (
+            <span>
+              <b>DFaztec</b>
+              <small>Fee juice bridge</small>
+            </span>
+          ) : null}
+        </Link>
         <button
           type="button"
           className="ghost app-sidebar-toggle"
