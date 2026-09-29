@@ -50,27 +50,9 @@ Gross amount you type
         └── 95% ─► your Aztec recipient (after claim)
 ```
 
-## Three ways to claim
+## How you claim
 
-```text
-                    ┌──────────────────────┐
-                    │   How do I claim?    │
-                    └──────────┬───────────┘
-           ┌───────────────────┼───────────────────┐
-           ▼                   ▼                   ▼
-   Browser claim         Local API claim           CLI claim
-   (Netlify default)     (loopback only)           (terminal)
-   Secrets in tab        Auth token +              L2 secret
-   PXE in browser        API_ENABLE_CLAIM          on your machine
-```
-
-| Mode | When to use | Rule of thumb |
-|------|-------------|----------------|
-| Browser claim | Public static site | Preferred. No remote claim API. |
-| API claim | Local debugging | Must bind API to `127.0.0.1`, set auth + enable flag. |
-| CLI | Scripts / ops | Full control; can hold L1 key for `run`. |
-
-`POST /v1/bridge` is **always forbidden**. Nobody should POST an L1 private key to a server.
+The claim runs in the browser. Secrets stay in the tab and the vault. Proving uses the in-browser PXE. There is no remote claim server in this repo.
 
 ## Progress UI (what the stepper means)
 

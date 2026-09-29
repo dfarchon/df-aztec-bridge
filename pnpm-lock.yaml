@@ -26,67 +26,11 @@ importers:
 
   .:
     devDependencies:
-      '@df-bridge/core':
-        specifier: workspace:*
-        version: link:packages/core
       tsx:
         specifier: 4.23.1
         version: 4.23.1
       typescript:
         specifier: 5.7.3
-        version: 5.7.3
-
-  apps/api:
-    dependencies:
-      '@df-bridge/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@hono/node-server':
-        specifier: 2.1.0
-        version: 2.1.0(hono@4.12.34)
-      dotenv:
-        specifier: ^16.4.7
-        version: 16.6.1
-      hono:
-        specifier: 4.12.34
-        version: 4.12.34
-      viem:
-        specifier: ^2.23.0
-        version: 2.55.4(typescript@5.7.3)(zod@4.4.3)
-    devDependencies:
-      '@types/node':
-        specifier: ^22.13.4
-        version: 22.20.1
-      tsx:
-        specifier: ^4.19.3
-        version: 4.23.1
-      typescript:
-        specifier: ~5.7.3
-        version: 5.7.3
-
-  apps/cli:
-    dependencies:
-      '@df-bridge/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      commander:
-        specifier: ^13.1.0
-        version: 13.1.0
-      dotenv:
-        specifier: ^16.4.7
-        version: 16.6.1
-      viem:
-        specifier: ^2.23.0
-        version: 2.55.4(typescript@5.7.3)(zod@4.4.3)
-    devDependencies:
-      '@types/node':
-        specifier: ^22.13.4
-        version: 22.20.1
-      tsx:
-        specifier: ^4.19.3
-        version: 4.23.1
-      typescript:
-        specifier: ~5.7.3
         version: 5.7.3
 
   apps/web:
@@ -199,37 +143,6 @@ importers:
         specifier: ^4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(vite@6.4.3(@types/node@22.20.1)(tsx@4.23.1))
 
-  packages/core:
-    dependencies:
-      '@aztec/aztec.js':
-        specifier: 5.2.0
-        version: 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/ethereum':
-        specifier: 5.2.0
-        version: 5.2.0(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/foundation':
-        specifier: 5.2.0
-        version: 5.2.0(supports-color@7.2.0)
-      '@aztec/pxe':
-        specifier: 5.2.0
-        version: 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)(zod@4.4.3)
-      '@aztec/stdlib':
-        specifier: 5.2.0
-        version: 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/wallets':
-        specifier: 5.2.0
-        version: 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)(zod@4.4.3)
-      viem:
-        specifier: ^2.23.0
-        version: 2.55.4(typescript@5.7.3)(zod@4.4.3)
-    devDependencies:
-      '@types/node':
-        specifier: ^22.13.4
-        version: 22.20.1
-      typescript:
-        specifier: ~5.7.3
-        version: 5.7.3
-
 packages:
 
   '@adraffy/ens-normalize@1.11.1':
@@ -311,16 +224,8 @@ packages:
     resolution: {integrity: sha512-tBi+nx3VFbBmAGVjfTHOcsnqdyOjCq5gwDL9FdBZhKeuJVYQEL8ZJ0wInRh4J1VT5ZLCw7XahXHh4oPG/5aeuA==}
     engines: {node: '>=20.10'}
 
-  '@aztec/accounts@5.2.0':
-    resolution: {integrity: sha512-I0M4B17WPKq0RbSTg+ExfRet2r4/AGm1U20pW+VGCPNqcpiKM8w6KQQ9SgWHBC0/V0EI++oD6ctgwxFt0ue2WQ==}
-    engines: {node: '>=20.10'}
-
   '@aztec/aztec.js@5.1.0':
     resolution: {integrity: sha512-yu3Ejjp9jeHp+m9A9tlitwEKMzNPMzf8iAUGBrXQSuWZJuqAVPamJLxQXtMrVxl0IVEkxOKBW62RO50VHp7Qwg==}
-    engines: {node: '>=20.10'}
-
-  '@aztec/aztec.js@5.2.0':
-    resolution: {integrity: sha512-vQg1KZEqukjPXvF1UDjEHNhqhDzW+LPHSUCZu9VgFZ3XkLmmEv3qMCPbrsam6/bZZQ7oy+m12xExXlXb9kqhlg==}
     engines: {node: '>=20.10'}
 
   '@aztec/bb-prover@5.1.0':
@@ -328,137 +233,68 @@ packages:
     engines: {node: '>=20.10'}
     hasBin: true
 
-  '@aztec/bb-prover@5.2.0':
-    resolution: {integrity: sha512-R1zw2iv1hz332Yeg20rNSmaTxu2p0iolvG+Y8FvueMcYlY/tBJNv8I17IKw3o5+SC3WaGTnZPXIPSRn82l9+dg==}
-    engines: {node: '>=20.10'}
-    hasBin: true
-
   '@aztec/bb.js@5.1.0':
     resolution: {integrity: sha512-bNpeyTz7baK2jZ9gN5gEn6GsOU8ueuGWbgUML/6kHhvwAgx/SsN9XY4tRS202dZM+8aOadwJ4crn6PIq20J4tw==}
-    hasBin: true
-
-  '@aztec/bb.js@5.2.0':
-    resolution: {integrity: sha512-XQRbl6TfHg7xXwf4b3cNSggtwsIxl2z2/zV49/Ahxa1Nc1D7x05NY0QL5mYSRdOJlGKZ3TUTH48lDWAwJSVulg==}
     hasBin: true
 
   '@aztec/blob-lib@5.1.0':
     resolution: {integrity: sha512-weoLOAlhSNFM8x1dSenrSMkJpG8a6t+EJ8irUunCePV0zjWyJ32hfutpXVflm5iWc1R32lWCW2zGvm4xNU/Uyw==}
     engines: {node: '>=20.10'}
 
-  '@aztec/blob-lib@5.2.0':
-    resolution: {integrity: sha512-92na/AeGAXgAAFRVtQ3EnGyuWoeUhbupQt5+t9YprP8HQOYi+skSgmR/plWsZpUBcYQuwrr2LAJjGP/RLOtePA==}
-    engines: {node: '>=20.10'}
-
   '@aztec/builder@5.1.0':
     resolution: {integrity: sha512-Omhysw8wTGr5g7c0wP9VAjGv9uYkfCdkHsQKZXLuxhfaXwqJgOhf6Zt9oGqKSjyGYXWnAB1d/J+q8+Zo/Aah2w==}
-    engines: {node: '>=20.10'}
-
-  '@aztec/builder@5.2.0':
-    resolution: {integrity: sha512-l8GLI8OhiKGuvG9wk16I8g1AQVRb6LsB+pcl7SfuCaRlShCm9qpfzZ2bSQAZauU9baqtClMb1XHpoVO0KQAcQg==}
     engines: {node: '>=20.10'}
 
   '@aztec/constants@5.1.0':
     resolution: {integrity: sha512-E+mgxEgblFzJOo388rJ/0jlfBScn/WCSNRjwidptveSebUk/zrMvimZKUTODXTP/YnUvPxC8EU9FLbdraAm91A==}
     engines: {node: '>=20.10'}
 
-  '@aztec/constants@5.2.0':
-    resolution: {integrity: sha512-bID+0RCntIEBa+7j6Py53EY9sFMh+1SWPsj5IevYwlr9F38fdLDbb5uIpkuXWpJBCLRSmv1qnFMC6QZ3NLQZvw==}
-    engines: {node: '>=20.10'}
-
   '@aztec/entrypoints@5.1.0':
     resolution: {integrity: sha512-N5KFN1dpA8Hvf+jYkXcFj82JiOIXo+KYS980e5iq3Xd5X377QS0JzgfwmfCTrYFct+28ow06o+4DggZzIAHrQQ==}
-    engines: {node: '>=20.10'}
-
-  '@aztec/entrypoints@5.2.0':
-    resolution: {integrity: sha512-GDJTd/W0z1YUMdkQht+LeVE1BGN03cLwH/0W5x8th3Cso6pDl34HUNg1FcNhxyEOpmItDySBTfJ/Pg3OxO0aLQ==}
     engines: {node: '>=20.10'}
 
   '@aztec/ethereum@5.1.0':
     resolution: {integrity: sha512-8bsGnNXpYuViKt88imJc1JiVzIljwjty5vuukEjy9P2W3SQkz+kUfhg3V7IfnahYCaC8E46i/P6NuOSh+MDriw==}
     engines: {node: '>=20.10'}
 
-  '@aztec/ethereum@5.2.0':
-    resolution: {integrity: sha512-eDeJDelpGMxk5xjmTSusEXurOFZPNsz/gsmk8RCv/2tMKpGnc0+PBdTreo9OVj1MV3I+Ry27tssJKcIraqE+Lw==}
-    engines: {node: '>=20.10'}
-
   '@aztec/foundation@5.1.0':
     resolution: {integrity: sha512-86M383v8NkXRNovQx0Ks6xslYXPzz2tWSDkpB4qwwMENIjTiqNihPtMiCy/+Sh9ik2BsLUJQ4kjcLUgyuJQRTw==}
-    engines: {node: '>=20.10'}
-
-  '@aztec/foundation@5.2.0':
-    resolution: {integrity: sha512-cf3WsZlsfIype0828zJa0EN+VUgcQnks6E828QXfbpwdd6VXQ9DF+494tqNAkeNUF8Aq06LcobS0USO9cwycXA==}
     engines: {node: '>=20.10'}
 
   '@aztec/key-store@5.1.0':
     resolution: {integrity: sha512-bfMRcnVCbV9kKrk4IxQW7QVEz6rG7YHvT5+N2CUyk6wnuCYgn6GDBTxamA2XjJZ+ueD2Aj+Z3yPc+1/jdaBVRw==}
     engines: {node: '>=20.10'}
 
-  '@aztec/key-store@5.2.0':
-    resolution: {integrity: sha512-jkQextgwZQ+7sCOMh+mDv3eOkHYfHvwiVkLNzueNfmLP/4lXlgKFSXCM1znpWqhkz+OOm/UXZYBznXluUMBn1A==}
-    engines: {node: '>=20.10'}
-
   '@aztec/kv-store@5.1.0':
     resolution: {integrity: sha512-wRXyUsn9H0qSHIFCqPkktgx7vJuv7mWy9Q3FF0lFucpyNcrgbe8JC7G9gVf0klWJOUCpq9hJ/h0MdJL3LgzhGw==}
-    engines: {node: '>=20.10'}
-
-  '@aztec/kv-store@5.2.0':
-    resolution: {integrity: sha512-ERFREI3XSmFAxk4yILk0sOkccwblzAwJ+YyIThpTu8EKm+R0zSSznm2lCJe5BQdA1Hv+O+D9nn90fjgrgfiRkw==}
     engines: {node: '>=20.10'}
 
   '@aztec/l1-artifacts@5.1.0':
     resolution: {integrity: sha512-izmhjc0GMNAknjRChN81qlqqSHTA9+C4z3/ao1Tsn9N21du4NLj/yhdZ824T+ZsTlBxQvYAWfURK9t6eBqOGfQ==}
 
-  '@aztec/l1-artifacts@5.2.0':
-    resolution: {integrity: sha512-Bp+ukVUUfTBvHQ7kaXMgZ0EaXstsdsI784kZ1eJh9zD3x7kQVfgO9rn0WwMtpKBZyZjP7ybU9dJAkZFdkVAJfg==}
-
   '@aztec/native@5.1.0':
     resolution: {integrity: sha512-PmjZa+gnDqWRzTYaFkuX7o+en9RwVNl6VXre/QFJBx0qUc6yS8tpYjCQK1WcLME15Lb7yi3i14xtW2DQ/CdHcQ==}
-    engines: {node: '>=20.10'}
-
-  '@aztec/native@5.2.0':
-    resolution: {integrity: sha512-xISYd5I7uJjhvDJDcMYzBt5pjYBUhfefbBFEG15DsFN3oPjDuY/neeqv3J4HGTtQrwQjH8eEAJPGgYu+wygY+A==}
     engines: {node: '>=20.10'}
 
   '@aztec/noir-acvm_js@5.1.0':
     resolution: {integrity: sha512-1tfJ2tYq5HukvmPTVtV63rUEdBcnB1B2GOpGsZhVLn0G3q02T+lMIjwNXsbATNT9+NNDNjkIc2dsvTnhamL1Yw==}
 
-  '@aztec/noir-acvm_js@5.2.0':
-    resolution: {integrity: sha512-/dbQAYJxXTtnuqWTKUpBcJXzsUMoWxHcW2r/yGNzhT/ojY+H0TiR+MgqLc7A2EO2XvqEDJFCzH5jAhR0T0/rKQ==}
-
   '@aztec/noir-noir_codegen@5.1.0':
     resolution: {integrity: sha512-WZJkCqajUBNaQ4vgG6OZxVeytsEVhAZy11Rma33IOaR+qBk2akQjIFQmF438zUb86dIFzxCt4vOtJfYm2QajAA==}
-    hasBin: true
-
-  '@aztec/noir-noir_codegen@5.2.0':
-    resolution: {integrity: sha512-qrxmFLSQm4r/+bX13uxg1WE/Cq6zc6ZParpwbqQjRpHKAJqzF+djXwq8jVuCy/cAy9mWPNssTi9DvELRzTJ0xQ==}
     hasBin: true
 
   '@aztec/noir-noirc_abi@5.1.0':
     resolution: {integrity: sha512-Somj3sl2vhPzNFIvy/GSFyseGfqcUbvj3az2ayT9gv1WooHaYsCeINI/eijRaSlYNfVnJMqnTWAc/OXXfm1o7g==}
 
-  '@aztec/noir-noirc_abi@5.2.0':
-    resolution: {integrity: sha512-j3kHnuX7Y+XLqsAqodHxS1mXdW1gSb+8QVd3NOUDPuDX8nujI7Wr7Errjf6ni/20UBsk0Xj/ThklTIVkeC/3lg==}
-
   '@aztec/noir-protocol-circuits-types@5.1.0':
     resolution: {integrity: sha512-rGQQMg2JyCshNmj7HBFvqoFPFK/UhucDDV2JcOwZBnhY2cGSUk2iZxAmoWP/7Ul6kFERtgONR6bKkJF5ZgDFBQ==}
-    engines: {node: '>=20.10'}
-
-  '@aztec/noir-protocol-circuits-types@5.2.0':
-    resolution: {integrity: sha512-ZrWADr58Sm3sxt1Kx6XAxREW17BdatQfgPvol2d5ObsSWbkXiemGYWFePHevjDhoQxvNJnEdQVcHzwindEUU/g==}
     engines: {node: '>=20.10'}
 
   '@aztec/noir-types@5.1.0':
     resolution: {integrity: sha512-hTpjC5+TkW74CkzcoEaJDKAspcwcfRS2E3j+K4Ifc+Z1D50X3z5nmeCznbtD/H/PC1eIDahZiB5FkSlyn9H8cg==}
 
-  '@aztec/noir-types@5.2.0':
-    resolution: {integrity: sha512-JKvWs69FnPNZ2z4NfVm/grNT50OFIhfC6qf+SzLIovsNwBP1SxZDFuJQ+wn5dvkjeXHA63YZF6ix+b6ot6XNnQ==}
-
   '@aztec/protocol-contracts@5.1.0':
     resolution: {integrity: sha512-Kju0RiSUErZLsDRFK0o5MvgpMvJd2OQd+3WIJcR/ka8ABOAjhteGBu76RU0/gBwXBPyI41+cXFEAYsPFtdRLmA==}
-    engines: {node: '>=20.10'}
-
-  '@aztec/protocol-contracts@5.2.0':
-    resolution: {integrity: sha512-nH/rzvzetOZQ1og8F5OWP31w7R2Q8Gc6XKE1/xfRCmxaq/AvV7tJkkz9nphYPQK8E65IaCZmNeKwO/eMm2SJzw==}
     engines: {node: '>=20.10'}
 
   '@aztec/pxe@5.1.0':
@@ -466,49 +302,24 @@ packages:
     engines: {node: '>=20.10'}
     hasBin: true
 
-  '@aztec/pxe@5.2.0':
-    resolution: {integrity: sha512-O3YyQrexfXBPiDzNFJW08A6jS7i7nroTEEzGVeDtNOVN9lcdwX4TaJLQf4iZ5fFtHdh3vZaXbT0dXksvLmUhOg==}
-    engines: {node: '>=20.10'}
-    hasBin: true
-
   '@aztec/simulator@5.1.0':
     resolution: {integrity: sha512-AWBIjDzdVRTXG2+6APwHG/a5GXUUyYuXx0alCklcnRb/wDRK3OAdOWXsn/eedpesPjv4hFQzSpvm41LFmWI4aA==}
-    engines: {node: '>=20.10'}
-
-  '@aztec/simulator@5.2.0':
-    resolution: {integrity: sha512-49q3RTnLTqOO21snhKpNgM4vctVnu8aRfGSQuxuQ8eDaKV+4GBpdbbJPkCZDi4jY4edbI51g75eDFcsvw9w+5w==}
     engines: {node: '>=20.10'}
 
   '@aztec/sqlite3mc-wasm@5.1.0':
     resolution: {integrity: sha512-eaKewbxba3yybZjJuQPoXFBaPZ415j+VPYRQ3azWgSvj07UYwCE3LysxnxrdFySYvskNwabbEIxny1feD8TqtA==}
     engines: {node: '>=20.10'}
 
-  '@aztec/sqlite3mc-wasm@5.2.0':
-    resolution: {integrity: sha512-EfKdqEe/s8gi8YTzHSRoGGbc8i1qzhwyQ+ikxkkP2HFtkN6reyf/nD6XrPC1JoMJEqN8wCjSNAqDzOJrSh0YJg==}
-    engines: {node: '>=20.10'}
-
   '@aztec/standard-contracts@5.1.0':
     resolution: {integrity: sha512-Xi3uJnL94lszbDMZgDiLHWAjnc/GjlWizsMmsv/AaluWnGqUo0NcF6KJq3ylPhZY9Eiw9knc/rOaobBOZOcc0g==}
-    engines: {node: '>=20.10'}
-
-  '@aztec/standard-contracts@5.2.0':
-    resolution: {integrity: sha512-ZOrnjgw/e+OJBKQeJBmwuCTmA5mjkMbMsBk9OyGNfDsn78lmV6c8WT2p3MlRioPcqYRM3lqYI+ZWbDow3fxw5A==}
     engines: {node: '>=20.10'}
 
   '@aztec/stdlib@5.1.0':
     resolution: {integrity: sha512-RRduHoyOQB6k0cA5ctonzSpj5TaY25q55WHbEOzjhoANiCKtntcd5ohz6JnIB3/ITIMg3lz4thD3SbOLiOCZ/g==}
     engines: {node: '>=20.10'}
 
-  '@aztec/stdlib@5.2.0':
-    resolution: {integrity: sha512-9H4rZQ/dgqOIwY0t8ASW/91j2n3pPQpmjAkcO6HIPbaslZ83QQhplxA5x2TlljGJaAG8fGWlY1JBwKcqPvG4HQ==}
-    engines: {node: '>=20.10'}
-
   '@aztec/telemetry-client@5.1.0':
     resolution: {integrity: sha512-K0vpjtl658BtMti2ofj+kN7r9hVyOcFuKWvXphl0QqOaWS8112tJXUE3q5XxHkHIILPZ80Wc8odzC080SLyQSw==}
-    engines: {node: '>=20.10'}
-
-  '@aztec/telemetry-client@5.2.0':
-    resolution: {integrity: sha512-6iZnZxoifN0oKmYO+UKIwC2pvRh5pYIvsfuX/fhJgrxJT8/pQJGf/nmbwjA7iOXeHcKU4khL3PAi90xQG6d/7g==}
     engines: {node: '>=20.10'}
 
   '@aztec/viem@2.38.2':
@@ -523,24 +334,12 @@ packages:
     resolution: {integrity: sha512-uPIYN+JCY9S3zBV3aTxrABybiGbu8RqFOmqtMzvy5Go8duhk1HUTBvQM1JcS+4g2dj2AVHucAy3CdG0/OhY/jQ==}
     engines: {node: '>=20.10'}
 
-  '@aztec/wallet-sdk@5.2.0':
-    resolution: {integrity: sha512-fd/0QTyROp4AJihWQeX2+ldP2qZOQWWbB/SHuOJMYV5zHnWnDsO4EC5z/MDf31+NtX6006e63ltSdsuJWkRAiw==}
-    engines: {node: '>=20.10'}
-
   '@aztec/wallets@5.1.0':
     resolution: {integrity: sha512-Mg2RsislGQ86UcWIuQ+DAjy1EiAcuvKClRb6a/Hw0/yScqy4NJIDuFaKHltjQ9yP1YOP96ZntEiOZAhECM+JVA==}
     engines: {node: '>=20.10'}
 
-  '@aztec/wallets@5.2.0':
-    resolution: {integrity: sha512-kmEoMVtbxx5OL30z/Z8CdxmCs4HwSk+KFDMcXdpoTzOv0X6RKXYR+LwbNfjUjx4s511fDwNPNa0rRkR3cykqoQ==}
-    engines: {node: '>=20.10'}
-
   '@aztec/world-state@5.1.0':
     resolution: {integrity: sha512-jJb6fYoUBdX5dkae2ybxBGcodInH06b1DO0DB4z7B7UIeXQyRo/qX7oueT4m+cSAMjcc9xE9XQjCsVwqGDfg5g==}
-    engines: {node: '>=20.10'}
-
-  '@aztec/world-state@5.2.0':
-    resolution: {integrity: sha512-TY92XBUOvx+PgNaA3z4vq76B4QcWSeinCcOW8X48rAf8YYoyxeCuDt0fzieFNV2pJm3J3dnlN0tvOSisfNwnVg==}
     engines: {node: '>=20.10'}
 
   '@babel/code-frame@7.29.7':
@@ -1021,12 +820,6 @@ packages:
 
   '@harperfast/extended-iterable@1.0.3':
     resolution: {integrity: sha512-sSAYhQca3rDWtQUHSAPeO7axFIUJOI6hn1gjRC5APVE1a90tuyT8f5WIgRsFhhWA7htNkju2veB9eWL6YHi/Lw==}
-
-  '@hono/node-server@2.1.0':
-    resolution: {integrity: sha512-XovyyCCnBzW+zKu+z/zq8hwNs4KOR5rEMAOxo2f40Q5xoOI37IMm6MIg2COOUtUApo0i6850MTBKH2u4QLGIqg==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      hono: 4.12.34
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -2447,10 +2240,6 @@ packages:
     resolution: {integrity: sha512-Vw8qHK3bZM9y/P10u3Vib8o/DdkvA2OtPtZvD871QKjy74Wj1WSKFILMPRPSdUSx5RFK1arlJzEtA4PkFgnbuA==}
     engines: {node: '>=18'}
 
-  commander@13.1.0:
-    resolution: {integrity: sha512-/rFeCpNJQbhSZjGVwO9RFV3xPqbnERS8MmIQzCtD/zl6gpJuV/bMLuN92oG3F7d8oDEHHRrujSXNUr8fpjntKw==}
-    engines: {node: '>=18'}
-
   commander@14.0.2:
     resolution: {integrity: sha512-TywoWNNRbhoD0BXs1P3ZEScW8W5iKrnbithIl0YH+uCmBd0QpPOA8yc82DS3BIE5Ma6FnBVUsJ7wVUDz4dvOWQ==}
     engines: {node: '>=20'}
@@ -2865,10 +2654,6 @@ packages:
 
   hmac-drbg@1.0.1:
     resolution: {integrity: sha512-Tti3gMqLdZfhOQY1Mzf/AanLiqh1WTiJgEj26ZuYQ9fbkLomzGchCws4FyrSd4VkpBfiNhaE1On+lOz894jvXg==}
-
-  hono@4.12.34:
-    resolution: {integrity: sha512-GqXJqY/xJkJmuloTrnV1ZEXG3fqte+VjkUqoRNZXcrUidiUOP4fMSIHHY4tsqZBK++kVyWmt/AAfSUuy57/eSA==}
-    engines: {node: '>=16.9.0'}
 
   html-entities@2.6.0:
     resolution: {integrity: sha512-kig+rMn/QOVRvr7c86gQ8lWXq+Hkv6CbAH1hLu+RG338StTpE8Z0b44SDVaqVu7HGKf27frdmUYEs9hTUX/cLQ==}
@@ -4337,22 +4122,6 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@aztec/accounts@5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)':
-    dependencies:
-      '@aztec/aztec.js': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/entrypoints': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/ethereum': 5.2.0(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
-      '@aztec/stdlib': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      tslib: 2.8.1
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - supports-color
-      - typescript
-      - utf-8-validate
-
   '@aztec/aztec.js@5.1.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)':
     dependencies:
       '@aztec/constants': 5.1.0(supports-color@7.2.0)
@@ -4363,28 +4132,6 @@ snapshots:
       '@aztec/protocol-contracts': 5.1.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
       '@aztec/standard-contracts': 5.1.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
       '@aztec/stdlib': 5.1.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      axios: 1.19.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)
-      tslib: 2.8.1
-      viem: '@aztec/viem@2.38.2(typescript@5.7.3)(zod@4.4.3)'
-      zod: 4.4.3
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - supports-color
-      - typescript
-      - utf-8-validate
-
-  '@aztec/aztec.js@5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)':
-    dependencies:
-      '@aztec/constants': 5.2.0(supports-color@7.2.0)
-      '@aztec/entrypoints': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/ethereum': 5.2.0(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
-      '@aztec/l1-artifacts': 5.2.0
-      '@aztec/protocol-contracts': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/standard-contracts': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/stdlib': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
       axios: 1.19.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)
       tslib: 2.8.1
       viem: '@aztec/viem@2.38.2(typescript@5.7.3)(zod@4.4.3)'
@@ -4423,42 +4170,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@aztec/bb-prover@5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)(zod@4.4.3)':
-    dependencies:
-      '@aztec/bb.js': 5.2.0
-      '@aztec/constants': 5.2.0(supports-color@7.2.0)
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
-      '@aztec/noir-noirc_abi': 5.2.0
-      '@aztec/noir-protocol-circuits-types': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/noir-types': 5.2.0
-      '@aztec/simulator': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)(zod@4.4.3)
-      '@aztec/stdlib': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/telemetry-client': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)(zod@4.4.3)
-      '@aztec/world-state': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      commander: 12.1.0
-      msgpackr: 1.12.1
-      pako: 2.2.0
-      source-map-support: 0.5.21
-      tslib: 2.8.1
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - supports-color
-      - typescript
-      - utf-8-validate
-      - zod
-
   '@aztec/bb.js@5.1.0':
-    dependencies:
-      comlink: 4.4.2
-      commander: 12.1.0
-      idb-keyval: 6.3.0
-      msgpackr: 1.12.1
-      pako: 2.2.0
-      tslib: 2.8.1
-
-  '@aztec/bb.js@5.2.0':
     dependencies:
       comlink: 4.4.2
       commander: 12.1.0
@@ -4471,15 +4183,6 @@ snapshots:
     dependencies:
       '@aztec/constants': 5.1.0(supports-color@7.2.0)
       '@aztec/foundation': 5.1.0(supports-color@7.2.0)
-      '@crate-crypto/node-eth-kzg': 0.10.0
-      tslib: 2.8.1
-    transitivePeerDependencies:
-      - supports-color
-
-  '@aztec/blob-lib@5.2.0(supports-color@7.2.0)':
-    dependencies:
-      '@aztec/constants': 5.2.0(supports-color@7.2.0)
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
       '@crate-crypto/node-eth-kzg': 0.10.0
       tslib: 2.8.1
     transitivePeerDependencies:
@@ -4498,29 +4201,9 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@aztec/builder@5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)':
-    dependencies:
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
-      '@aztec/stdlib': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      commander: 12.1.0
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - supports-color
-      - typescript
-      - utf-8-validate
-
   '@aztec/constants@5.1.0(supports-color@7.2.0)':
     dependencies:
       '@aztec/foundation': 5.1.0(supports-color@7.2.0)
-      tslib: 2.8.1
-    transitivePeerDependencies:
-      - supports-color
-
-  '@aztec/constants@5.2.0(supports-color@7.2.0)':
-    dependencies:
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
@@ -4542,47 +4225,12 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@aztec/entrypoints@5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)':
-    dependencies:
-      '@aztec/constants': 5.2.0(supports-color@7.2.0)
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
-      '@aztec/protocol-contracts': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/standard-contracts': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/stdlib': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      tslib: 2.8.1
-      zod: 4.4.3
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - supports-color
-      - typescript
-      - utf-8-validate
-
   '@aztec/ethereum@5.1.0(supports-color@7.2.0)(typescript@5.7.3)':
     dependencies:
       '@aztec/blob-lib': 5.1.0(supports-color@7.2.0)
       '@aztec/constants': 5.1.0(supports-color@7.2.0)
       '@aztec/foundation': 5.1.0(supports-color@7.2.0)
       '@aztec/l1-artifacts': 5.1.0
-      dotenv: 16.6.1
-      lodash.chunk: 4.2.0
-      lodash.pickby: 4.6.0
-      tslib: 2.8.1
-      viem: '@aztec/viem@2.38.2(typescript@5.7.3)(zod@4.4.3)'
-      zod: 4.4.3
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - typescript
-      - utf-8-validate
-
-  '@aztec/ethereum@5.2.0(supports-color@7.2.0)(typescript@5.7.3)':
-    dependencies:
-      '@aztec/blob-lib': 5.2.0(supports-color@7.2.0)
-      '@aztec/constants': 5.2.0(supports-color@7.2.0)
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
-      '@aztec/l1-artifacts': 5.2.0
       dotenv: 16.6.1
       lodash.chunk: 4.2.0
       lodash.pickby: 4.6.0
@@ -4622,54 +4270,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@aztec/foundation@5.2.0(supports-color@7.2.0)':
-    dependencies:
-      '@aztec/bb.js': 5.2.0
-      '@koa/cors': 5.0.0
-      '@noble/curves': 1.7.0
-      '@noble/hashes': 1.8.0
-      '@scure/bip39': 2.2.0
-      bn.js: 5.2.5
-      colorette: 2.0.20
-      detect-node: 2.1.0
-      hash.js: 1.1.7
-      koa: 2.16.4(supports-color@7.2.0)
-      koa-bodyparser: 4.4.1
-      koa-compress: 5.2.2
-      koa-router: 13.1.1(supports-color@7.2.0)
-      leveldown: 6.1.1
-      lodash.chunk: 4.2.0
-      lodash.clonedeepwith: 4.5.0
-      pako: 2.2.0
-      pino: 9.14.0
-      pino-pretty: 13.1.3
-      sha3: 2.1.4
-      undici: 6.28.0
-      zod: 4.4.3
-    transitivePeerDependencies:
-      - supports-color
-
   '@aztec/key-store@5.1.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)':
     dependencies:
       '@aztec/constants': 5.1.0(supports-color@7.2.0)
       '@aztec/foundation': 5.1.0(supports-color@7.2.0)
       '@aztec/kv-store': 5.1.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
       '@aztec/stdlib': 5.1.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      tslib: 2.8.1
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - supports-color
-      - typescript
-      - utf-8-validate
-
-  '@aztec/key-store@5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)':
-    dependencies:
-      '@aztec/constants': 5.2.0(supports-color@7.2.0)
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
-      '@aztec/kv-store': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/stdlib': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
       tslib: 2.8.1
     transitivePeerDependencies:
       - bufferutil
@@ -4700,32 +4306,7 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@aztec/kv-store@5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)':
-    dependencies:
-      '@aztec/constants': 5.2.0(supports-color@7.2.0)
-      '@aztec/ethereum': 5.2.0(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
-      '@aztec/native': 5.2.0(supports-color@7.2.0)
-      '@aztec/sqlite3mc-wasm': 5.2.0
-      '@aztec/stdlib': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      idb: 8.0.3
-      lmdb: 3.5.6
-      msgpackr: 1.12.1
-      ohash: 2.0.11
-      ordered-binary: 1.6.1
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - supports-color
-      - typescript
-      - utf-8-validate
-
   '@aztec/l1-artifacts@5.1.0':
-    dependencies:
-      tslib: 2.8.1
-
-  '@aztec/l1-artifacts@5.2.0':
     dependencies:
       tslib: 2.8.1
 
@@ -4737,17 +4318,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@aztec/native@5.2.0(supports-color@7.2.0)':
-    dependencies:
-      '@aztec/bb.js': 5.2.0
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
-      msgpackr: 1.12.1
-    transitivePeerDependencies:
-      - supports-color
-
   '@aztec/noir-acvm_js@5.1.0': {}
-
-  '@aztec/noir-acvm_js@5.2.0': {}
 
   '@aztec/noir-noir_codegen@5.1.0':
     dependencies:
@@ -4755,19 +4326,9 @@ snapshots:
       glob: 13.0.6
       ts-command-line-args: 2.5.1
 
-  '@aztec/noir-noir_codegen@5.2.0':
-    dependencies:
-      '@aztec/noir-types': 5.2.0
-      glob: 13.0.6
-      ts-command-line-args: 2.5.1
-
   '@aztec/noir-noirc_abi@5.1.0':
     dependencies:
       '@aztec/noir-types': 5.1.0
-
-  '@aztec/noir-noirc_abi@5.2.0':
-    dependencies:
-      '@aztec/noir-types': 5.2.0
 
   '@aztec/noir-protocol-circuits-types@5.1.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)':
     dependencies:
@@ -4789,51 +4350,13 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@aztec/noir-protocol-circuits-types@5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)':
-    dependencies:
-      '@aztec/blob-lib': 5.2.0(supports-color@7.2.0)
-      '@aztec/constants': 5.2.0(supports-color@7.2.0)
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
-      '@aztec/noir-acvm_js': 5.2.0
-      '@aztec/noir-noir_codegen': 5.2.0
-      '@aztec/noir-noirc_abi': 5.2.0
-      '@aztec/noir-types': 5.2.0
-      '@aztec/stdlib': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      change-case: 5.4.4
-      tslib: 2.8.1
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - supports-color
-      - typescript
-      - utf-8-validate
-
   '@aztec/noir-types@5.1.0': {}
-
-  '@aztec/noir-types@5.2.0': {}
 
   '@aztec/protocol-contracts@5.1.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)':
     dependencies:
       '@aztec/constants': 5.1.0(supports-color@7.2.0)
       '@aztec/foundation': 5.1.0(supports-color@7.2.0)
       '@aztec/stdlib': 5.1.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      lodash.chunk: 4.2.0
-      lodash.omit: 4.18.0
-      tslib: 2.8.1
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - supports-color
-      - typescript
-      - utf-8-validate
-
-  '@aztec/protocol-contracts@5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)':
-    dependencies:
-      '@aztec/constants': 5.2.0(supports-color@7.2.0)
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
-      '@aztec/stdlib': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
       lodash.chunk: 4.2.0
       lodash.omit: 4.18.0
       tslib: 2.8.1
@@ -4876,37 +4399,6 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@aztec/pxe@5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)(zod@4.4.3)':
-    dependencies:
-      '@aztec/bb-prover': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)(zod@4.4.3)
-      '@aztec/bb.js': 5.2.0
-      '@aztec/builder': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/constants': 5.2.0(supports-color@7.2.0)
-      '@aztec/ethereum': 5.2.0(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
-      '@aztec/key-store': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/kv-store': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/noir-protocol-circuits-types': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/noir-types': 5.2.0
-      '@aztec/protocol-contracts': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/simulator': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)(zod@4.4.3)
-      '@aztec/standard-contracts': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/stdlib': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      koa: 2.16.4(supports-color@7.2.0)
-      koa-router: 13.1.1(supports-color@7.2.0)
-      lodash.omit: 4.18.0
-      sha3: 2.1.4
-      tslib: 2.8.1
-      viem: '@aztec/viem@2.38.2(typescript@5.7.3)(zod@4.4.3)'
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - supports-color
-      - typescript
-      - utf-8-validate
-      - zod
-
   '@aztec/simulator@5.1.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)(zod@3.25.76)':
     dependencies:
       '@aztec/constants': 5.1.0(supports-color@7.2.0)
@@ -4933,53 +4425,12 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@aztec/simulator@5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)(zod@4.4.3)':
-    dependencies:
-      '@aztec/constants': 5.2.0(supports-color@7.2.0)
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
-      '@aztec/native': 5.2.0(supports-color@7.2.0)
-      '@aztec/noir-acvm_js': 5.2.0
-      '@aztec/noir-noirc_abi': 5.2.0
-      '@aztec/noir-protocol-circuits-types': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/noir-types': 5.2.0
-      '@aztec/protocol-contracts': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/standard-contracts': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/stdlib': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/telemetry-client': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)(zod@4.4.3)
-      '@aztec/world-state': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      lodash.clonedeep: 4.5.0
-      lodash.merge: 4.6.2
-      tslib: 2.8.1
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - supports-color
-      - typescript
-      - utf-8-validate
-      - zod
-
   '@aztec/sqlite3mc-wasm@5.1.0': {}
-
-  '@aztec/sqlite3mc-wasm@5.2.0': {}
 
   '@aztec/standard-contracts@5.1.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)':
     dependencies:
       '@aztec/foundation': 5.1.0(supports-color@7.2.0)
       '@aztec/stdlib': 5.1.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      tslib: 2.8.1
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - supports-color
-      - typescript
-      - utf-8-validate
-
-  '@aztec/standard-contracts@5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)':
-    dependencies:
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
-      '@aztec/stdlib': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
       tslib: 2.8.1
     transitivePeerDependencies:
       - bufferutil
@@ -4999,36 +4450,6 @@ snapshots:
       '@aztec/foundation': 5.1.0(supports-color@7.2.0)
       '@aztec/l1-artifacts': 5.1.0
       '@aztec/noir-noirc_abi': 5.1.0
-      '@google-cloud/storage': 7.21.0(supports-color@7.2.0)
-      axios: 1.19.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)
-      json-stringify-deterministic: 1.0.12
-      lodash.chunk: 4.2.0
-      lodash.isequal: 4.5.0
-      lodash.omit: 4.18.0
-      lodash.times: 4.3.2
-      msgpackr: 1.12.1
-      pako: 2.2.0
-      tslib: 2.8.1
-      viem: '@aztec/viem@2.38.2(typescript@5.7.3)(zod@4.4.3)'
-      zod: 4.4.3
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - supports-color
-      - typescript
-      - utf-8-validate
-
-  '@aztec/stdlib@5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)':
-    dependencies:
-      '@aws-sdk/client-s3': 3.1091.0
-      '@aztec/bb.js': 5.2.0
-      '@aztec/blob-lib': 5.2.0(supports-color@7.2.0)
-      '@aztec/constants': 5.2.0(supports-color@7.2.0)
-      '@aztec/ethereum': 5.2.0(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
-      '@aztec/l1-artifacts': 5.2.0
-      '@aztec/noir-noirc_abi': 5.2.0
       '@google-cloud/storage': 7.21.0(supports-color@7.2.0)
       axios: 1.19.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)
       json-stringify-deterministic: 1.0.12
@@ -5107,35 +4528,6 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@aztec/telemetry-client@5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)(zod@4.4.3)':
-    dependencies:
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
-      '@aztec/stdlib': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@opentelemetry/api': 1.9.1
-      '@opentelemetry/api-logs': 0.55.0
-      '@opentelemetry/core': 2.10.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/exporter-logs-otlp-http': 0.55.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/exporter-metrics-otlp-http': 0.55.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/exporter-trace-otlp-http': 0.55.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/host-metrics': 0.36.2(@opentelemetry/api@1.9.1)
-      '@opentelemetry/otlp-exporter-base': 0.55.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/resource-detector-gcp': 0.32.0(@opentelemetry/api@1.9.1)(supports-color@7.2.0)
-      '@opentelemetry/resources': 1.30.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-logs': 0.55.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-metrics': 1.30.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-trace-node': 1.30.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.43.0
-      prom-client: 15.1.3
-      viem: '@aztec/viem@2.38.2(typescript@5.7.3)(zod@4.4.3)'
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - supports-color
-      - typescript
-      - utf-8-validate
-      - zod
-
   '@aztec/viem@2.38.2(typescript@5.7.3)(zod@3.25.76)':
     dependencies:
       '@noble/curves': 1.9.1
@@ -5187,23 +4579,6 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@aztec/wallet-sdk@5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)(zod@4.4.3)':
-    dependencies:
-      '@aztec/aztec.js': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/constants': 5.2.0(supports-color@7.2.0)
-      '@aztec/entrypoints': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
-      '@aztec/pxe': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)(zod@4.4.3)
-      '@aztec/stdlib': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - supports-color
-      - typescript
-      - utf-8-validate
-      - zod
-
   '@aztec/wallets@5.1.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)(zod@3.25.76)':
     dependencies:
       '@aztec/accounts': 5.1.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
@@ -5225,27 +4600,6 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@aztec/wallets@5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)(zod@4.4.3)':
-    dependencies:
-      '@aztec/accounts': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/aztec.js': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/entrypoints': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
-      '@aztec/kv-store': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/protocol-contracts': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/pxe': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)(zod@4.4.3)
-      '@aztec/standard-contracts': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/stdlib': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/wallet-sdk': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)(zod@4.4.3)
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - supports-color
-      - typescript
-      - utf-8-validate
-      - zod
-
   '@aztec/world-state@5.1.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)':
     dependencies:
       '@aztec/bb.js': 5.1.0
@@ -5256,27 +4610,6 @@ snapshots:
       '@aztec/protocol-contracts': 5.1.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
       '@aztec/stdlib': 5.1.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
       '@aztec/telemetry-client': 5.1.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)(zod@4.4.3)
-      msgpackr: 1.12.1
-      tslib: 2.8.1
-      zod: 4.4.3
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - supports-color
-      - typescript
-      - utf-8-validate
-
-  '@aztec/world-state@5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)':
-    dependencies:
-      '@aztec/bb.js': 5.2.0
-      '@aztec/constants': 5.2.0(supports-color@7.2.0)
-      '@aztec/foundation': 5.2.0(supports-color@7.2.0)
-      '@aztec/kv-store': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/native': 5.2.0(supports-color@7.2.0)
-      '@aztec/protocol-contracts': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/stdlib': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)
-      '@aztec/telemetry-client': 5.2.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.7.3)(zod@4.4.3)
       msgpackr: 1.12.1
       tslib: 2.8.1
       zod: 4.4.3
@@ -5667,10 +5000,6 @@ snapshots:
   '@hapi/bourne@3.0.0': {}
 
   '@harperfast/extended-iterable@1.0.3': {}
-
-  '@hono/node-server@2.1.0(hono@4.12.34)':
-    dependencies:
-      hono: 4.12.34
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -7913,8 +7242,6 @@ snapshots:
 
   commander@12.1.0: {}
 
-  commander@13.1.0: {}
-
   commander@14.0.2:
     optional: true
 
@@ -8407,8 +7734,6 @@ snapshots:
       hash.js: 1.1.7
       minimalistic-assert: 1.0.1
       minimalistic-crypto-utils: 1.0.1
-
-  hono@4.12.34: {}
 
   html-entities@2.6.0: {}
 

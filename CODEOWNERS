@@ -1,14 +1,10 @@
 # Solo private repo — Stx69 only
 * @Stx69
 
-/contracts/ @Stx69
-/packages/core/ @Stx69
-/apps/api/ @Stx69
-
 /.npmrc @Stx69
 /.nvmrc @Stx69
 /.node-version @Stx69
-/tooling/TOOLCHAIN.pins @Stx69
+/TOOLCHAIN.pins @Stx69
 /pnpm-lock.yaml @Stx69
 /pnpm-workspace.yaml @Stx69
 /package.json @Stx69

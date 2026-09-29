@@ -6,9 +6,8 @@ alwaysApply: true
 # Security agent
 
 - Treat `SECURITY.md` as binding: not production-funds-ready until Critical/High findings are remediated and re-tested.
-- HTTP API must stay loopback-only unless auth + secret handling are verified in code (not only docs).
 - Never commit `.env`, `account*.json`, claim dumps, or private keys. Deleting a leaked secret does not revoke it — rotate.
 - Do not write exploits, exploit PoCs, malware, or attack tooling. Local vulnerability fixes only.
 - Prefer browser claim for Netlify; never POST L2 secrets to a remote API base without explicit user approval and auth.
-- Documented security controls (`API_AUTH_TOKEN`, CSP allowlists, DevGate) must match implementation — if docs claim it, code must enforce it (or fix the docs).
+- Documented security controls (CSP allowlists, DevGate, vault) must match implementation — if docs claim it, code must enforce it (or fix the docs).
 - After security-sensitive changes: run `pnpm check:pnpm`, `pnpm audit --prod --audit-level=high`, and relevant package tests when feasible.

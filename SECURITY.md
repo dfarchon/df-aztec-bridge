@@ -12,14 +12,13 @@ Never commit:
 - `account.json` / `account*.json` exports and `claim-*.json`
 - `.env` files (templates `.env.example` and `.env.netlify.example` are the only env files in git)
 - Netlify CLI link state under `.netlify/` (site id)
-- API job dumps under `data/`
-- Keyed dRPC path URLs in `VITE_*` (Vite bakes them into the browser). Public default: `https://aztec-mainnet.drpc.org`. Keyed endpoints only in private/non-`VITE_` env (CLI/API) or Netlify UI for non-client use.
+- Keyed dRPC path URLs in `VITE_*` (Vite bakes them into the browser). Public default: `https://aztec-mainnet.drpc.org`.
 
 If secrets were ever committed, **deleting the files does not revoke them**. Rotate accounts / provider keys, move assets from a clean machine, and treat the old keys as burned.
 
 ### C-01 rotation checklist (mainnet L2 accounts previously in git history)
 
-1. From a clean machine, inventory balances and permissions for any account whose secret appeared in `apps/cli/account.json` or `apps/cli/account1.json`.
+1. From a clean machine, inventory balances and permissions for any account whose secret appeared in old `account.json` / `account1.json` exports (including git history from the former CLI).
 2. Move assets and revoke authorities to fresh accounts.
 3. Inspect onchain / app activity since first exposure (commit `aebfbe8`, 21 July 2026).
 4. Only after rotation, consider history rewriting with coordinated disclosure.
@@ -28,13 +27,7 @@ If secrets were ever committed, **deleting the files does not revoke them**. Rot
 
 | Control | Status |
 |---------|--------|
-| `API_AUTH_TOKEN` (≥32) on `/v1/*` | Required; Vite `/api` proxy injects from server env (never `VITE_`) |
-| `POST /v1/bridge` | Always **403** (no L1 keys over HTTP) |
-| `POST /v1/claim` | **Off** unless `API_ENABLE_CLAIM=true` **and** loopback `API_HOST`; still auth-gated |
-| Loopback bind | Default `127.0.0.1`; non-loopback needs `API_ALLOW_NON_LOOPBACK=true` |
-| Rate limit identity | TCP peer hash by default; `X-Forwarded-For` only if `API_TRUST_PROXY=true` |
-| API security headers | nosniff / DENY / no-referrer / no-store / CSP `default-src 'none'` |
-| Browser claim (Netlify) | `VITE_ENABLE_BROWSER_CLAIM=true`; remote `VITE_API_BASE` rejected |
+| Browser claim (Netlify) | `VITE_ENABLE_BROWSER_CLAIM=true`; remote claim API bases are rejected |
 | CSP | Explicit allowlist (`csp.ts` ≡ `netlify.toml`); no bare `https:`/`wss:`; no `*.drpc.*` / `*.publicnode.com`. WC/Reown wildcards remain (required) |
 | RPC overrides | Localhost or `OFFICIAL_HTTPS_HOST_ALLOWLIST` only |
 | Vault | Meta AES-GCM at rest; idle 15m / tab-hidden 5m auto-lock |
@@ -45,7 +38,7 @@ This kit must not be used with production funds until Critical and High findings
 ## Dependency / pnpm posture
 
 - Always `pnpm install --frozen-lockfile` (CI, Netlify, local).
-- Pin Node via `.nvmrc` / `.node-version` → **24.12.0**; pnpm via Corepack `packageManager` **sha512** (see `tooling/TOOLCHAIN.pins`).
+- Pin Node via `.nvmrc` / `.node-version` → **24.12.0**; pnpm via Corepack `packageManager` **sha512** (see `TOOLCHAIN.pins`).
 - Lifecycle scripts only via `allowBuilds` in `pnpm-workspace.yaml`; see [docs/PNPM_HARDENING.md](docs/PNPM_HARDENING.md).
 - Audit overrides in `pnpm-workspace.yaml#overrides` force patched transitive versions (`hono`, `@hono/node-server`, `undici`, `ws`, `axios`, … plus Vite toolchain `postcss@8.5.23`, `nanoid@3.3.18`).
 - CI / local gate: `pnpm audit --prod --audit-level=high` (must stay clean). Root script: `pnpm audit` → `--prod`.

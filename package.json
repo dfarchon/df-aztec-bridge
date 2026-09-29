@@ -3,28 +3,19 @@
   "version": "0.1.1",
   "private": true,
   "license": "MIT",
-  "description": "Fee Juice L1→L2 bridge monorepo (core, CLI, API, web)",
+  "description": "DF Archon Fee Juice bridge — browser dapp",
   "packageManager": "pnpm@11.20.0+sha512.9a6f330a95b66446ea088faf1521405a8a01f07fde7124cc9958dfed52d4bb436737e65b08f85f37b46fcba375092558ac51262b816844b22f63406ed166bfee",
   "scripts": {
     "preinstall": "node ./scripts/enforce-pnpm.mjs",
     "dev": "pnpm --filter @df-bridge/web run dev",
     "typecheck": "pnpm run build:libs && pnpm -r run typecheck",
     "build": "pnpm run build:libs && pnpm -r run build",
-    "build:libs": "pnpm --filter @df-bridge/core --filter @df-bridge/browser-sdk run build",
-    "cli": "pnpm --filter @df-bridge/cli run cli",
-    "api": "pnpm --filter @df-bridge/api run dev",
+    "build:libs": "pnpm --filter @df-bridge/browser-sdk run build",
     "web": "pnpm --filter @df-bridge/web run dev",
     "web:clean": "pnpm --filter @df-bridge/web run dev:clean",
-    "compile:private-chat": "bash -c 'export PATH=\"$HOME/.aztec/bin:$HOME/.aztec/current/bin:$PATH\"; if [[ ! -d contracts/aztec/private_chat ]]; then echo \"contracts/aztec/private_chat missing — skip (bridge-only checkout)\"; exit 0; fi; cd contracts/aztec/private_chat && aztec compile && aztec codegen target -o ../../../packages/browser-sdk/src/generated && cp target/private_chat_contract-PrivateChat.json ../../../packages/browser-sdk/src/generated/PrivateChat.json'",
-    "compile:whitelisted-fpc": "bash -c 'export PATH=\"$HOME/.aztec/bin:$HOME/.aztec/current/bin:$PATH\"; if [[ ! -d contracts/aztec/whitelisted_fpc ]]; then echo \"contracts/aztec/whitelisted_fpc missing — skip (bridge-only checkout)\"; exit 0; fi; cd contracts/aztec/whitelisted_fpc && aztec compile && aztec codegen target -o ../../../packages/browser-sdk/src/generated && cp target/whitelisted_fpc_contract-WhitelistedFPC.json ../../../packages/browser-sdk/src/generated/WhitelistedFPC.json'",
-    "deploy-l1-bridge": "node --import tsx scripts/deploy-l1-bridge.ts",
-    "deploy-l1-chat-registry": "node --import tsx scripts/deploy-l1-chat-registry.ts",
-    "deploy-aztec-chat": "node --import tsx scripts/deploy-aztec-chat.ts",
     "check:artifacts": "bash scripts/check-artifacts.sh",
     "check:pnpm": "bash scripts/check-pnpm-hardening.sh",
     "check:toolchain": "bash scripts/check-toolchain.sh",
-    "test:contracts": "cd contracts/ethereum/solidity && forge test",
-    "test:api": "pnpm --filter @df-bridge/api run test",
     "audit": "pnpm audit --prod"
   },
   "engines": {
@@ -32,7 +23,6 @@
     "pnpm": "11.20.0"
   },
   "devDependencies": {
-    "@df-bridge/core": "workspace:*",
     "tsx": "4.23.1",
     "typescript": "5.7.3"
   }

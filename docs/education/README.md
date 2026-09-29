@@ -6,11 +6,11 @@ Start here if you are new. Use [SECURITY.md](../../SECURITY.md) when you need th
 
 | Guide | What you learn |
 |-------|----------------|
-| [01 — What is this dapp?](./01-WHAT-IS-THIS-DAPP.md) | Monorepo map, who signs what, routes |
+| [01 — What is this dapp?](./01-WHAT-IS-THIS-DAPP.md) | Who signs what, routes |
 | [02 — Bridge flow (L1 → L2)](./02-BRIDGE-FLOW.md) | Fee Juice deposit, claim secret, browser claim |
 | [03 — Privacy and trust](./03-PRIVACY-AND-TRUST.md) | What stays secret, what the chain sees |
 | [04 — Vault and keys](./04-VAULT-AND-KEYS.md) | Password vault, CEK, idle lock, passkey |
-| [05 — Hardening](./05-HARDENING.md) | CSP, `VITE_*`, API, pnpm, Netlify, DevGate |
+| [05 — Hardening](./05-HARDENING.md) | CSP, `VITE_*`, pnpm, Netlify, DevGate |
 | [06 — Recovery](./06-RECOVERY.md) | Claim JSON, Recover tab, sessions |
 | [07 — UI signals](./07-UI-SIGNALS.md) | Progress panel, dapp log, block estimate |
 
@@ -20,7 +20,7 @@ Start here if you are new. Use [SECURITY.md](../../SECURITY.md) when you need th
 - [PNPM_HARDENING.md](../PNPM_HARDENING.md) — install / supply-chain pins
 - [NETWORK_INTEGRITY.md](../NETWORK_INTEGRITY.md) — explorers, tip checks, privacyFetch
 - [AZTEC_FEE_COLLECTOR.md](../AZTEC_FEE_COLLECTOR.md) — L1 fee skim vs Sponsored FPC
-- [OPS.md](../OPS.md) — what to watch in production
+- [OPS.md](../OPS.md) — what to watch on the hosted dapp
 - [README.md](../../README.md) — quick start commands
 
 ## Branch note

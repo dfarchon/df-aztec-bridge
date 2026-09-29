@@ -50,8 +50,6 @@ From [NETWORK_INTEGRITY.md](../NETWORK_INTEGRITY.md) and `privacy.ts`:
 - No third-party analytics / Google Fonts CDN in production posture.
 - `privacyFetch`: no cookies, no-referrer, fixed `Accept-Language: en`, strip client-IP headers.
 - Logs / toasts: full 32-byte hex is **not** dumped to console; toasts show **short** ids + explorer links.
-- API rate limits hash the peer identity; raw IPs are not the log line.
-
 ## CROPS-style snapshot (honest)
 
 | Pillar | This kit |
@@ -59,7 +57,7 @@ From [NETWORK_INTEGRITY.md](../NETWORK_INTEGRITY.md) and `privacy.ts`:
 | **C**ensorship resistance | You can self-host the static app + point at your own RPC (allowlisted). Netlify can still take the hosted URL down. |
 | **O**pen / Free | Source is in the repo; verify what you run. |
 | **P**rivacy | Vault encrypts secrets at rest. L1 bridge is public. Unlocked tab is trusted. |
-| **S**ecurity | CSP, vault idle lock, API loopback rules, frozen pnpm — see [05 — Hardening](./05-HARDENING.md). |
+| **S**ecurity | CSP, vault idle lock, frozen pnpm — see [05 — Hardening](./05-HARDENING.md). |
 
 ## What not to expect
 
