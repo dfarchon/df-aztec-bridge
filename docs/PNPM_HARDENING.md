@@ -14,7 +14,7 @@ pnpm check:toolchain
 pnpm check:pnpm
 ```
 
-Pinned versions + SHA512 digests live in [`tooling/TOOLCHAIN.pins`](../tooling/TOOLCHAIN.pins).
+Pinned versions + SHA512 digests live in [`TOOLCHAIN.pins`](../TOOLCHAIN.pins).
 `package.json#packageManager` embeds the Corepack **sha512 hex** pin for pnpm.
 Root `devDependencies` **`tsx@4.23.1`** and **`typescript@5.7.3`** are exact (no `^`/`~`); their npm `sha512-` integrity + hex digests are pinned in `TOOLCHAIN.pins` and checked against `pnpm-lock.yaml` by `pnpm check:pnpm`.
 
@@ -46,7 +46,7 @@ Also enforced: `.github/workflows/ci.yml`, `netlify.toml` (`NODE_VERSION=24.12.0
 ## Checks
 
 ```bash
-pnpm check:toolchain     # .nvmrc + packageManager sha512 vs tooling/TOOLCHAIN.pins
+pnpm check:toolchain     # .nvmrc + packageManager sha512 vs TOOLCHAIN.pins
 pnpm check:pnpm          # lockfile / .npmrc / frozen-install surface
 pnpm audit --prod        # advisory scan (transitive Aztec stack may still report highs)
 ```

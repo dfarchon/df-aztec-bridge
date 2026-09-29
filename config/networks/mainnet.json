@@ -1,9 +1,0 @@
-{
-  "id": "mainnet",
-  "name": "Aztec Alpha (Mainnet)",
-  "aztecNodeUrl": "https://aztec-mainnet.drpc.org",
-  "l1RpcUrl": "https://ethereum-rpc.publicnode.com",
-  "l1ChainId": 1,
-  "bridgeTiming": "poll",
-  "l1Backend": "portal"
-}

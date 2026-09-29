@@ -35,7 +35,6 @@ Network / L1 backend selectors live in the **wallet manager** drawer (locked to 
 - No Google Fonts / third-party analytics (avoids IP + locale leakage to CDNs)
 - `privacyFetch`: omit credentials, `no-referrer`, force `Accept-Language: en`, strip client-IP headers
 - UI timestamps use ISO-8601 (not `toLocaleString`)
-- API rate-limit keys are **SHA-256 truncated hashes** of the TCP peer address by default. `X-Forwarded-For` / `X-Real-IP` are used only when `API_TRUST_PROXY=true` (trusted reverse proxy). Raw IPs are never logged.
 - Logs redact hex secrets and IP literals
 
 ## Official allowlist

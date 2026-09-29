@@ -1,42 +1,32 @@
 # 01 — What is this dapp?
 
-**In one sentence:** this kit moves **Fee Juice** from Ethereum (L1) to Aztec (L2) so your Aztec account can pay for private transactions.
-
-It is a **monorepo**: several apps share the same bridge logic, but they do different jobs.
+**In one sentence:** this dapp moves **Fee Juice** from Ethereum (L1) to Aztec (L2) so your Aztec account can pay for private transactions.
 
 ## Who does what?
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│                        YOU (the user)                           │
-│  • L1 wallet (MetaMask / WalletConnect) signs Ethereum txs      │
-│  • Aztec account keys unlock L2 claim + future private txs      │
-└─────────────────────────────┬───────────────────────────────────┘
-                              │
-          ┌───────────────────┼───────────────────┐
-          ▼                   ▼                   ▼
-   ┌─────────────┐    ┌──────────────┐    ┌──────────────┐
-   │  apps/web   │    │  apps/cli    │    │  apps/api    │
-   │  Browser    │    │  Terminal    │    │  Local HTTP  │
-   │  dapp UI    │    │  + L1 key    │    │  jobs (opt.) │
-   └──────┬──────┘    └──────┬───────┘    └──────┬───────┘
-          │                  │                   │
-          └────────┬─────────┴─────────┬─────────┘
-                   ▼                   ▼
-           ┌──────────────┐    ┌──────────────┐
-           │ browser-sdk  │    │    core      │
-           │ wallet+claim │    │ pipeline     │
-           └──────────────┘    └──────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                        YOU                               │
+│  • L1 wallet signs the Ethereum deposit                  │
+│  • Aztec account keys unlock the L2 claim                │
+└────────────────────────────┬─────────────────────────────┘
+                             ▼
+                    ┌─────────────────┐
+                    │    apps/web     │
+                    │  DF Archon UI   │
+                    └────────┬────────┘
+                             ▼
+                    ┌─────────────────┐
+                    │  browser-sdk    │
+                    │ wallet + claim  │
+                    └─────────────────┘
 ```
 
 | Piece | Plain meaning |
 |-------|----------------|
 | `apps/web` | The website you open. Never asks for an **L1 private key**. |
-| `apps/cli` | Command-line tool for power users / automation. May use `L1_PRIVATE_KEY`. |
-| `apps/api` | Optional local server for claim jobs. **Cannot** receive L1 keys over HTTP. |
-| `packages/core` | Shared “how do we bridge / claim?” logic. |
-| `packages/browser-sdk` | Browser wallet connect + in-browser L2 claim (PXE). |
-| `config/networks/` | Presets for local / testnet / mainnet URLs and contract addresses. |
+| `packages/browser-sdk` | Browser wallet connect, L1 bridge, and in-browser L2 claim (PXE). |
+| `apps/web/src/config/networks.ts` | Presets for local / testnet / mainnet URLs and contract addresses. |
 
 ## What you do in the web UI
 
@@ -82,7 +72,7 @@ Losing either can lose funds or leave Fee Juice stuck. Treat both like passwords
 
 ## Honest limits
 
-- This is a **bridge kit**, not a bank. You keep custody of keys.
+- This is a **bridge dapp**. You keep custody of keys.
 - L1 deposits are **public** on Ethereum.
 - Aztec privacy applies to **L2 private activity** after you have Fee Juice — the bridge deposit itself is still an L1 transaction.
 - Hardening reduces attack surface; it does not make a compromised browser safe while the vault is unlocked.

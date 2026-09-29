@@ -10,11 +10,11 @@ ok() { echo "OK: $*"; }
 [[ -f pnpm-lock.yaml ]] || fail "missing pnpm-lock.yaml"
 [[ -f .npmrc ]] || fail "missing .npmrc"
 [[ -f package.json ]] || fail "missing package.json"
-[[ -f tooling/TOOLCHAIN.pins ]] || fail "missing tooling/TOOLCHAIN.pins"
+[[ -f TOOLCHAIN.pins ]] || fail "missing TOOLCHAIN.pins"
 [[ -f scripts/enforce-pnpm.mjs ]] || fail "missing scripts/enforce-pnpm.mjs"
 
 # shellcheck disable=SC1091
-source tooling/TOOLCHAIN.pins
+source TOOLCHAIN.pins
 
 PM="$(node -p "require('./package.json').packageManager||''")"
 ENG_PNPM="$(node -p "require('./package.json').engines?.pnpm||''")"
@@ -212,9 +212,6 @@ const wantNode = root.engines.node;
 const wantPnpm = root.engines.pnpm;
 const pkgs = [
   "apps/web/package.json",
-  "apps/api/package.json",
-  "apps/cli/package.json",
-  "packages/core/package.json",
   "packages/browser-sdk/package.json",
 ];
 for (const rel of pkgs) {

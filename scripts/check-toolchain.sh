@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Verify Node (.nvmrc) + pnpm (packageManager sha512) pins against tooling/TOOLCHAIN.pins.
+# Verify Node (.nvmrc) + pnpm (packageManager sha512) pins against TOOLCHAIN.pins.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -7,7 +7,7 @@ cd "$ROOT"
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "OK: $*"; }
 
-PINS="$ROOT/tooling/TOOLCHAIN.pins"
+PINS="$ROOT/TOOLCHAIN.pins"
 [[ -f "$PINS" ]] || fail "missing $PINS"
 # shellcheck disable=SC1090
 source "$PINS"
