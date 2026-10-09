@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node ../../scripts/ensure-browser-sdk.mjs",
+    "predev:clean": "node ../../scripts/ensure-browser-sdk.mjs",
     "dev": "vite",
     "dev:clean": "rm -rf node_modules/.vite ../../node_modules/.vite && vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",

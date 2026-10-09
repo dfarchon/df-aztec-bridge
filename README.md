@@ -55,6 +55,8 @@ cp .env.example .env
 pnpm web
 ```
 
+`packages/browser-sdk/dist` is not in git. The first `pnpm web` or `pnpm dev` compiles that package so Vite can load `@df-bridge/browser-sdk/claim-lazy`. If the dev server was already started without that build, stop it, run `pnpm build:libs`, then start it again.
+
 Vite prints a local URL (default `http://localhost:5173`). Restart it after changing any `VITE_*` value.
 
 WalletConnect QR needs a Reown project id in `.env`:
@@ -77,7 +79,7 @@ Do not put private keys or keyed RPC URLs in `VITE_*`. Those values are compiled
 
 | Command | What it does |
 |---------|----------------|
-| `pnpm web` | Dev server |
+| `pnpm web` / `pnpm dev` | Dev server (builds the SDK first if `dist` is missing) |
 | `pnpm build` | Production build of the SDK and the web app |
 | `pnpm typecheck` | Typecheck both packages |
 | `pnpm check:toolchain` | Node and pnpm pins |
