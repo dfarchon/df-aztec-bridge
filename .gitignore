@@ -10,7 +10,6 @@ dist/
 .env
 .env.*
 !.env.example
-!.env.netlify.example
 
 # Exported Aztec account files (contain secretKey / signingKey)
 account.json

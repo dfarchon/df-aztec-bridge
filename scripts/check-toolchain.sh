@@ -60,9 +60,13 @@ else
   ok "skip runtime match (set REQUIRE_RUNTIME_MATCH=1 or CI=true to enforce)"
 fi
 
-# .npmrc must force package manager strictness
-rg -qF 'package-manager-strict=true' .npmrc || rg -qF 'pmOnFail: error' pnpm-workspace.yaml || fail "missing pmOnFail: error (pnpm v11) / legacy package-manager-strict"
-rg -qF 'package-manager-strict-version=true' .npmrc || rg -qF 'pmOnFail: error' pnpm-workspace.yaml || fail "missing pmOnFail: error (pnpm v11)"
+# .npmrc must force package manager strictness (grep — no ripgrep required)
+grep -qF 'package-manager-strict=true' .npmrc 2>/dev/null \
+  || grep -qF 'pmOnFail: error' pnpm-workspace.yaml \
+  || fail "missing pmOnFail: error (pnpm v11) / legacy package-manager-strict"
+grep -qF 'package-manager-strict-version=true' .npmrc 2>/dev/null \
+  || grep -qF 'pmOnFail: error' pnpm-workspace.yaml \
+  || fail "missing pmOnFail: error (pnpm v11)"
 ok "package-manager strict via pmOnFail: error"
 
 echo "toolchain pin check passed."

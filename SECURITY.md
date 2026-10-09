@@ -38,7 +38,7 @@ This kit must not be used with production funds until Critical and High findings
 ## Dependency / pnpm posture
 
 - Always `pnpm install --frozen-lockfile` (CI, Netlify, local).
-- Pin Node via `.nvmrc` / `.node-version` → **24.12.0**; pnpm via Corepack `packageManager` **sha512** (see `TOOLCHAIN.pins`).
+- Pin Node via `.nvmrc` / `.node-version` → **24.19.0**; pnpm via Corepack `packageManager` **sha512** (see `TOOLCHAIN.pins`).
 - Lifecycle scripts only via `allowBuilds` in `pnpm-workspace.yaml`; see [docs/PNPM_HARDENING.md](docs/PNPM_HARDENING.md).
 - Audit overrides in `pnpm-workspace.yaml#overrides` force patched transitive versions (`hono`, `@hono/node-server`, `undici`, `ws`, `axios`, … plus Vite toolchain `postcss@8.5.23`, `nanoid@3.3.18`).
 - CI / local gate: `pnpm audit --prod --audit-level=high` (must stay clean). Root script: `pnpm audit` → `--prod`.

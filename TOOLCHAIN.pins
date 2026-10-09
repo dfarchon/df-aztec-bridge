@@ -3,11 +3,12 @@
 # Corepack / package.json#packageManager uses: <name>@<ver>+sha512.<hex>
 # where hex = Buffer.from(npmIntegrityWithoutPrefix, 'base64').toString('hex')
 #
-# Official Node SHASUMS256: https://nodejs.org/dist/v24.12.0/SHASUMS256.txt
+# Official Node SHASUMS256: https://nodejs.org/dist/v24.19.0/SHASUMS256.txt
 # pnpm npm dist.integrity: https://registry.npmjs.org/pnpm/11.20.0
 
-NODE_VERSION=24.12.0
+NODE_VERSION=24.19.0
 PNPM_VERSION=11.20.0
+
 
 # npm registry integrity (base64) for pnpm@11.20.0
 PNPM_NPM_INTEGRITY=sha512-mm8zCpW2ZEbqCI+vFSFAWooB8H/ecSTMmVjf7VLUu0NnN+ZbCPhfN7Rvy6N1CSVYrFEmK4FoRLIvY0Bu0Wa/7g==
@@ -16,8 +17,9 @@ PNPM_NPM_INTEGRITY=sha512-mm8zCpW2ZEbqCI+vFSFAWooB8H/ecSTMmVjf7VLUu0NnN+ZbCPhfN7
 PNPM_PACKAGE_MANAGER=pnpm@11.20.0+sha512.9a6f330a95b66446ea088faf1521405a8a01f07fde7124cc9958dfed52d4bb436737e65b08f85f37b46fcba375092558ac51262b816844b22f63406ed166bfee
 
 # Official Node.js SHA256 (from SHASUMS256.txt)
-NODE_SHA256_LINUX_X64=bdebee276e58d0ef5448f3d5ac12c67daa963dd5e0a9bb621a53d1cefbc852fd
-NODE_SHA256_SOURCE=6d3e891a016b90f6c6a19ea5cbc9c90c57eef9198670ba93f04fa82af02574ae
+NODE_SHA256_LINUX_X64=14b342e71204f811bde6153be8e04b62aef63c236fef92b55f9c83154b409647
+NODE_SHA256_SOURCE=f6d95e10a0431ee1067fc6aabe9f762908b4716dd35324e1ddb4b1466b76659f
+
 
 # Independently computed SHA512 of official Node.js dist artifacts (nodejs.org).
 # Recompute after bump: curl -fsSL https://nodejs.org/dist/v$NODE_VERSION/<file> | sha512sum

@@ -15,7 +15,7 @@
 
 # Shared by production / deploy-preview / branch deploys / Netlify CLI builds.
 [build.environment]
-  NODE_VERSION = "24.12.0"
+  NODE_VERSION = "24.19.0"
   PNPM_VERSION = "11.20.0"
   VITE_ENABLE_BROWSER_CLAIM = "true"
   VITE_BRIDGE_FEE_RECIPIENT = "0x33D5928E1c66E831Eb250D1250bf2CfF9eACa370"

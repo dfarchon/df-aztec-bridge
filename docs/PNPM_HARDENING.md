@@ -5,8 +5,7 @@ Pinned manager: **`pnpm@11.20.0`** (`packageManager` + `engines.pnpm`).
 ## Install rule (everywhere)
 
 ```bash
-nvm install   # reads .nvmrc → Node 24.12.0
-nvm use
+nvm use       # .nvmrc → Node 24.19.0 (install once: nvm install)
 corepack enable
 corepack prepare "$(node -p "require('./package.json').packageManager")" --activate
 pnpm install --frozen-lockfile
@@ -41,7 +40,7 @@ Every lockfile `packages:` resolution must carry `integrity: sha512-` (`pnpm che
 
 Frozen installs skip re-resolution, so quarantine/trust apply when the lockfile is updated.
 
-Also enforced: `.github/workflows/ci.yml`, `netlify.toml` (`NODE_VERSION=24.12.0`), README, `preferFrozenLockfile: true`. Never use bare `pnpm i` / `npm install`.
+Also enforced: `.github/workflows/ci.yml`, `netlify.toml` (`NODE_VERSION=24.19.0`), README, `preferFrozenLockfile: true`. Never use bare `pnpm i` / `npm install`.
 
 ## Checks
 

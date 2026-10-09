@@ -42,7 +42,8 @@ LOCK_VER="$(node -p "require('fs').readFileSync('pnpm-lock.yaml','utf8').match(/
 ok "lockfileVersion=$LOCK_VER"
 
 # No exotic resolutions in the lockfile (git/github/tarball/directory).
-if rg -n "type: (git|directory|tarball)|git\\+|github:|bitbucket:|gitlab:" pnpm-lock.yaml >/dev/null; then
+# Use grep (not ripgrep) so CI / fresh clones work without installing rg.
+if grep -nE "type: (git|directory|tarball)|git\\+|github:|bitbucket:|gitlab:" pnpm-lock.yaml >/dev/null; then
   fail "exotic (git/tarball/directory) resolutions found in pnpm-lock.yaml"
 fi
 ok "no exotic git/tarball/directory resolutions"
@@ -72,7 +73,7 @@ console.log(`OK: ${sha512}/${resolutions.length} packages resolutions have integ
 EOF
 
 # .npmrc is auth/registry-only on pnpm v11+; hardening lives in pnpm-workspace.yaml.
-rg -qF 'registry=https://registry.npmjs.org/' .npmrc || fail ".npmrc missing HTTPS registry"
+grep -qF 'registry=https://registry.npmjs.org/' .npmrc || fail ".npmrc missing HTTPS registry"
 ok ".npmrc registry-only (HTTPS)"
 
 node <<'EOF' || fail "pnpm-workspace.yaml hardening + allowBuilds + preinstall enforce-pnpm required"
@@ -126,13 +127,13 @@ EOF
 ok "pnpm-workspace.yaml hardened + allowBuilds + preinstall enforce-pnpm present"
 
 for f in .github/workflows/ci.yml netlify.toml README.md; do
-  rg -q 'pnpm install --frozen-lockfile' "$f" || fail "$f must use pnpm install --frozen-lockfile"
+  grep -qF 'pnpm install --frozen-lockfile' "$f" || fail "$f must use pnpm install --frozen-lockfile"
 done
 ok "CI / Netlify / README enforce frozen-lockfile"
 
 # Discourage bare pnpm i / npm install in project docs & workflows (allow comments).
-if rg -n '^\s*(run:\s*)?(pnpm i\b|pnpm install[^-]|npm i\b|npm install\b|yarn install\b)' \
-  .github/workflows/ci.yml netlify.toml 2>/dev/null | rg -v 'frozen-lockfile'; then
+if grep -nE '^\s*(run:\s*)?(pnpm i\b|pnpm install[^-]|npm i\b|npm install\b|yarn install\b)' \
+  .github/workflows/ci.yml netlify.toml 2>/dev/null | grep -v 'frozen-lockfile'; then
   fail "non-frozen install command found in CI/Netlify"
 fi
 ok "no non-frozen install in CI/Netlify"

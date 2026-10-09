@@ -44,10 +44,10 @@ Network addresses the page uses live in `apps/web/src/config/networks.ts`. GoBri
 
 ## Run it locally
 
-Node **24.12.0** and pnpm **11.20.0** (see `.nvmrc` and `TOOLCHAIN.pins`).
+Node **24.19.0** and pnpm **11.20.0** (see `.nvmrc` and `TOOLCHAIN.pins`).
 
 ```bash
-nvm install && nvm use
+nvm use                         # .nvmrc → Node 24.19.0
 corepack enable
 corepack prepare "$(node -p "require('./package.json').packageManager")" --activate
 pnpm install --frozen-lockfile
