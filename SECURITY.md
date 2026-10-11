@@ -38,11 +38,11 @@ This kit must not be used with production funds until Critical and High findings
 ## Dependency / pnpm posture
 
 - Always `pnpm install --frozen-lockfile` (CI, Netlify, local).
-- Pin Node via `.nvmrc` / `.node-version` → **24.19.0**; pnpm via Corepack `packageManager` **sha512** (see `TOOLCHAIN.pins`).
+- Pin Node in root `package.json#engines.node` (exact `x.y.z`); pin pnpm via Corepack `packageManager` **sha512**. Direct deps are exact versions in each `package.json`; bytes are pinned in `pnpm-lock.yaml`.
 - Lifecycle scripts only via `allowBuilds` in `pnpm-workspace.yaml`; see [docs/PNPM_HARDENING.md](docs/PNPM_HARDENING.md).
 - Audit overrides in `pnpm-workspace.yaml#overrides` force patched transitive versions (`hono`, `@hono/node-server`, `undici`, `ws`, `axios`, … plus Vite toolchain `postcss@8.5.23`, `nanoid@3.3.18`).
 - CI / local gate: `pnpm audit --prod --audit-level=high` (must stay clean). Root script: `pnpm audit` → `--prod`.
-- Run `pnpm check:toolchain` and `pnpm check:pnpm` after changing toolchain pins, `.npmrc`, the lockfile, or install docs.
+- Run `pnpm check:pnpm` after changing `engines.node`, `packageManager`, `pnpm-workspace.yaml`, the lockfile, or install docs.
 
 ### Audit status (2026-08-08)
 
@@ -59,4 +59,4 @@ This kit must not be used with production funds until Critical and High findings
 
 Re-check after dependency bumps: `pnpm audit --prod` and `pnpm audit`.
 
-See also [docs/OPS.md](docs/OPS.md) for monitoring signals and [CODEOWNERS](CODEOWNERS) for review paths.
+See also [docs/OPS.md](docs/OPS.md) for monitoring signals.

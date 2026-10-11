@@ -17,13 +17,13 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version-file: .nvmrc
+          node-version-file: package.json
 
       - name: Corepack activate pinned pnpm (sha512)
         run: |
           set -euo pipefail
           PM="$(node -p "require('./package.json').packageManager")"
-          NODE_PIN="$(tr -d '[:space:]' < .nvmrc)"
+          NODE_PIN="$(node -p "require('./package.json').engines.node")"
           corepack enable
           corepack prepare "$PM" --activate
           echo "node $(node -v) (want v${NODE_PIN})"
@@ -33,16 +33,14 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version-file: .nvmrc
+          node-version-file: package.json
           cache: pnpm
 
       - name: Install (frozen)
         run: pnpm install --frozen-lockfile
 
-      - name: Toolchain + pnpm hardening checks
-        run: |
-          pnpm check:toolchain
-          pnpm check:pnpm
+      - name: pnpm hardening check
+        run: pnpm check:pnpm
 
       - name: Artifact drift check
         run: pnpm check:artifacts

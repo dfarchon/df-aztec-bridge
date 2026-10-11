@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Block npm/yarn installs. Require Corepack-pinned pnpm (packageManager sha512).
+ * Block npm/yarn installs. Require engines.node and Corepack-pinned pnpm.
  * Used as root package.json#scripts.preinstall — no extra dependencies.
  */
 import { readFileSync } from "node:fs";
@@ -10,20 +10,28 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const pm = String(pkg.packageManager || "");
-const wantVer = pm.split("@")[1]?.split("+")[0] || "";
-const engPnpm = String(pkg.engines?.pnpm || "");
+const wantPnpm = pm.split("@")[1]?.split("+")[0] || "";
+const wantNode = String(pkg.engines?.node || "");
+const runningNode = process.versions.node;
 const ua = process.env.npm_config_user_agent || "";
 
-if (!/^pnpm@\d+\.\d+\.\d+\+sha512\.[a-f0-9]{128}$/.test(pm)) {
+if (!/^\d+\.\d+\.\d+$/.test(wantNode)) {
   console.error(
-    `[enforce-pnpm] package.json#packageManager must be pnpm@<ver>+sha512.<128-hex> (got ${pm || "empty"})`,
+    `[enforce-pnpm] package.json#engines.node must be an exact version (got ${wantNode || "empty"})`,
   );
   process.exit(1);
 }
 
-if (engPnpm && wantVer && engPnpm !== wantVer) {
+if (runningNode !== wantNode) {
   console.error(
-    `[enforce-pnpm] engines.pnpm=${engPnpm} ≠ packageManager version ${wantVer}`,
+    `[enforce-pnpm] Node version mismatch: running ${runningNode}, require ${wantNode} (package.json#engines.node).`,
+  );
+  process.exit(1);
+}
+
+if (!/^pnpm@\d+\.\d+\.\d+\+sha512\.[a-f0-9]{128}$/.test(pm)) {
+  console.error(
+    `[enforce-pnpm] package.json#packageManager must be pnpm@<ver>+sha512.<128-hex> (got ${pm || "empty"})`,
   );
   process.exit(1);
 }
@@ -38,10 +46,10 @@ if (!/\bpnpm\//.test(ua)) {
   process.exit(1);
 }
 
-const running = ua.match(/\bpnpm\/(\d+\.\d+\.\d+)/)?.[1];
-if (running && wantVer && running !== wantVer) {
+const runningPnpm = ua.match(/\bpnpm\/(\d+\.\d+\.\d+)/)?.[1];
+if (runningPnpm && wantPnpm && runningPnpm !== wantPnpm) {
   console.error(
-    `[enforce-pnpm] pnpm version mismatch: running ${running}, require ${wantVer} (sha512-pinned).`,
+    `[enforce-pnpm] pnpm version mismatch: running ${runningPnpm}, require ${wantPnpm} (sha512-pinned).`,
   );
   process.exit(1);
 }

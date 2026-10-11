@@ -2,10 +2,10 @@ packages:
   - "apps/*"
   - "packages/*"
 
-# pnpm v11+ config (was package.json#pnpm + most of .npmrc)
+# pnpm v11+ config (was package.json#pnpm + all of .npmrc)
+registry: https://registry.npmjs.org/
+saveExact: true
 autoInstallPeers: true
-engineStrict: true
-fund: false
 preferFrozenLockfile: true
 lockfile: true
 shamefullyHoist: false

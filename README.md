@@ -44,10 +44,10 @@ Network addresses the page uses live in `apps/web/src/config/networks.ts`. GoBri
 
 ## Run it locally
 
-Node **24.19.0** and pnpm **11.20.0** (see `.nvmrc` and `TOOLCHAIN.pins`).
+Node is the exact version in `package.json#engines.node` (`24.19.0`). pnpm is the Corepack pin in `package.json#packageManager`. Dependencies are exact versions in each `package.json`, resolved by `pnpm-lock.yaml`.
 
 ```bash
-nvm use                         # .nvmrc → Node 24.19.0
+nvm install 24.19.0 && nvm use 24.19.0
 corepack enable
 corepack prepare "$(node -p "require('./package.json').packageManager")" --activate
 pnpm install --frozen-lockfile
@@ -82,6 +82,5 @@ Do not put private keys or keyed RPC URLs in `VITE_*`. Those values are compiled
 | `pnpm web` / `pnpm dev` | Dev server (builds the SDK first if `dist` is missing) |
 | `pnpm build` | Production build of the SDK and the web app |
 | `pnpm typecheck` | Typecheck both packages |
-| `pnpm check:toolchain` | Node and pnpm pins |
-| `pnpm check:pnpm` | Lockfile and install hardening |
+| `pnpm check:pnpm` | Lockfile, exact specifiers, and install hardening |
 | `pnpm audit` | Production dependency audit |
