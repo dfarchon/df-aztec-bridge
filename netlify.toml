@@ -1,5 +1,5 @@
 # Netlify — static web app (apps/web).
-# Production: GitHub Stx69/df-aztec-bridge (PRIVATE) → branch `main`.
+# Production: GitHub dfarchon/df-aztec-bridge (PRIVATE) → branch `main`.
 #
 # Env source of truth for ALL build contexts (production, deploy-preview, branch):
 #   1) [build.environment] below (same values everywhere)
@@ -9,30 +9,19 @@
 #
 # After changing VITE_*: Deploys → Trigger deploy → Clear cache and deploy site.
 
+# Node comes from package.json#engines.node. pnpm comes from package.json#packageManager via Corepack.
 [build]
-  command = "pnpm install --frozen-lockfile && pnpm --filter @df-bridge/browser-sdk build && pnpm --filter @df-bridge/web build"
+  command = '''corepack enable && corepack prepare "$(node -p "require('./package.json').packageManager")" --activate && pnpm install --frozen-lockfile && pnpm --filter @df-bridge/browser-sdk build && pnpm --filter @df-bridge/web build'''
   publish = "apps/web/dist"
 
 # Shared by production / deploy-preview / branch deploys / Netlify CLI builds.
 [build.environment]
-  NODE_VERSION = "24.19.0"
-  PNPM_VERSION = "11.20.0"
   VITE_ENABLE_BROWSER_CLAIM = "true"
   VITE_BRIDGE_FEE_RECIPIENT = "0x33D5928E1c66E831Eb250D1250bf2CfF9eACa370"
   VITE_BRIDGE_PUBLIC_URL = "https://aztec-dfarchon-kit.netlify.app/"
   VITE_DFPUNK_PLAY_URL = "https://aztec.dfpunk.xyz/play/"
   # Optional keyed RPC: set VITE_MAINNET_AZTEC_NODE_URL in Netlify UI (not git). Default is public aztec-mainnet.drpc.org.
   # Dev preview hosts: enable Netlify visitor password + VITE_DEV_GATE / VITE_DEV_GATE_PASSWORD_HASH in UI (never commit the hash of a real password into git).
-
-# Contexts inherit [build.environment]; only restate the build command.
-[context.production]
-  command = "pnpm install --frozen-lockfile && pnpm --filter @df-bridge/browser-sdk build && pnpm --filter @df-bridge/web build"
-
-[context.deploy-preview]
-  command = "pnpm install --frozen-lockfile && pnpm --filter @df-bridge/browser-sdk build && pnpm --filter @df-bridge/web build"
-
-[context.branch-deploy]
-  command = "pnpm install --frozen-lockfile && pnpm --filter @df-bridge/browser-sdk build && pnpm --filter @df-bridge/web build"
 
 # SPA fallback for client-side routing (only when the path is not a real file).
 # Missing /a/sqlite3-opfs-async-proxy.js previously hit this and returned text/html.
