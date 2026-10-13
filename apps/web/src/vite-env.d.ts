@@ -4,6 +4,8 @@ interface ImportMetaEnv {
   readonly VITE_API_BASE?: string;
   readonly VITE_WALLETCONNECT_PROJECT_ID?: string;
   readonly VITE_ENABLE_BROWSER_CLAIM?: string;
+  /** When "true", show the in-app dapp log toaster. Unset or any other value hides it. */
+  readonly VITE_ENABLE_DAPP_LOG?: string;
   /** When "true", show maintenance page instead of the bridge UI. */
   readonly VITE_MAINTENANCE_MODE?: string;
   readonly VITE_TESTNET_AZTEC_NODE_URL?: string;

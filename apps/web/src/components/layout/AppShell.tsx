@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Sidebar } from "./Sidebar.tsx";
+import { DAPP_LOG_ENABLED } from "../../lib/dapp-log.ts";
 import { DappLogToaster } from "../ui/DappLogToaster.tsx";
 import { useUi } from "../../providers/UiProvider.tsx";
 import { AsciiField } from "../../theme/AsciiField.tsx";
@@ -18,7 +19,7 @@ export function AppShell(props: { children: ReactNode }) {
         {props.children}
         {shellReady ? <Sidebar /> : null}
       </div>
-      <DappLogToaster />
+      {DAPP_LOG_ENABLED ? <DappLogToaster /> : null}
       <ThemeTooltip />
     </div>
   );

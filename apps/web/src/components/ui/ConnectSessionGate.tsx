@@ -24,7 +24,7 @@ export function ConnectSessionGate(props: {
   importError?: string | null;
   walletPanel?: ReactNode;
 }) {
-  const split = !!props.ethSessionOk;
+  const split = !!props.ethConnected || !!props.ethSessionOk;
   const [noticeHost, setNoticeHost] = useState<HTMLDivElement | null>(null);
 
   return (

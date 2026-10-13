@@ -4,17 +4,15 @@ export const FJ_DECIMALS = 18;
 /** Anything smaller is not worth an L1 deposit + an L2 claim proof. */
 export const MIN_BRIDGE_FJ = 3;
 export const MIN_BRIDGE_WEI = parseUnits(String(MIN_BRIDGE_FJ), FJ_DECIMALS);
-/**
- * Below this balance the quick-fill control is Max (whole wallet).
- * At/above it we only suggest a fixed amount so Max cannot drain a large bag.
- */
-export const QUICK_MAX_BALANCE_FJ = 100;
-export const QUICK_MAX_BALANCE_WEI = parseUnits(String(QUICK_MAX_BALANCE_FJ), FJ_DECIMALS);
-/** Suggested bridge size when minting is available or the wallet can cover it. */
-export const SUGGESTED_BRIDGE_FJ = 300;
-export const SUGGESTED_BRIDGE_WEI = parseUnits(String(SUGGESTED_BRIDGE_FJ), FJ_DECIMALS);
+/** Range input ticks from 0 to this value. */
+export const AMOUNT_SLIDER_MAX = 10_000;
+/** Slider / percent fills keep this many fractional digits; typed input can go to 18. */
+export const SLIDER_AMOUNT_DECIMALS = 4;
+export const AMOUNT_PRESET_PERCENTS = [25, 50, 75, 100] as const;
+export type AmountPresetPercent = (typeof AMOUNT_PRESET_PERCENTS)[number];
 
 const DECIMAL_INPUT = /^\d+(\.\d{1,18})?$/;
+const DRAFT_AMOUNT = /^\d+\.$/;
 
 export interface BridgeAmountCheck {
   /** Parsed base-unit value, or null when the input cannot be bridged. */
@@ -38,6 +36,46 @@ export function parseBridgeAmount(input: string): BridgeAmountCheck {
     };
   }
   return { wei, error: null };
+}
+
+/** Empty or a trailing-dot draft such as `3.` — show the minimum hint, not a parse error. */
+export function isDraftAmountInput(input: string): boolean {
+  const trimmed = input.trim();
+  return !trimmed || DRAFT_AMOUNT.test(trimmed);
+}
+
+/** Keep digits and one decimal point, at most 18 fractional places. */
+export function sanitizeAmountInput(raw: string): string {
+  let next = "";
+  let sawDot = false;
+  let frac = 0;
+  for (const ch of raw) {
+    if (ch >= "0" && ch <= "9") {
+      if (sawDot) {
+        if (frac >= FJ_DECIMALS) continue;
+        frac += 1;
+      }
+      next += ch;
+    } else if (ch === "." && !sawDot) {
+      sawDot = true;
+      next += ch;
+    }
+  }
+  if (next.startsWith(".")) next = `0${next}`;
+  return next;
+}
+
+/** Parse a typed amount for the slider, including drafts like `3.`. */
+export function parseAmountWeiLoose(input: string): bigint | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const usable = trimmed.endsWith(".") ? trimmed.slice(0, -1) : trimmed;
+  if (!usable || !DECIMAL_INPUT.test(usable)) return null;
+  try {
+    return parseUnits(usable, FJ_DECIMALS);
+  } catch {
+    return null;
+  }
 }
 
 export interface BridgeShortfall {
@@ -64,28 +102,52 @@ export function formatFjAmount(value: bigint, maxDecimals?: number): string {
   return trimmed || "0";
 }
 
-/** Return a quick-fill action that is always valid for the current network. */
-export function amountQuickFill(
-  balance: bigint,
-  canMint = false,
-): {
+/** Floor to `SLIDER_AMOUNT_DECIMALS` so a drag never exceeds the wallet. */
+export function formatSliderAmount(value: bigint): string {
+  if (value <= 0n) return "0";
+  const scale = 10n ** BigInt(FJ_DECIMALS - SLIDER_AMOUNT_DECIMALS);
+  return formatFjAmount(value - (value % scale), SLIDER_AMOUNT_DECIMALS);
+}
+
+export function amountFromPercent(balance: bigint, percent: number): bigint {
+  if (percent >= 100) return balance;
+  if (percent <= 0 || balance <= 0n) return 0n;
+  return (balance * BigInt(percent)) / 100n;
+}
+
+export function amountFromSlider(balance: bigint, position: number): bigint {
+  const clamped = Math.max(0, Math.min(AMOUNT_SLIDER_MAX, Math.floor(position)));
+  if (clamped <= 0 || balance <= 0n) return 0n;
+  if (clamped >= AMOUNT_SLIDER_MAX) return balance;
+  return (balance * BigInt(clamped)) / BigInt(AMOUNT_SLIDER_MAX);
+}
+
+export function sliderFromAmount(balance: bigint, amount: bigint | null): number {
+  if (balance <= 0n || amount == null || amount <= 0n) return 0;
+  if (amount >= balance) return AMOUNT_SLIDER_MAX;
+  if (formatSliderAmount(amount) === formatSliderAmount(balance)) return AMOUNT_SLIDER_MAX;
+  return Number((amount * BigInt(AMOUNT_SLIDER_MAX)) / balance);
+}
+
+export interface AmountPreset {
+  percent: AmountPresetPercent;
   label: string;
   amountFj: string;
-} | null {
-  if (canMint) {
-    return { label: `Add ${SUGGESTED_BRIDGE_FJ}`, amountFj: String(SUGGESTED_BRIDGE_FJ) };
-  }
-  if (balance < MIN_BRIDGE_WEI) return null;
-  if (balance < QUICK_MAX_BALANCE_WEI) {
-    return { label: "Max", amountFj: formatFjAmount(balance) };
-  }
-  if (balance < SUGGESTED_BRIDGE_WEI) {
+  wei: bigint;
+  disabled: boolean;
+}
+
+export function amountPresets(balance: bigint): AmountPreset[] {
+  return AMOUNT_PRESET_PERCENTS.map((percent) => {
+    const wei = amountFromPercent(balance, percent);
     return {
-      label: `Add ${QUICK_MAX_BALANCE_FJ}`,
-      amountFj: String(QUICK_MAX_BALANCE_FJ),
+      percent,
+      label: percent === 100 ? "Max" : `${percent}%`,
+      amountFj: formatSliderAmount(wei),
+      wei,
+      disabled: wei < MIN_BRIDGE_WEI,
     };
-  }
-  return { label: `Add ${SUGGESTED_BRIDGE_FJ}`, amountFj: String(SUGGESTED_BRIDGE_FJ) };
+  });
 }
 
 /**

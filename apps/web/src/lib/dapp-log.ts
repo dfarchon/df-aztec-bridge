@@ -11,6 +11,12 @@ import {
 } from "./official-links.ts";
 import { formatForDappToast, redactForLog } from "./privacy.ts";
 
+/**
+ * Activity toasts. Hidden unless `VITE_ENABLE_DAPP_LOG=true` (build-time).
+ * Unset or any other value keeps the panel off.
+ */
+export const DAPP_LOG_ENABLED = import.meta.env.VITE_ENABLE_DAPP_LOG === "true";
+
 export type DappLogKind = "tx" | "info" | "error" | "announce";
 
 /** Explorer deep-link for a toast (hash kept raw; title/detail still toast-formatted). */

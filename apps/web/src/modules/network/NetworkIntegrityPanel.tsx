@@ -10,24 +10,43 @@ import {
   type NetworkVerifyResult,
 } from "../../lib/network-verify.ts";
 
-function integrityStatusParts(result: NetworkVerifyResult): string[] {
+function integrityFacts(result: NetworkVerifyResult): Array<{
+  label: string;
+  value: string;
+  bad: boolean;
+}> {
+  const versionBad = result.versionMatch === false || !result.node;
+  const versionValue =
+    result.node && result.versionMatch === false
+      ? `App ${result.clientVersion}, node ${result.node.nodeVersion}`
+      : result.node
+        ? result.clientVersion
+        : "Unavailable";
+
+  const blockBad =
+    result.primaryBlock === null || (result.blockDelta !== null && result.blockDelta > 32);
+  let blockValue = result.primaryBlock === null ? "Unavailable" : result.primaryBlock.toLocaleString();
+  if (
+    result.primaryBlock !== null &&
+    result.crosscheckBlock !== null &&
+    result.crosscheckBlock !== result.primaryBlock &&
+    result.blockDelta !== null
+  ) {
+    blockValue = `${blockValue}, off by ${result.blockDelta}`;
+  }
+
+  const feeValue =
+    result.addressMatch === null ? "Not checked" : result.addressMatch ? "Official" : "Don't match";
+
   return [
-    `client ${result.clientVersion}${result.node ? ` · node ${result.node.nodeVersion}` : ""}${
-      result.versionMatch === false ? " · VERSION DRIFT" : ""
-    }`,
-    `tip ${result.primaryBlock ?? "—"}${
-      result.crosscheckBlock !== null && result.crosscheckBlock !== result.primaryBlock
-        ? ` · cross-check ${result.crosscheckBlock} (Δ${result.blockDelta})`
-        : ""
-    }`,
-    `Fee Juice / portal ${
-      result.addressMatch === null
-        ? "unchecked"
-        : result.addressMatch
-          ? "match official"
-          : "MISMATCH"
-    }`,
-    `RPC host ${result.officialRpcHost ? "allowlisted" : "custom — verify HTTPS host"}`,
+    { label: "App & node", value: versionValue, bad: versionBad },
+    { label: "Latest block", value: blockValue, bad: blockBad },
+    { label: "Fee Juice", value: feeValue, bad: result.addressMatch === false },
+    {
+      label: "Connection",
+      value: result.officialRpcHost ? "Official host" : "Custom host",
+      bad: false,
+    },
   ];
 }
 
@@ -57,10 +76,7 @@ export function NetworkIntegrityPanel(props: {
     return () => window.clearInterval(id);
   }, [run]);
 
-  const statusText = useMemo(
-    () => (result ? integrityStatusParts(result).join(" · ") : ""),
-    [result],
-  );
+  const facts = useMemo(() => (result ? integrityFacts(result) : []), [result]);
 
   if (!network || network.id === "local") return null;
 
@@ -76,7 +92,7 @@ export function NetworkIntegrityPanel(props: {
   return (
     <section className="integrity-panel" aria-live="polite">
       <div className="integrity-header">
-        <p className="label">network integrity</p>
+        <p className="wallet-manager-pane-title">Network integrity</p>
         <button
           type="button"
           className="ghost integrity-refresh"
@@ -87,31 +103,44 @@ export function NetworkIntegrityPanel(props: {
         </button>
       </div>
       {!result ? (
-        <p className="hint">Verifying client vs node tip and official addresses…</p>
+        <p className="hint">Checking this network…</p>
       ) : (
         <>
-          <p className={ok ? "hint storage-status-ok" : "error"}>
-            {ok
-              ? "Client, node version, Fee Juice addresses, and block tip look consistent."
-              : "Mismatch or tip skew detected — do not bridge until resolved."}
+          <p className={ok ? "integrity-summary" : "integrity-summary is-bad"}>
+            {ok ? "Safe to bridge." : "Don't bridge yet."}
           </p>
-          <p className="integrity-status hint mono" role="status">
-            {statusText}
-          </p>
+          <dl className="integrity-facts" role="status">
+            {facts.map((fact) => (
+              <div key={fact.label}>
+                <dt>{fact.label}</dt>
+                <dd className={fact.bad ? "is-bad" : undefined}>{fact.value}</dd>
+              </div>
+            ))}
+          </dl>
           <div className="integrity-links">
             <a href={scanOrigin} target="_blank" rel="noopener noreferrer">
               Aztec Scan ↗
             </a>
             {result.aztecScanLatestBlockUrl ? (
-              <a href={result.aztecScanLatestBlockUrl} target="_blank" rel="noopener noreferrer">
-                Current block on Scan ↗
+              <a
+                href={result.aztecScanLatestBlockUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Current block on Aztec Scan"
+              >
+                This block ↗
               </a>
             ) : null}
             <a href={OFFICIAL_DOCS_NETWORKS} target="_blank" rel="noopener noreferrer">
-              Official networks ↗
+              Networks ↗
             </a>
-            <a href={OFFICIAL_DOCS_FEE_JUICE} target="_blank" rel="noopener noreferrer">
-              Fee Juice docs ↗
+            <a
+              href={OFFICIAL_DOCS_FEE_JUICE}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Fee Juice docs"
+            >
+              Fee Juice ↗
             </a>
           </div>
           {result.errors.length ? (

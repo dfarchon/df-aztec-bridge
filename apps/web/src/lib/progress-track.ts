@@ -160,6 +160,43 @@ export function startProgress(
   };
 }
 
+/** How long a completed step stays on screen before the panel walks to the next one. */
+export const PROGRESS_STEP_DWELL_MS = 500;
+
+/**
+ * One frame of the on-screen progress walk. The real work can skip ahead; the
+ * panel still ticks through each step so the user can follow the sequence.
+ */
+export function displayProgressAt(
+  shown: ProgressState,
+  target: ProgressState,
+): { next: ProgressState; dwell: boolean } {
+  if (shown.track !== target.track) {
+    const failedAtStart = target.runState === "failed" && target.stepIndex === 0;
+    return {
+      next: {
+        ...target,
+        stepIndex: 0,
+        runState: failedAtStart ? "failed" : "running",
+      },
+      dwell: target.stepIndex > 0 || target.runState !== "running",
+    };
+  }
+  if (shown.stepIndex < target.stepIndex) {
+    const stepIndex = shown.stepIndex + 1;
+    const caughtUp = stepIndex >= target.stepIndex;
+    return {
+      next: {
+        ...target,
+        stepIndex,
+        runState: !caughtUp || target.runState === "running" ? "running" : target.runState,
+      },
+      dwell: true,
+    };
+  }
+  return { next: target, dwell: false };
+}
+
 /**
  * Move a track forward. The step index never decreases, because the SDK
  * re-emits earlier phases (`l2-claim` fires again after `l2-sent` while waiting

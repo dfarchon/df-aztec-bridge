@@ -3,6 +3,7 @@ import {
   advanceProgress,
   bridgePhaseStep,
   claimPhaseStep,
+  displayProgressAt,
   finishProgress,
   formatElapsed,
   getTrack,
@@ -129,6 +130,46 @@ describe("shouldBlockUnload", () => {
     expect(shouldBlockUnload(finishProgress(startProgress("claim", "pxe", 0), "failed"))).toBe(
       false,
     );
+  });
+});
+
+describe("displayProgressAt", () => {
+  it("walks one step at a time so skipped work still appears on screen", () => {
+    const shown = startProgress("claim", "status", 0);
+    const target = advanceProgress(shown, { track: "claim", stepKey: "prove" });
+    const first = displayProgressAt(shown, target);
+    expect(first.dwell).toBe(true);
+    expect(first.next.stepIndex).toBe(1);
+    expect(first.next.runState).toBe("running");
+
+    const second = displayProgressAt(first.next, target);
+    expect(second.next.stepIndex).toBe(2);
+  });
+
+  it("keeps the previous step visible before a track jump finishes", () => {
+    const bridge = startProgress("bridge", "saved", 0);
+    const claim = finishProgress(startProgress("claim", "status", 1), "succeeded")!;
+    const reset = displayProgressAt(bridge, claim);
+    expect(reset.next.track).toBe("claim");
+    expect(reset.next.stepIndex).toBe(0);
+    expect(reset.next.runState).toBe("running");
+    expect(reset.dwell).toBe(true);
+
+    let shown = reset.next;
+    while (shown.stepIndex < claim.stepIndex) {
+      const frame = displayProgressAt(shown, claim);
+      expect(frame.dwell).toBe(true);
+      shown = frame.next;
+    }
+    expect(shown.stepIndex).toBe(getTrack("claim").steps.length - 1);
+    expect(shown.runState).toBe("succeeded");
+  });
+
+  it("does not delay once the panel has caught up", () => {
+    const state = startProgress("claim", "pxe", 0);
+    const frame = displayProgressAt(state, state);
+    expect(frame.dwell).toBe(false);
+    expect(frame.next).toEqual(state);
   });
 });
 

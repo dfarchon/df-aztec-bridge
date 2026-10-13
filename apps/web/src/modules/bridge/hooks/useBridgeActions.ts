@@ -48,9 +48,6 @@ import {
 } from "../../../lib/bridge-session.ts";
 import { phaseLabel, recoverySteps, selectSessionForUi, shortHash } from "../../../lib/claim-recovery.ts";
 import {
-  amountQuickFill,
-  bridgeShortfall,
-  formatFjAmount,
   MIN_BRIDGE_FJ,
   parseBridgeAmount,
 } from "../../../lib/bridge-amount.ts";
@@ -116,10 +113,10 @@ setShellReady, shellReady, closeWalletPanel,
 feeJuiceDetailsOpen, setFeeJuiceDetailsOpen, bridgeConfirmOpen, setBridgeConfirmOpen,
 recoveryAcknowledged, setRecoveryAcknowledged, recoveryPromptOpen, setRecoveryPromptOpen,
 availableWallets, setAvailableWallets, pickerOpen, setPickerOpen, connectingWallet, setConnectingWallet,
-walletConnectError, setWalletConnectError, addressCopied, setAddressCopied, pxeAddressCopied, setPxeAddressCopied,
+walletConnectError, setWalletConnectError,
 wcUri, setWcUri, wallet, setWallet, ethSessionOk, setEthSessionOk, dfPxeAccount, setDfPxeAccount,
 gateImportingPxe, setGateImportingPxe, gateUnlockingVault, setGateUnlockingVault, gateImportError, setGateImportError,
-walletPickerRef, copyResetTimerRef,
+walletPickerRef,
 recipient, setRecipient, amountFj, setAmountFj, autoClaim, setAutoClaim, l2Secret, setL2Secret, l2Salt, setL2Salt,
 l2SigningKey, setL2SigningKey, legacyAccountStyles, setLegacyAccountStyles, showL2Secret, setShowL2Secret,
 busy, setBusy, error, setError, ethServiceFeeWei, setEthServiceFeeWei, bridgePhase, setBridgePhase,
@@ -135,7 +132,6 @@ storageReady, setStorageReady, storageError, setStorageError, selectedSession, r
 applyImportedAccount, importPxeFromGate, unlockVaultFromGate, onAccountFile,
 refreshFeeBalance, refreshL2FeeBalance, refreshBalancesAfterAction,
 connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnect,
-copyWalletAddress, copyPxeAddress,
   } = session;
 
   // On mount (once networkMeta is ready): resume every saved session that is

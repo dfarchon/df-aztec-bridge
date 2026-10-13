@@ -106,6 +106,25 @@ export function parseAztecWalletTxt(text: string): ImportedAztecAccount {
   };
 }
 
+export function serializeAztecWalletJson(account: ImportedAztecAccount): {
+  address: string;
+  secretKey: string;
+  salt: string;
+  signingKey: string;
+  createdAt?: number;
+} {
+  if (!account.signingKey?.trim()) {
+    throw new Error("Account is missing signingKey — cannot export a DF JSON backup.");
+  }
+  return {
+    address: account.address,
+    secretKey: account.secretKey,
+    salt: account.salt,
+    signingKey: account.signingKey,
+    ...(typeof account.createdAt === "number" ? { createdAt: account.createdAt } : {}),
+  };
+}
+
 export function downloadTextFile(filename: string, contents: string): void {
   const blob = new Blob([contents], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -116,9 +135,26 @@ export function downloadTextFile(filename: string, contents: string): void {
   URL.revokeObjectURL(url);
 }
 
+export function downloadJsonBackup(filename: string, value: unknown): void {
+  const blob = new Blob([`${JSON.stringify(value, null, 2)}\n`], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename.endsWith(".json") ? filename : `${filename}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function aztecBackupFilename(address: string): string {
   const short = address.replace(/^0x/i, "").slice(0, 10);
   return `dfpunk-wallet-${short}.txt`;
+}
+
+export function aztecBackupJsonFilename(address: string): string {
+  const short = address.replace(/^0x/i, "").slice(0, 10);
+  return `dfpunk-account-${short}.json`;
 }
 
 export function ethBackupFilename(address: string): string {

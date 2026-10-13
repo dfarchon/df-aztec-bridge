@@ -17,6 +17,8 @@
 # Shared by production / deploy-preview / branch deploys / Netlify CLI builds.
 [build.environment]
   VITE_ENABLE_BROWSER_CLAIM = "true"
+  # Activity toasts stay hidden unless this is exactly "true".
+  VITE_ENABLE_DAPP_LOG = "false"
   VITE_BRIDGE_FEE_RECIPIENT = "0x33D5928E1c66E831Eb250D1250bf2CfF9eACa370"
   VITE_BRIDGE_PUBLIC_URL = "https://aztec-dfarchon-kit.netlify.app/"
   VITE_DFPUNK_PLAY_URL = "https://aztec.dfpunk.xyz/play/"

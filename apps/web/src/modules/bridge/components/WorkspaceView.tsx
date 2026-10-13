@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { BRIDGE_FEE_BPS } from "@df-bridge/browser-sdk";
 import { isBridgeReadyDfPxeAccount } from "../../../lib/df-pxe-bridge-guard.ts";
 import { ConnectSessionGate } from "../../../components/ui/ConnectSessionGate.tsx";
@@ -20,6 +21,11 @@ import type { BridgeFlows } from "../hooks/useBridgeFlows.ts";
 import { BridgeRoute } from "./BridgeRoute.tsx";
 import { RecoverRoute } from "./RecoverRoute.tsx";
 import { WorkspaceModals } from "./WorkspaceModals.tsx";
+import {
+  BridgeRiskGate,
+  BridgeRiskNoticeDialog,
+  readBridgeRiskAccepted,
+} from "./BridgeRiskNotice.tsx";
 
 export function WorkspaceView({ session, flows }: { session: BridgeSession; flows: BridgeFlows }) {
   const {
@@ -32,10 +38,10 @@ setShellReady, shellReady, closeWalletPanel,
 feeJuiceDetailsOpen, setFeeJuiceDetailsOpen, bridgeConfirmOpen, setBridgeConfirmOpen,
 recoveryAcknowledged, setRecoveryAcknowledged, recoveryPromptOpen, setRecoveryPromptOpen,
 availableWallets, setAvailableWallets, pickerOpen, setPickerOpen, connectingWallet, setConnectingWallet,
-walletConnectError, setWalletConnectError, addressCopied, setAddressCopied, pxeAddressCopied, setPxeAddressCopied,
+walletConnectError, setWalletConnectError,
 wcUri, setWcUri, wallet, setWallet, ethSessionOk, setEthSessionOk, dfPxeAccount, setDfPxeAccount,
 gateImportingPxe, setGateImportingPxe, gateUnlockingVault, setGateUnlockingVault, gateImportError, setGateImportError,
-walletPickerRef, copyResetTimerRef,
+walletPickerRef,
 recipient, setRecipient, amountFj, setAmountFj, autoClaim, setAutoClaim, l2Secret, setL2Secret, l2Salt, setL2Salt,
 l2SigningKey, setL2SigningKey, legacyAccountStyles, setLegacyAccountStyles, showL2Secret, setShowL2Secret,
 busy, setBusy, error, setError, ethServiceFeeWei, setEthServiceFeeWei, bridgePhase, setBridgePhase,
@@ -51,14 +57,15 @@ storageReady, setStorageReady, storageError, setStorageError, selectedSession, r
 applyImportedAccount, importPxeFromGate, unlockVaultFromGate, onAccountFile,
 refreshFeeBalance, refreshL2FeeBalance, refreshBalancesAfterAction,
 connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnect,
-copyWalletAddress, copyPxeAddress,
   } = session;
   const {
     startClaimJob, onBridge, selectRecoverySession, onClaimCredentialsFile, retryResumeL1, waitForSessionL2,
 onResumeClaim, onRemoveSession, amountCheck, feeSplit, canMintFeeJuice, shortfall, fundingSponsoredFpc,
-dfPxeReady, canBridge, bridgeButtonLabel, recoveryAccountReady, amountQuickAction, applyAmountQuickFill,
+dfPxeReady, canBridge, bridgeButtonLabel, recoveryAccountReady,
 requestBridge,
   } = flows;
+  const [riskAccepted, setRiskAccepted] = useState(readBridgeRiskAccepted);
+  const [riskNoticeOpen, setRiskNoticeOpen] = useState(false);
 
   return (
     <>
@@ -97,6 +104,7 @@ requestBridge,
               busy={busy || connectingWallet}
               ethWallet={wallet}
               dfpunkPlayUrl={DFPUNK_PLAY_URL}
+              ethSessionOk={ethSessionOk}
               onEthSessionValidated={setEthSessionOk}
               onConnectEth={() => void onConnect()}
               onDisconnectEth={() => void onDisconnect()}
@@ -115,7 +123,7 @@ requestBridge,
         />
 
       ) : (
-        <>
+        <div className={`app-main-inner${path === ROUTES.bridge ? " app-main-inner-bridge" : ""}`}>
       {path === ROUTES.bridge ? null : (
       <p className="brand-lead app-lead">
         Connect an Ethereum wallet, fund an Aztec address, and claim Fee Juice. Styled for the{" "}
@@ -131,40 +139,40 @@ requestBridge,
       )}
 
       {path === ROUTES.bridge ? (
-      <div className="bridge-alert-row">
-      <div className="fee-juice-notice" role="note">
-        <div className="fee-juice-notice-content">
-          <strong className="fee-juice-notice-title">
-            <span className="fee-juice-notice-icon" aria-hidden="true">
-              !
-            </span>
-            Important — read before bridging
-          </strong>
-          <p>
-            Bridging is <strong>one-way and irreversible</strong>. Once on Aztec, your
-            $AZTEC becomes Fee Juice — it cannot be withdrawn, transferred to another
-            account, or bridged back to Ethereum or another chain.{" "}
-            <strong className="fee-juice-emphasis">Only bridge the amount you need.</strong>{" "}
-            A {BRIDGE_FEE_BPS / 100}% AZTEC fee, plus a mainnet ETH service fee of about one L1
-            transaction, goes to the DF Archon team.
-          </p>
+      <div className="bridge-workspace">
+      {riskAccepted ? (
+      <div className="bridge-workspace-body">
+        <div className="bridge-flow">
+          <div className="bridge-flow-stage">
+            {wallet && ethSessionOk ? <BridgeRoute session={session} flows={flows} /> : null}
+            {progress ? (
+              <ProgressPanel
+                progress={progress}
+                detail={bridgePhase}
+                aztecNodeUrl={networkMeta?.aztecNodeUrl}
+                networkId={networkId}
+                onDismiss={() => {
+                  setProgress(null);
+                  setBridgePhase(null);
+                }}
+              />
+            ) : null}
+          </div>
         </div>
-        <button
-          type="button"
-          className="icon-btn notice-details-btn"
-          aria-label="Details"
-          title="Details"
-          onClick={() => setFeeJuiceDetailsOpen(true)}
-        >
-          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-            <path
-              fill="currentColor"
-              d="M10.5 16.5h3v3h-3v-3zm1.5-13c2.9 0 5.25 1.85 5.25 4.35 0 2.1-1.35 3.15-2.55 3.9-.9.6-1.35 1.05-1.35 1.8v.7h-2.7v-.9c0-1.5.9-2.4 1.95-3.15 1.05-.75 1.8-1.35 1.8-2.4 0-1.05-.9-1.8-2.25-1.8-1.5 0-2.55.9-2.7 2.25H6.75C7.05 5.7 8.85 3.5 12 3.5z"
-            />
-          </svg>
-        </button>
+        <aside className="bridge-aside">
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => setRiskNoticeOpen(true)}
+          >
+            Risk notice
+          </button>
+          <NetworkIntegrityPanel network={networkMeta} />
+        </aside>
       </div>
-      <NetworkIntegrityPanel network={networkMeta} />
+      ) : (
+        <BridgeRiskGate onAccepted={() => setRiskAccepted(true)} />
+      )}
       </div>
       ) : null}
 
@@ -176,7 +184,6 @@ requestBridge,
 
       {path !== ROUTES.vault && wallet && ethSessionOk ? (
         <>
-          {path === ROUTES.bridge ? <BridgeRoute session={session} flows={flows} /> : null}
           {path === ROUTES.recover ? <RecoverRoute session={session} flows={flows} /> : null}
         </>
       ) : null}
@@ -189,7 +196,7 @@ requestBridge,
 
       {error ? <p className="error">{error}</p> : null}
 
-      {progress ? (
+      {progress && path !== ROUTES.bridge ? (
         <ProgressPanel
           progress={progress}
           detail={bridgePhase}
@@ -199,9 +206,10 @@ requestBridge,
             setProgress(null);
             setBridgePhase(null);
           }}
-        />      ) : null}
+        />
+      ) : null}
 
-        </>
+        </div>
       )}
       <WalletDrawer
         networkId={networkId}
@@ -211,6 +219,7 @@ requestBridge,
         connectingWallet={connectingWallet}
         connectError={walletConnectError}
         ethWallet={wallet}
+        ethSessionOk={ethSessionOk}
         onEthSessionValidated={setEthSessionOk}
         onConnectEth={() => void onConnect()}
         onDisconnectEth={() => void onDisconnect()}
@@ -236,6 +245,9 @@ requestBridge,
       />
 
       <WorkspaceModals session={session} flows={flows} />
+      {path === ROUTES.bridge && riskNoticeOpen ? (
+        <BridgeRiskNoticeDialog onClose={() => setRiskNoticeOpen(false)} />
+      ) : null}
     </main>
     </>
   );

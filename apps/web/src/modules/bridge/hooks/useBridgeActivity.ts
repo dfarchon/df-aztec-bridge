@@ -48,10 +48,7 @@ import {
 } from "../../../lib/bridge-session.ts";
 import { phaseLabel, recoverySteps, selectSessionForUi, shortHash } from "../../../lib/claim-recovery.ts";
 import {
-  amountQuickFill,
   bridgeShortfall,
-  formatFjAmount,
-  MIN_BRIDGE_FJ,
   parseBridgeAmount,
 } from "../../../lib/bridge-amount.ts";
 import { parseClaimCredentialsFile } from "../../../lib/claim-credentials-import.ts";
@@ -114,10 +111,10 @@ setShellReady, shellReady, closeWalletPanel,
 feeJuiceDetailsOpen, setFeeJuiceDetailsOpen, bridgeConfirmOpen, setBridgeConfirmOpen,
 recoveryAcknowledged, setRecoveryAcknowledged, recoveryPromptOpen, setRecoveryPromptOpen,
 availableWallets, setAvailableWallets, pickerOpen, setPickerOpen, connectingWallet, setConnectingWallet,
-walletConnectError, setWalletConnectError, addressCopied, setAddressCopied, pxeAddressCopied, setPxeAddressCopied,
+walletConnectError, setWalletConnectError,
 wcUri, setWcUri, wallet, setWallet, ethSessionOk, setEthSessionOk, dfPxeAccount, setDfPxeAccount,
 gateImportingPxe, setGateImportingPxe, gateUnlockingVault, setGateUnlockingVault, gateImportError, setGateImportError,
-walletPickerRef, copyResetTimerRef,
+walletPickerRef,
 recipient, setRecipient, amountFj, setAmountFj, autoClaim, setAutoClaim, l2Secret, setL2Secret, l2Salt, setL2Salt,
 l2SigningKey, setL2SigningKey, legacyAccountStyles, setLegacyAccountStyles, showL2Secret, setShowL2Secret,
 busy, setBusy, error, setError, ethServiceFeeWei, setEthServiceFeeWei, bridgePhase, setBridgePhase,
@@ -133,7 +130,6 @@ storageReady, setStorageReady, storageError, setStorageError, selectedSession, r
 applyImportedAccount, importPxeFromGate, unlockVaultFromGate, onAccountFile,
 refreshFeeBalance, refreshL2FeeBalance, refreshBalancesAfterAction,
 connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnect,
-copyWalletAddress, copyPxeAddress,
   } = session;
 
   useEffect(() => {
@@ -303,22 +299,12 @@ copyWalletAddress, copyPxeAddress,
               : autoClaim && !l2Secret.trim()
                 ? "Enter DF Punk L2 secret for auto-claim"
                 : autoClaim
-                  ? "Bridge + claim (DF Punk PXE)"
-                  : "Bridge via wallet (DF Punk PXE)";
+                  ? "Bridge and claim"
+                  : "Bridge";
   const recoveryAccountReady =
     !!selectedSession?.credentials &&
     !!l2Secret.trim() &&
     recipient.trim().toLowerCase() === selectedSession.credentials.recipient.toLowerCase();
-
-  const amountQuickAction = feeBalance
-    ? amountQuickFill(feeBalance.balance, canMintFeeJuice)
-    : null;
-
-  const applyAmountQuickFill = () => {
-    if (!amountQuickAction) return;
-    setAmountFj(amountQuickAction.amountFj);
-    setError(null);
-  };
 
   const requestBridge = () => {
     if (!dfPxeReady) {
@@ -370,8 +356,6 @@ copyWalletAddress, copyPxeAddress,
     canBridge,
     bridgeButtonLabel,
     recoveryAccountReady,
-    amountQuickAction,
-    applyAmountQuickFill,
     requestBridge,
   };
 }

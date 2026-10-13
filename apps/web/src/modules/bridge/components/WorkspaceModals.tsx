@@ -2,10 +2,7 @@ import { formatEther, formatUnits } from "viem";
 import { BRIDGE_FEE_BPS } from "@df-bridge/browser-sdk";
 import { getNetwork } from "../../../config/networks.ts";
 import { phaseLabel, recoverySteps, shortHash } from "../../../lib/claim-recovery.ts";
-import {
-  AZTEC_MAINNET_NODE_PUBLIC,
-  OFFICIAL_DOCS_FEE_JUICE,
-} from "../../../lib/official-links.ts";
+import { AZTEC_MAINNET_NODE_PUBLIC } from "../../../lib/official-links.ts";
 import { AztecRpcOptionsField } from "../../../components/ui/AztecRpcOptionsField.tsx";
 import { ROUTES } from "../../../app/routes.ts";
 import {
@@ -29,10 +26,10 @@ setShellReady, shellReady, closeWalletPanel,
 feeJuiceDetailsOpen, setFeeJuiceDetailsOpen, bridgeConfirmOpen, setBridgeConfirmOpen,
 recoveryAcknowledged, setRecoveryAcknowledged, recoveryPromptOpen, setRecoveryPromptOpen,
 availableWallets, setAvailableWallets, pickerOpen, setPickerOpen, connectingWallet, setConnectingWallet,
-walletConnectError, setWalletConnectError, addressCopied, setAddressCopied, pxeAddressCopied, setPxeAddressCopied,
+walletConnectError, setWalletConnectError,
 wcUri, setWcUri, wallet, setWallet, ethSessionOk, setEthSessionOk, dfPxeAccount, setDfPxeAccount,
 gateImportingPxe, setGateImportingPxe, gateUnlockingVault, setGateUnlockingVault, gateImportError, setGateImportError,
-walletPickerRef, copyResetTimerRef,
+walletPickerRef,
 recipient, setRecipient, amountFj, setAmountFj, autoClaim, setAutoClaim, l2Secret, setL2Secret, l2Salt, setL2Salt,
 l2SigningKey, setL2SigningKey, legacyAccountStyles, setLegacyAccountStyles, showL2Secret, setShowL2Secret,
 busy, setBusy, error, setError, ethServiceFeeWei, setEthServiceFeeWei, bridgePhase, setBridgePhase,
@@ -48,84 +45,19 @@ storageReady, setStorageReady, storageError, setStorageError, selectedSession, r
 applyImportedAccount, importPxeFromGate, unlockVaultFromGate, onAccountFile,
 refreshFeeBalance, refreshL2FeeBalance, refreshBalancesAfterAction,
 connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnect,
-copyWalletAddress, copyPxeAddress,
   } = session;
   const {
     startClaimJob, onBridge, selectRecoverySession, onClaimCredentialsFile, retryResumeL1, waitForSessionL2,
 onResumeClaim, onRemoveSession, amountCheck, feeSplit, canMintFeeJuice, shortfall, fundingSponsoredFpc,
-dfPxeReady, canBridge, bridgeButtonLabel, recoveryAccountReady, amountQuickAction, applyAmountQuickFill,
+dfPxeReady, canBridge, bridgeButtonLabel, recoveryAccountReady,
 requestBridge,
   } = flows;
 
   return (
     <>
-      {feeJuiceDetailsOpen ? (
-        <div
-          className="modal-backdrop"
-          role="presentation"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setFeeJuiceDetailsOpen(false);
-          }}
-        >
-          <div
-            className="modal fee-juice-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="fee-juice-details-title"
-          >
-            <div className="modal-header">
-              <strong id="fee-juice-details-title">Before you bridge</strong>
-              <button
-                type="button"
-                className="icon-btn"
-                aria-label="Close"
-                title="Close"
-                onClick={() => setFeeJuiceDetailsOpen(false)}
-              >
-                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-                  <path
-                    fill="currentColor"
-                    d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.3 19.71 2.89 18.3 9.17 12 2.89 5.71 4.3 4.29l6.29 6.3 6.3-6.3z"
-                  />
-                </svg>
-              </button>
-            </div>
-            <p>
-              The <strong>$AZTEC</strong> you deposit on Ethereum is converted{" "}
-              <strong>1:1</strong> into <strong>Fee Juice</strong> on Aztec.
-            </p>
-            <ul>
-              <li>
-                <strong>One-way and irreversible:</strong> it cannot be withdrawn or bridged
-                back to Ethereum or any other chain.
-              </li>
-              <li>
-                <strong>Non-transferable:</strong> Fee Juice stays with the recipient address
-                and cannot be sent to another account.
-              </li>
-              <li>
-                <strong>Public balance:</strong> Fee Juice balances are public on-chain, while
-                your transactions remain private.
-              </li>
-              <li>
-                <strong className="fee-juice-emphasis">Only bridge the amount you need.</strong>
-              </li>
-            </ul>
-            <a
-              className="official-docs-link"
-              href={OFFICIAL_DOCS_FEE_JUICE}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learn more in the official Aztec documentation ↗
-            </a>
-          </div>
-        </div>
-      ) : null}
-
       {bridgeConfirmOpen ? (
         <div
-          className="modal-backdrop"
+          className="modal-backdrop bridge-confirm-backdrop"
           role="presentation"
           onClick={(e) => {
             if (e.target === e.currentTarget) setBridgeConfirmOpen(false);
@@ -138,7 +70,9 @@ requestBridge,
             aria-labelledby="bridge-confirm-title"
           >
             <div className="modal-header">
-              <strong id="bridge-confirm-title">Protect your claim credentials</strong>
+              <p id="bridge-confirm-title" className="wallet-manager-pane-title">
+                Protect your claim credentials
+              </p>
               <button
                 type="button"
                 className="icon-btn"
@@ -154,21 +88,23 @@ requestBridge,
                 </svg>
               </button>
             </div>
-            <div className="recovery-warning">
-              <strong>Claim credentials are required to recover your funds on Aztec.</strong>
-              <p>
+            <div className="bridge-confirm-copy">
+              <p className="wallet-manager-pane-title">
+                Claim credentials are required to recover your funds on Aztec.
+              </p>
+              <p className="hint">
                 This browser will automatically save recovery data as soon as the L1
                 transaction is submitted. After L1 confirmation, the complete credentials
                 JSON will download automatically.
               </p>
               {ethServiceFeeWei != null && ethServiceFeeWei > 0n ? (
-                <p className="mono">
+                <p className="hint">
                   Mainnet wallet confirm batches ETH service fee {formatEther(ethServiceFeeWei)} ETH
-                  + {BRIDGE_FEE_BPS / 100}% AZTEC fee + approve + deposit →{" "}
-                  {BRIDGE_FEE_RECIPIENT.slice(0, 10)}… (when your wallet supports batching).
+                  + {BRIDGE_FEE_BPS / 100}% AZTEC fee + approve + deposit to{" "}
+                  {BRIDGE_FEE_RECIPIENT.slice(0, 10)}… when your wallet supports batching.
                 </p>
               ) : null}
-              <p>
+              <p className="hint">
                 Complete credentials do not exist until the L1 receipt is confirmed. Keep
                 this page open, allow the download, and store the JSON somewhere safe.
               </p>
@@ -177,10 +113,10 @@ requestBridge,
               {storageReady === null
                 ? "Checking browser storage…"
                 : storageReady
-                  ? "✓ Browser storage ready — recovery data will be saved in this browser."
-                  : storageError ?? "Browser storage unavailable — recovery data cannot be saved."}
+                  ? "Browser storage ready. Recovery data will be saved in this browser."
+                  : storageError ?? "Browser storage unavailable. Recovery data cannot be saved."}
             </p>
-            <label className="check recovery-confirmation">
+            <label className="check bridge-confirm-check">
               <input
                 type="checkbox"
                 checked={recoveryAcknowledged}

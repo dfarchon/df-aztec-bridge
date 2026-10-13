@@ -5,15 +5,15 @@ import type { ImportedAztecAccount } from "../../lib/account-import.ts";
 import { assertDfClientAccount } from "../../lib/account-import.ts";
 import { isBridgeReadyDfPxeAccount } from "../../lib/df-pxe-bridge-guard.ts";
 import {
+  assertAztecReplaceBackupReady,
   getActiveAztecWallet,
   listStoredAztecWallets,
-  removeAztecWallet,
   saveAztecWallet,
 } from "../../lib/aztec-wallet-store.ts";
 import {
-  aztecBackupFilename,
-  downloadTextFile,
-  serializeAztecWalletTxt,
+  aztecBackupJsonFilename,
+  downloadJsonBackup,
+  serializeAztecWalletJson,
 } from "../../lib/wallet-backup.ts";
 import { shortHash } from "../../lib/claim-recovery.ts";
 import { DFPUNK_PLAY_URL_DEFAULT } from "../../lib/df-client-links.ts";
@@ -25,7 +25,11 @@ import {
 import { logDappError, pushDappLog } from "../../lib/dapp-log.ts";
 import { hasRpcOverrides, type RpcOverrides } from "../../lib/rpc-overrides.ts";
 import { useVault } from "../../providers/VaultProvider.tsx";
-import { isVaultUnlocked } from "../../lib/vault.ts";
+import {
+  deleteVaultProfile,
+  isVaultUnlocked,
+  wipeUnlockedVaultProfile,
+} from "../../lib/vault.ts";
 import {
   importDfPunkFileIntoPxe,
   registerDfPunkAccountIntoPxe,
@@ -46,6 +50,9 @@ export function WalletManagerPanel(props: {
   onDisconnectEth: () => void;
   onApplyAztecAccount: (account: ImportedAztecAccount) => void;
   onClearAztecAccount?: () => void;
+  initialAztecAccounts?: ImportedAztecAccount[];
+  initialActiveAztec?: string | null;
+  ethSessionOk?: boolean;
 }) {
   const {
     networkId,
@@ -60,6 +67,9 @@ export function WalletManagerPanel(props: {
     onDisconnectEth,
     onApplyAztecAccount,
     onClearAztecAccount,
+    initialAztecAccounts,
+    initialActiveAztec,
+    ethSessionOk = false,
   } = props;
 
   const {
@@ -69,23 +79,37 @@ export function WalletManagerPanel(props: {
     vaultAvailable,
     refreshVaultAvailability,
     secretsVisible,
-    requestUnlock,
     unlocked,
   } = useVault();
 
   const [aztecAccounts, setAztecAccounts] = useState<ImportedAztecAccount[]>(
-    [],
+    () => initialAztecAccounts ?? [],
   );
-  const [activeAztec, setActiveAztec] = useState<string | null>(null);
+  const [activeAztec, setActiveAztec] = useState<string | null>(
+    () => initialActiveAztec ?? null,
+  );
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [importingPxe, setImportingPxe] = useState(false);
   const [unlockingVault, setUnlockingVault] = useState(false);
-  const [sessionOk, setSessionOk] = useState(false);
-  const [sessionReason, setSessionReason] = useState<string | null>(null);
+  const [sessionSnapshot, setSessionSnapshot] = useState<{
+    address: string | null;
+    ok: boolean;
+    reason: string | null;
+  }>(() => {
+    const address = ethWallet?.address.toLowerCase() ?? null;
+    if (address && ethSessionOk) {
+      return { address, ok: true, reason: null };
+    }
+    return { address: null, ok: false, reason: null };
+  });
   const [addressCopied, setAddressCopied] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
+  const [replaceOpen, setReplaceOpen] = useState(false);
+  const [replaceBackedUp, setReplaceBackedUp] = useState(false);
+  const [removeConfirm, setRemoveConfirm] = useState(false);
   const dfImportInputRef = useRef<HTMLInputElement>(null);
+  const replaceBackedUpRef = useRef(false);
   const copyResetTimerRef = useRef<number | null>(null);
   /** Bumped on disconnect so in-flight PXE progress cannot repaint notices. */
   const noticeEpoch = useRef(0);
@@ -95,6 +119,10 @@ export function WalletManagerPanel(props: {
     setStatus(null);
     setError(null);
     setFormatOpen(false);
+    setReplaceOpen(false);
+    setReplaceBackedUp(false);
+    replaceBackedUpRef.current = false;
+    setRemoveConfirm(false);
     setImportingPxe(false);
     setUnlockingVault(false);
   }, []);
@@ -122,24 +150,42 @@ export function WalletManagerPanel(props: {
     void refreshVaultAvailability();
   }, [refreshVaultAvailability]);
 
-  /** Continuously validate connector; DF PXE UI stays locked until this passes. */
+  const walletAddress = ethWallet?.address.toLowerCase() ?? null;
+  const sessionChecking =
+    !!walletAddress && sessionSnapshot.address !== walletAddress;
+  const sessionOk =
+    !!walletAddress && sessionSnapshot.address === walletAddress && sessionSnapshot.ok;
+  const sessionReason = sessionChecking
+    ? null
+    : sessionSnapshot.address === walletAddress
+      ? sessionSnapshot.reason
+      : ethWallet
+        ? null
+        : "Connect a wallet to continue.";
+
+  /** Continuously validate connector; DF PXE actions stay locked until this passes. */
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
       if (!ethWallet) {
         if (!cancelled) {
-          setSessionOk(false);
-          setSessionReason("Connect a wallet to continue.");
+          setSessionSnapshot({
+            address: null,
+            ok: false,
+            reason: "Connect a wallet to continue.",
+          });
           onEthSessionValidated?.(false);
         }
         return;
       }
+      const address = ethWallet.address.toLowerCase();
       if (!isTrustedConnector(ethWallet)) {
         if (!cancelled) {
-          setSessionOk(false);
-          setSessionReason(
-            "This wallet can't be used. Connect MetaMask or WalletConnect.",
-          );
+          setSessionSnapshot({
+            address,
+            ok: false,
+            reason: "This wallet can't be used. Connect MetaMask or WalletConnect.",
+          });
           onEthSessionValidated?.(false);
         }
         return;
@@ -147,12 +193,14 @@ export function WalletManagerPanel(props: {
       const result = await tryValidateConnectedWalletSession(ethWallet);
       if (cancelled) return;
       if (result.ok) {
-        setSessionOk(true);
-        setSessionReason(null);
+        setSessionSnapshot({ address, ok: true, reason: null });
         onEthSessionValidated?.(true);
       } else {
-        setSessionOk(false);
-        setSessionReason(result.reason);
+        setSessionSnapshot({
+          address,
+          ok: false,
+          reason: result.reason,
+        });
         onEthSessionValidated?.(false);
       }
     };
@@ -200,20 +248,23 @@ export function WalletManagerPanel(props: {
   );
 
   useEffect(() => {
-    if (!formatOpen) return;
+    if (!formatOpen && !replaceOpen && !removeConfirm) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setFormatOpen(false);
+      if (event.key !== "Escape") return;
+      setFormatOpen(false);
+      setReplaceOpen(false);
+      setRemoveConfirm(false);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [formatOpen]);
+  }, [formatOpen, replaceOpen, removeConfirm]);
 
-  const backupAztecTxt = (account: ImportedAztecAccount) => {
-    const txt = serializeAztecWalletTxt(account, { networkId });
-    downloadTextFile(aztecBackupFilename(account.address), txt);
-    setStatus(
-      `Aztec wallet backup downloaded — keep ${aztecBackupFilename(account.address)} secret.`,
-    );
+  const backupAztecJson = (account: ImportedAztecAccount) => {
+    const filename = aztecBackupJsonFilename(account.address);
+    downloadJsonBackup(filename, serializeAztecWalletJson(account));
+    replaceBackedUpRef.current = true;
+    setReplaceBackedUp(true);
+    setStatus(`Backup downloaded — keep ${filename} secret.`);
   };
 
   const importFromDfClientIntoPxe = async (file: File | null) => {
@@ -226,11 +277,13 @@ export function WalletManagerPanel(props: {
       setError("Account import isn't available in this browser.");
       return;
     }
-    if (!aztecNodeUrl) {
+      if (!aztecNodeUrl) {
       setError("Select a network first.");
       return;
     }
 
+    const existingAddress =
+      aztecAccounts[0]?.address ?? (await getActiveAztecWallet());
     const epoch = noticeEpoch.current;
     const live = () => noticeEpoch.current === epoch;
     setImportingPxe(true);
@@ -247,6 +300,11 @@ export function WalletManagerPanel(props: {
         },
       });
       if (!live()) return;
+      assertAztecReplaceBackupReady({
+        existingAddress,
+        incomingAddress: stored.address,
+        backupReady: replaceBackedUpRef.current,
+      });
       await requireVaultAfterPxeImport(stored);
       if (!live()) return;
       const ok = await ensureUnlocked("secrets", stored);
@@ -254,9 +312,19 @@ export function WalletManagerPanel(props: {
       if (!ok) throw new Error("Vault password required after PXE import.");
       await saveAztecWallet(stored);
       if (!live()) return;
+      if (
+        existingAddress &&
+        existingAddress.toLowerCase() !== stored.address.toLowerCase()
+      ) {
+        await deleteVaultProfile(existingAddress);
+      }
+      if (!live()) return;
       await refreshVaultAvailability();
       await refresh();
       if (!live()) return;
+      replaceBackedUpRef.current = false;
+      setReplaceBackedUp(false);
+      setReplaceOpen(false);
       onApplyAztecAccount(stored);
       const readyMsg = `DF Punk PXE ready for ${shortHash(stored.address)} (bound to ${shortHash(stored.boundEthAddress ?? ethWallet.address)}). Bridge unlocked.`;
       setStatus(readyMsg);
@@ -347,11 +415,36 @@ export function WalletManagerPanel(props: {
   };
 
   const blocked = busy || importingPxe || unlockingVault;
-  const dfUnlocked = sessionOk && !!ethWallet && browserClaimEnabled;
+  const showAztecPane = !!ethWallet && browserClaimEnabled;
+  const l2ActionsDisabled = blocked || !sessionOk || sessionChecking;
 
   const bridgeReadyAccounts = aztecAccounts.filter((a) =>
     isBridgeReadyDfPxeAccount(a, ethWallet?.address),
   );
+  const currentAccount = secretsVisible ? (bridgeReadyAccounts[0] ?? null) : null;
+  const showUnlock = vaultAvailable && !currentAccount;
+
+  const startReplace = () => {
+    if (!currentAccount) return;
+    setFormatOpen(false);
+    setRemoveConfirm(false);
+    setReplaceBackedUp(false);
+    replaceBackedUpRef.current = false;
+    setReplaceOpen(true);
+  };
+
+  const removeCurrentAccount = async () => {
+    if (!currentAccount) return;
+    const ok = await ensureUnlocked("secrets");
+    if (!ok) return;
+    await wipeUnlockedVaultProfile();
+    onClearAztecAccount?.();
+    await refreshVaultAvailability();
+    await refresh();
+    setRemoveConfirm(false);
+    setReplaceOpen(false);
+    setStatus("Removed the Aztec account and password vault from this browser.");
+  };
   const noticeHost = useContext(ConnectNoticeHostContext);
 
   const sessionNotice =
@@ -407,7 +500,7 @@ export function WalletManagerPanel(props: {
       ) : null}
 
       <div
-        className={`wallet-manager-grid${dfUnlocked ? "" : " wallet-manager-grid-solo"}`}
+        className={`wallet-manager-grid${showAztecPane ? "" : " wallet-manager-grid-solo"}`}
       >
         <div className={`wallet-manager-col${ethWallet ? "" : " is-connect"}`}>
           {ethWallet ? (
@@ -459,9 +552,11 @@ export function WalletManagerPanel(props: {
                   {expectedL1Name ?? "the correct network"}.
                 </p>
               ) : null}
-              {sessionOk ? null : (
+              {sessionChecking ? (
+                <p className="hint">Verifying wallet…</p>
+              ) : sessionOk ? null : (
                 <p className="error">
-                  {sessionReason ?? "Couldn't confirm this wallet. Try again."}
+                  {sessionReason ?? "Reconnect wallet to continue."}
                 </p>
               )}
               <div className="wallet-manager-actions">
@@ -494,7 +589,7 @@ export function WalletManagerPanel(props: {
           )}
         </div>
 
-        {dfUnlocked ? (
+        {showAztecPane ? (
           <div className="wallet-manager-col">
             {formatOpen ? (
               <div className="df-pxe-format-pane">
@@ -520,148 +615,216 @@ export function WalletManagerPanel(props: {
                 </button>
               </div>
             ) : null}
+            {replaceOpen && currentAccount ? (
+              <div className="df-pxe-format-pane">
+                <p className="wallet-manager-pane-title">Replace Aztec account</p>
+                <ol className="wallet-replace-steps">
+                  <li>
+                    This browser keeps one Aztec account. Current account:{" "}
+                    <span className="mono">{shortHash(currentAccount.address)}</span>.
+                  </li>
+                  <li>
+                    Download a JSON backup first. The file uses the same{" "}
+                    <span className="mono">dfpunk-account-*.json</span> fields as Dark Forest.
+                  </li>
+                  <li>After the backup downloads, choose the new account JSON.</li>
+                  <li>
+                    Importing another address replaces this account and deletes its password vault
+                    from this browser.
+                  </li>
+                </ol>
+                <button
+                  type="button"
+                  className="df-pxe-import-btn"
+                  disabled={l2ActionsDisabled}
+                  onClick={() => backupAztecJson(currentAccount)}
+                >
+                  Download JSON backup
+                </button>
+                {replaceBackedUp ? (
+                  <p className="hint">Backup saved. You can import the next account.</p>
+                ) : (
+                  <p className="hint">The next import stays locked until this backup downloads.</p>
+                )}
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={l2ActionsDisabled || !replaceBackedUp}
+                  onClick={() => dfImportInputRef.current?.click()}
+                >
+                  {importingPxe ? "Importing…" : "Choose new JSON"}
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => setReplaceOpen(false)}
+                >
+                  Back
+                </button>
+              </div>
+            ) : null}
+            {removeConfirm && currentAccount ? (
+              <div className="df-pxe-format-pane">
+                <p className="wallet-manager-pane-title">Remove Aztec account</p>
+                <p className="hint">
+                  This removes the Aztec account and its password vault from this browser. The Dark
+                  Forest game account is not deleted.
+                </p>
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={l2ActionsDisabled}
+                  onClick={() => backupAztecJson(currentAccount)}
+                >
+                  Download JSON backup
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={l2ActionsDisabled}
+                  onClick={() => void removeCurrentAccount()}
+                >
+                  Confirm remove
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => setRemoveConfirm(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : null}
             <div
-              className={`wallet-manager-col-body${formatOpen ? " is-hidden" : ""}`}
-              aria-hidden={formatOpen}
+              className={`wallet-manager-col-body${
+                formatOpen || replaceOpen || removeConfirm ? " is-hidden" : ""
+              }`}
+              aria-hidden={formatOpen || replaceOpen || removeConfirm}
             >
             <p className="wallet-manager-pane-title">Aztec L2</p>
-            <div className="df-pxe-import">
-              <p className="hint df-pxe-import-steps">
-                The account you bridge to is the one you already use in{" "}
-                <a
-                  href={dfpunkPlayUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Dark Forest Aztec
-                </a>
-                .
-              </p>
-              <p className="hint df-pxe-import-steps">
-                In the game, open Settings and choose Download account info,
-                then pick that file here.
-              </p>
-              {vaultAvailable ? (
-                <>
+            {currentAccount ? (
+              <>
+                <ul className="wallet-manager-list">
+                  <li
+                    className={
+                      activeAztec?.toLowerCase() === currentAccount.address.toLowerCase()
+                        ? "active"
+                        : undefined
+                    }
+                  >
+                    <div className="wallet-manager-pick">
+                      <span className="wallet-manager-account-kicker">
+                        DF Aztec Account
+                      </span>
+                      <dl className="wallet-manager-account-meta">
+                        <div>
+                          <dt>Aztec address</dt>
+                          <dd className="mono">{shortHash(currentAccount.address)}</dd>
+                        </div>
+                        <div>
+                          <dt>Bridge</dt>
+                          <dd>Ready</dd>
+                        </div>
+                      </dl>
+                    </div>
+                    <div className="wallet-manager-account-actions">
+                      <button
+                        type="button"
+                        className="ghost"
+                        disabled={l2ActionsDisabled}
+                        onClick={startReplace}
+                      >
+                        Replace account
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost"
+                        disabled={l2ActionsDisabled}
+                        onClick={() => {
+                          setFormatOpen(false);
+                          setReplaceOpen(false);
+                          setRemoveConfirm(true);
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </li>
+                </ul>
+              </>
+            ) : (
+              <div className="df-pxe-import">
+                <p className="hint df-pxe-import-steps">
+                  The account you bridge to is the one you already use in{" "}
+                  <a
+                    href={dfpunkPlayUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Dark Forest Aztec
+                  </a>
+                  .
+                </p>
+                <p className="hint df-pxe-import-steps">
+                  This browser keeps one Aztec account. In the game, open Settings and choose
+                  Download account info, then import that file here.
+                </p>
+                {sessionOk ? (
+                  showUnlock ? (
+                    <p className="hint">Unlock the saved Aztec account to continue.</p>
+                  ) : (
+                    <p className="hint">Ready to import.</p>
+                  )
+                ) : sessionReason ? (
+                  <p className="error">{sessionReason}</p>
+                ) : null}
+                {showUnlock ? (
                   <button
                     type="button"
-                    className={`df-pxe-import-btn${ethWallet && sessionOk && !blocked ? " cta-pulse" : ""}`}
-                    disabled={blocked}
+                    className={`df-pxe-import-btn${ethWallet && sessionOk && !l2ActionsDisabled ? " cta-pulse" : ""}`}
+                    disabled={l2ActionsDisabled}
                     onClick={() => void unlockPxeFromIndexedDb()}
                   >
                     {unlockingVault ? "Unlocking…" : "Unlock"}
                   </button>
+                ) : (
                   <button
                     type="button"
-                    className="ghost"
-                    disabled={blocked}
+                    className="df-pxe-import-btn"
+                    disabled={l2ActionsDisabled}
                     onClick={() => dfImportInputRef.current?.click()}
                   >
-                    Import a file
+                    {importingPxe ? "Importing…" : "Import account"}
                   </button>
-                </>
-              ) : (
+                )}
                 <button
                   type="button"
-                  className="df-pxe-import-btn"
-                  disabled={blocked}
-                  onClick={() => dfImportInputRef.current?.click()}
+                  className="df-pxe-import-format-toggle"
+                  aria-expanded={formatOpen}
+                  onClick={() => {
+                    setReplaceOpen(false);
+                    setRemoveConfirm(false);
+                    setFormatOpen(true);
+                  }}
                 >
-                  {importingPxe ? "Importing…" : "Import account"}
+                  What file is this?
                 </button>
-              )}
-              <button
-                type="button"
-                className="df-pxe-import-format-toggle"
-                aria-expanded={false}
-                onClick={() => setFormatOpen(true)}
-              >
-                What file is this?
-              </button>
-              <input
-                ref={dfImportInputRef}
-                type="file"
-                className="sr-only"
-                accept=".json,application/json"
-                disabled={blocked}
-                aria-label="Import dfpunk-account JSON from DF client into PXE"
-                onChange={(e) => {
-                  const f = e.target.files?.[0] ?? null;
-                  void importFromDfClientIntoPxe(f);
-                  e.target.value = "";
-                }}
-              />
-            </div>
-
-            {bridgeReadyAccounts.length === 0 ? null : !secretsVisible ? (
-              <button type="button" className="primary" onClick={requestUnlock}>
-                Unlock to view
-              </button>
-            ) : (
-              <ul className="wallet-manager-list">
-                {bridgeReadyAccounts.map((a) => {
-                  const isActive =
-                    activeAztec?.toLowerCase() === a.address.toLowerCase();
-                  return (
-                    <li
-                      key={a.address}
-                      className={isActive ? "active" : undefined}
-                    >
-                      <button
-                        type="button"
-                        className="ghost wallet-manager-pick"
-                        disabled={blocked}
-                        onClick={() => {
-                          void (async () => {
-                            const ok = await ensureUnlocked("secrets");
-                            if (!ok) return;
-                            await saveAztecWallet(a);
-                            onApplyAztecAccount(a);
-                            setStatus(
-                              `Bridge recipient locked to DF PXE ${shortHash(a.address)}`,
-                            );
-                            await refresh();
-                          })();
-                        }}
-                      >
-                        <span className="mono">{shortHash(a.address)}</span>
-                        <span className="hint">
-                          {a.label ?? "DF"} · PXE · bound
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost"
-                        disabled={blocked}
-                        title="Download secret backup .txt"
-                        onClick={() => backupAztecTxt(a)}
-                      >
-                        .txt
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost"
-                        disabled={blocked}
-                        title="Remove from this browser"
-                        onClick={() => {
-                          void (async () => {
-                            const ok = await ensureUnlocked("secrets");
-                            if (!ok) return;
-                            await removeAztecWallet(a.address);
-                            onClearAztecAccount?.();
-                            await refresh();
-                            setStatus("Removed DF PXE wallet binding.");
-                          })();
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+              </div>
             )}
             </div>
+            <input
+              ref={dfImportInputRef}
+              type="file"
+              className="sr-only"
+              accept=".json,application/json"
+              disabled={l2ActionsDisabled || (replaceOpen && !replaceBackedUp)}
+              aria-label="Import dfpunk-account JSON from DF client into PXE"
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                void importFromDfClientIntoPxe(f);
+                e.target.value = "";
+              }}
+            />
           </div>
         ) : null}
       </div>

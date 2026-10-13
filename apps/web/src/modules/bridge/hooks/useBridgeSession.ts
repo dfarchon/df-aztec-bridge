@@ -49,13 +49,6 @@ import {
   type BridgeSessionEntry,
 } from "../../../lib/bridge-session.ts";
 import { phaseLabel, recoverySteps, selectSessionForUi, shortHash } from "../../../lib/claim-recovery.ts";
-import {
-  amountQuickFill,
-  bridgeShortfall,
-  formatFjAmount,
-  MIN_BRIDGE_FJ,
-  parseBridgeAmount,
-} from "../../../lib/bridge-amount.ts";
 import { parseClaimCredentialsFile } from "../../../lib/claim-credentials-import.ts";
 import {
   downloadClaimCredentials,
@@ -151,8 +144,6 @@ export function useBridgeSession() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [connectingWallet, setConnectingWallet] = useState(false);
   const [walletConnectError, setWalletConnectError] = useState<string | null>(null);
-  const [addressCopied, setAddressCopied] = useState(false);
-  const [pxeAddressCopied, setPxeAddressCopied] = useState(false);
   const [wcUri, setWcUri] = useState<string | null>(null);
   const [wallet, setWallet] = useState<ConnectedWallet | null>(null);
   const [ethSessionOk, setEthSessionOk] = useState(false);
@@ -161,7 +152,6 @@ export function useBridgeSession() {
   const [gateUnlockingVault, setGateUnlockingVault] = useState(false);
   const [gateImportError, setGateImportError] = useState<string | null>(null);
   const walletPickerRef = useRef<HTMLDivElement>(null);
-  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [recipient, setRecipient] = useState("");
   const [amountFj, setAmountFj] = useState("");
   /** When false: L1 bridge only — no L2 secret needed. */
@@ -276,7 +266,6 @@ export function useBridgeSession() {
         setBridgePhase("Recovery account verified — ready to resume claim");
       } else if (isBridgeReadyDfPxeAccount(account, wallet?.address)) {
         setError(null);
-        setBridgePhase("DF Punk PXE session ready — bridge unlocked");
       }
     },
     [wallet?.address, setVaultPxeAccount, requireVaultAfterPxeImport],
@@ -862,37 +851,6 @@ export function useBridgeSession() {
     }
   }, [wallet?.rdns, setVaultPxeAccount, lockVaultUi]);
 
-  const copyWalletAddress = useCallback(async () => {
-    if (!wallet) return;
-    try {
-      await navigator.clipboard.writeText(wallet.address);
-      setAddressCopied(true);
-      if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
-      copyResetTimerRef.current = setTimeout(() => setAddressCopied(false), 2_000);
-    } catch {
-      setError("Could not copy the wallet address. Please copy it manually.");
-    }
-  }, [wallet]);
-
-  const copyPxeAddress = useCallback(async () => {
-    const value = recipient.trim();
-    if (!value) return;
-    try {
-      await navigator.clipboard.writeText(value);
-      setPxeAddressCopied(true);
-      window.setTimeout(() => setPxeAddressCopied(false), 2_000);
-    } catch {
-      setError("Could not copy the PXE address. Please copy it manually.");
-    }
-  }, [recipient]);
-
-  useEffect(
-    () => () => {
-      if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
-    },
-    [],
-  );
-
   useEffect(() => {
     if (!pickerOpen) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -946,10 +904,10 @@ setShellReady, shellReady, closeWalletPanel,
 feeJuiceDetailsOpen, setFeeJuiceDetailsOpen, bridgeConfirmOpen, setBridgeConfirmOpen,
 recoveryAcknowledged, setRecoveryAcknowledged, recoveryPromptOpen, setRecoveryPromptOpen,
 availableWallets, setAvailableWallets, pickerOpen, setPickerOpen, connectingWallet, setConnectingWallet,
-walletConnectError, setWalletConnectError, addressCopied, setAddressCopied, pxeAddressCopied, setPxeAddressCopied,
+walletConnectError, setWalletConnectError,
 wcUri, setWcUri, wallet, setWallet, ethSessionOk, setEthSessionOk, dfPxeAccount, setDfPxeAccount,
 gateImportingPxe, setGateImportingPxe, gateUnlockingVault, setGateUnlockingVault, gateImportError, setGateImportError,
-walletPickerRef, copyResetTimerRef,
+walletPickerRef,
 recipient, setRecipient, amountFj, setAmountFj, autoClaim, setAutoClaim, l2Secret, setL2Secret, l2Salt, setL2Salt,
 l2SigningKey, setL2SigningKey, legacyAccountStyles, setLegacyAccountStyles, showL2Secret, setShowL2Secret,
 busy, setBusy, error, setError, ethServiceFeeWei, setEthServiceFeeWei, bridgePhase, setBridgePhase,
@@ -965,7 +923,6 @@ storageReady, setStorageReady, storageError, setStorageError, selectedSession, r
 applyImportedAccount, importPxeFromGate, unlockVaultFromGate, onAccountFile,
 refreshFeeBalance, refreshL2FeeBalance, refreshBalancesAfterAction,
 connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnect,
-copyWalletAddress, copyPxeAddress,
   };
 }
 

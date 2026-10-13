@@ -199,13 +199,26 @@ export async function wipeVaultProfileWithPassword(opts: {
     skipPasskey: true,
   });
   const address = opts.aztecAddress.trim();
+  await deleteVaultProfile(address);
+}
+
+/** Delete a vault profile and its encrypted docs. Safe to call for a non-active address. */
+export async function deleteVaultProfile(aztecAddress: string): Promise<void> {
+  const address = aztecAddress.trim();
+  if (!address) throw new VaultError("Missing Aztec address.");
   await backend.deleteProfile(address);
-  cek = null;
-  unlocked = false;
   if (activeAddress?.toLowerCase() === address.toLowerCase()) {
+    cek = null;
+    unlocked = false;
     activeAddress = null;
   }
   notify();
+}
+
+/** Delete the currently unlocked vault profile without asking for the password again. */
+export async function wipeUnlockedVaultProfile(): Promise<void> {
+  const { address } = requireUnlocked();
+  await deleteVaultProfile(address);
 }
 
 export async function unlockVault(opts: {

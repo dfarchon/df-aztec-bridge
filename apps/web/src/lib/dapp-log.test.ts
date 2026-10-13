@@ -1,11 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
+  DAPP_LOG_ENABLED,
   formatDappError,
   pushL1TxDappLog,
   pushL2TxDappLog,
   subscribeDappLog,
   type DappLogInput,
 } from "./dapp-log.ts";
+
+describe("DAPP_LOG_ENABLED", () => {
+  it("is off unless VITE_ENABLE_DAPP_LOG is exactly true", () => {
+    expect(import.meta.env.VITE_ENABLE_DAPP_LOG).not.toBe("true");
+    expect(DAPP_LOG_ENABLED).toBe(false);
+  });
+});
 
 describe("formatDappError", () => {
   it("maps CSP refusals to a readable PXE message", () => {
