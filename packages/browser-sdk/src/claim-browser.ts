@@ -24,6 +24,7 @@ import {
   type ClaimMessageStatus,
 } from "./claim-status.ts";
 import { trimOversizedCrsCache } from "./crs-cache.ts";
+import { isDrpcRpcHost, rewriteAztecRpcMethodsForDrpc } from "./drpc-rpc.ts";
 import type { ClaimCredentials } from "./types.ts";
 
 const AZTEC_API_KEY_HEADER = "X-Aztec-API-Key";
@@ -69,10 +70,19 @@ function cacheKey(networkId: string, aztecNodeUrl: string, apiKey?: string): str
 }
 
 function createBrowserNode(url: string, apiKey?: string) {
-  const fetchFn = apiKey
-    ? (host: string, body: unknown, extraHeaders: Record<string, string> = {}, noRetry = false) =>
-        defaultFetch(host, body, { ...extraHeaders, [AZTEC_API_KEY_HEADER]: apiKey }, noRetry)
-    : undefined;
+  const fetchFn = (
+    host: string,
+    body: unknown,
+    extraHeaders: Record<string, string> = {},
+    noRetry = false,
+  ) => {
+    const payload =
+      isDrpcRpcHost(host) || isDrpcRpcHost(url) ? rewriteAztecRpcMethodsForDrpc(body) : body;
+    const headers = apiKey
+      ? { ...extraHeaders, [AZTEC_API_KEY_HEADER]: apiKey }
+      : extraHeaders;
+    return defaultFetch(host, payload, headers, noRetry);
+  };
   return createAztecNodeClient(url, undefined, fetchFn);
 }
 

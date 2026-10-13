@@ -28,7 +28,7 @@ export function assertSecureWalletContext(): void {
   if (typeof window === "undefined") return;
   if (import.meta.env.PROD && !window.isSecureContext) {
     throw new WalletSessionError(
-      "Refusing wallet / PXE unlock outside a secure context (HTTPS). Injection hardening requires HTTPS.",
+      "Open this site over HTTPS to connect a wallet.",
     );
   }
 }
@@ -43,7 +43,7 @@ export async function validateConnectedWalletSession(
   assertSecureWalletContext();
   if (!isTrustedConnector(wallet)) {
     throw new WalletSessionError(
-      "Connect via MetaMask (EIP-6963) or WalletConnect. Anonymous window.ethereum injection cannot unlock DF Punk PXE.",
+      "Connect MetaMask or WalletConnect. This browser wallet isn't supported.",
     );
   }
 
@@ -86,7 +86,7 @@ export async function validateConnectedWalletSession(
 export async function tryValidateConnectedWalletSession(
   wallet: ConnectedWallet | null,
 ): Promise<{ ok: true; wallet: ConnectedWallet } | { ok: false; reason: string }> {
-  if (!wallet) return { ok: false, reason: "Connect MetaMask or WalletConnect first." };
+  if (!wallet) return { ok: false, reason: "Connect a wallet first." };
   try {
     const validated = await validateConnectedWalletSession(wallet);
     return { ok: true, wallet: validated };

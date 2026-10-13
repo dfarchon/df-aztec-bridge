@@ -1,12 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { WebNetworkConfig } from "../../config/networks.ts";
 import {
   OFFICIAL_DOCS_NETWORKS,
@@ -39,61 +31,6 @@ function integrityStatusParts(result: NetworkVerifyResult): string[] {
   ];
 }
 
-/** One-line status; if wider than the container, slowly marquee in readable waves. */
-function IntegrityStatusTicker(props: { parts: string[] }) {
-  const text = useMemo(() => props.parts.join(" · "), [props.parts]);
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const measureRef = useRef<HTMLSpanElement>(null);
-  const [overflow, setOverflow] = useState(false);
-  const [durationSec, setDurationSec] = useState(28);
-
-  useLayoutEffect(() => {
-    const viewport = viewportRef.current;
-    const measure = measureRef.current;
-    if (!viewport || !measure) return;
-
-    const update = () => {
-      const need = measure.scrollWidth > viewport.clientWidth + 2;
-      setOverflow(need);
-      // ~28px/s — slow enough to read; scales with content length
-      const sec = Math.max(22, Math.min(56, measure.scrollWidth / 28));
-      setDurationSec(sec);
-    };
-
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(viewport);
-    ro.observe(measure);
-    return () => ro.disconnect();
-  }, [text]);
-
-  return (
-    <div
-      className={`integrity-ticker mono${overflow ? " is-overflow" : ""}`}
-      ref={viewportRef}
-      role="status"
-      title={text}
-      style={
-        overflow
-          ? ({ "--integrity-marquee-duration": `${durationSec}s` } as CSSProperties)
-          : undefined
-      }
-    >
-      <span ref={measureRef} className="integrity-ticker-measure" aria-hidden="true">
-        {text}
-      </span>
-      <div className="integrity-ticker-wave">
-        <span className="integrity-ticker-segment">{text}</span>
-        {overflow ? (
-          <span className="integrity-ticker-segment" aria-hidden="true">
-            {text}
-          </span>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
 export function NetworkIntegrityPanel(props: {
   network: WebNetworkConfig | null;
 }) {
@@ -119,6 +56,11 @@ export function NetworkIntegrityPanel(props: {
     const id = window.setInterval(() => void run(), 60_000);
     return () => window.clearInterval(id);
   }, [run]);
+
+  const statusText = useMemo(
+    () => (result ? integrityStatusParts(result).join(" · ") : ""),
+    [result],
+  );
 
   if (!network || network.id === "local") return null;
 
@@ -153,7 +95,9 @@ export function NetworkIntegrityPanel(props: {
               ? "Client, node version, Fee Juice addresses, and block tip look consistent."
               : "Mismatch or tip skew detected — do not bridge until resolved."}
           </p>
-          <IntegrityStatusTicker parts={integrityStatusParts(result)} />
+          <p className="integrity-status hint mono" role="status">
+            {statusText}
+          </p>
           <div className="integrity-links">
             <a href={scanOrigin} target="_blank" rel="noopener noreferrer">
               Aztec Scan ↗

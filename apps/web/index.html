@@ -10,16 +10,23 @@
       name="description"
       content="Bridge Fee Juice to Aztec. DFArchon-styled wallet flow with a 5% L1 protocol fee."
     />
-    <meta name="theme-color" content="#090809" />
+    <meta name="theme-color" content="#000000" />
     <meta name="referrer" content="no-referrer" />
-    <!-- Fonts are local/system only — no Google Fonts (IP / locale leakage). -->
+    <script src="./theme-boot.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fira+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap"
+      rel="stylesheet"
+    />
     <style>
       html,
       body {
         margin: 0;
         min-height: 100%;
-        background: #080608;
-        color: #f6f1f4;
+        background: #000000;
+        color: #ede4e8;
+        font-family: "Fira Sans", system-ui, sans-serif;
         cursor:
           url("./cursors/01_default.png") 2 2,
           default;
@@ -32,25 +39,11 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background:
-          radial-gradient(circle at 74% 18%, #ff4dac12, transparent 28rem),
-          radial-gradient(circle at 18% 82%, #7c174417, transparent 34rem),
-          #080608;
+        background: #000000;
         transition: opacity 0.28s ease;
         cursor:
           url("./cursors/13_busy_02.png") 2 2,
           wait;
-      }
-
-      #boot-splash::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-        background-image: radial-gradient(#ff5bacc4 0.7px, transparent 0.8px);
-        background-size: 17px 17px;
-        opacity: 0.28;
-        mask-image: radial-gradient(ellipse at 50% 40%, #000 20%, transparent 72%);
       }
 
       #boot-splash.boot-splash-leave {
@@ -65,48 +58,112 @@
         flex-direction: column;
         align-items: center;
         gap: 1rem;
+        box-sizing: border-box;
+        width: max-content;
+        max-width: calc(100vw - 2rem);
         padding: 1.5rem;
         text-align: center;
       }
 
+      .boot-splash-copy {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.35rem;
+        width: max-content;
+        max-width: 100%;
+      }
+
+      .boot-splash-copy.is-error {
+        width: min(36rem, calc(100vw - 3rem));
+      }
+
       .boot-spinner {
         width: 2rem;
-        height: 2rem;
-        border-radius: 50%;
-        border: 2px solid #2d272d;
-        border-top-color: #ff4dac;
-        animation: boot-spin 0.75s linear infinite;
+        height: 2px;
+        background: #ffb7c5;
+        opacity: 0.85;
+        animation: boot-pulse 2s ease-in-out infinite;
       }
 
       .boot-splash-title {
         margin: 0;
-        font: 500 1.15rem/1.2 "Avenir Next", "Segoe UI", system-ui, sans-serif;
-        letter-spacing: -0.03em;
+        font: 600 1.375rem/1.25 "Fira Sans", system-ui, sans-serif;
+        color: #ffffff;
       }
 
-      .boot-splash-hint {
+      .boot-splash-hint,
+      .boot-splash-note {
         margin: 0;
-        max-width: 18rem;
-        font: 400 0.8rem/1.45 "IBM Plex Mono", ui-monospace, monospace;
-        color: #a49ca2;
-        letter-spacing: 0.04em;
+        flex: 0 0 auto;
+        white-space: nowrap;
+        font: 400 0.875rem/1.45 "Fira Sans", system-ui, sans-serif;
+        color: #9a8a92;
+      }
+
+      .boot-splash-note[hidden] {
+        display: none;
+      }
+
+      .boot-splash-copy.is-error .boot-splash-hint {
+        flex: 0 1 auto;
+        white-space: normal;
+        text-wrap: balance;
       }
 
       .boot-reload-btn {
+        display: inline-flex;
+        align-self: center;
+        align-items: center;
+        justify-content: center;
+        margin: 0.65rem 0 0;
         padding: 0.55rem 1.25rem;
         border: 1px solid #f4f4f5;
         background: #f4f4f5;
-        color: #000;
-        font: 500 0.85rem "Avenir Next", "Segoe UI", system-ui, sans-serif;
+        color: #000000;
+        font: 600 0.875rem/1.2 "Fira Sans", system-ui, sans-serif;
+        white-space: nowrap;
         cursor:
           url("./cursors/02_hover.png") 2 2,
           pointer;
       }
 
-      @keyframes boot-spin {
-        to {
-          transform: rotate(360deg);
+      @keyframes boot-pulse {
+        50% {
+          opacity: 0.45;
         }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .boot-spinner {
+          animation: none;
+        }
+      }
+
+      html[data-theme="light"],
+      html[data-theme="light"] body,
+      html[data-theme="light"] #boot-splash {
+        background: #ffffff;
+        color: #000000;
+      }
+
+      html[data-theme="light"] .boot-splash-title {
+        color: #000000;
+      }
+
+      html[data-theme="light"] .boot-splash-hint,
+      html[data-theme="light"] .boot-splash-note {
+        color: #5c4f55;
+      }
+
+      html[data-theme="light"] .boot-spinner {
+        background: #e78398;
+      }
+
+      html[data-theme="light"] .boot-reload-btn {
+        border-color: #000000;
+        background: #ffffff;
+        color: #000000;
       }
     </style>
   </head>
@@ -115,7 +172,11 @@
       <div class="boot-splash-inner">
         <div class="boot-spinner" aria-hidden="true"></div>
         <p class="boot-splash-title">DF Aztec Bridge</p>
-        <p class="boot-splash-hint">Loading app… first visit may take a moment.</p>
+        <div class="boot-splash-copy">
+          <p class="boot-splash-hint">Loading app… first visit may take a moment.</p>
+          <p class="boot-splash-note" hidden>(first visit can take minutes)</p>
+          <button type="button" class="boot-reload-btn" id="boot-reload">Reload this page</button>
+        </div>
       </div>
     </div>
     <div id="root"></div>

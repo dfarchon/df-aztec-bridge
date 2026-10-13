@@ -99,4 +99,14 @@ export function listNetworkIds(): string[] {
   return Object.keys(NETWORKS_BASE);
 }
 
+const L1_CHAIN_LABELS: Record<number, string> = {
+  1: "Ethereum",
+  11155111: "Sepolia",
+  31337: "Local Network",
+};
+
+export function l1ChainLabel(chainId: number): string {
+  return L1_CHAIN_LABELS[chainId] ?? `chain ${chainId}`;
+}
+
 export const DEFAULT_NETWORK_ID = "mainnet";

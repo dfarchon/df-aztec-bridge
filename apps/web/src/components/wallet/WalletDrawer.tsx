@@ -117,13 +117,8 @@ export function WalletDrawer(props: {
                 </button>
               </div>
               <p className="hint">
-                {props.wcProjectId
-                  ? "Browser extensions (EIP-6963) or mobile QR (WalletConnect)."
-                  : "Browser extensions detected via EIP-6963."}
-              </p>
-              <p className="hint">
-                After you pick MetaMask, check the fox icon for a connect prompt (it may not
-                appear if the extension popup is already open — close it first).
+                Choose a wallet, then approve the request in its popup. If nothing appears, close
+                any wallet window that's already open.
               </p>
               {props.connectError ? <p className="error small">{props.connectError}</p> : null}
               {props.connectingWallet ? (
@@ -143,7 +138,6 @@ export function WalletDrawer(props: {
                           <img src={w.info.icon} alt="" width={28} height={28} />
                         ) : null}
                         <span>{w.info.name}</span>
-                        <span className="rdns">{w.info.rdns}</span>
                       </button>
                     </li>
                   ))}
