@@ -23,22 +23,30 @@ export function claimCredentialsFilename(recipient: string, l1TxHash?: string): 
   return `claim-${shortRecipient}.json`;
 }
 
-export function downloadJson(filename: string, value: unknown): void {
+/** Browser has no download-complete event. Hold the blob until the save dialog can start. */
+export const DOWNLOAD_HANDOFF_MS = 1_000;
+
+export function downloadJson(filename: string, value: unknown): Promise<void> {
   const blob = new Blob([`${JSON.stringify(value, null, 2)}\n`], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   a.click();
-  URL.revokeObjectURL(url);
+  return new Promise((resolve) => {
+    window.setTimeout(() => {
+      URL.revokeObjectURL(url);
+      resolve();
+    }, DOWNLOAD_HANDOFF_MS);
+  });
 }
 
 export function downloadClaimCredentials(
   recipient: string,
   credentials: ClaimCredentials,
   opts?: { l1TxHash?: string; networkId?: string },
-): void {
-  downloadJson(
+): Promise<void> {
+  return downloadJson(
     claimCredentialsFilename(recipient, opts?.l1TxHash),
     claimCredentialsDownloadPayload(recipient, credentials, opts),
   );

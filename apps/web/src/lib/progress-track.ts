@@ -1,7 +1,7 @@
 import type { BridgeProgressPhase, BrowserClaimProgress } from "@df-bridge/browser-sdk";
 
 export type ProgressTrackId = "bridge" | "claim" | "resume-l1" | "wait-l2";
-export type ProgressRunState = "running" | "succeeded" | "failed";
+export type ProgressRunState = "running" | "succeeded" | "failed" | "rejected";
 export type ProgressStepState = "done" | "active" | "failed" | "pending";
 
 export interface ProgressStep {
@@ -63,7 +63,7 @@ const CLAIM_TRACK: ProgressTrack = {
     {
       key: "pxe",
       label: "Starting the in-browser prover (PXE)",
-      note: "First run downloads a large bundle \u2014 this can take a few minutes.",
+      note: "First run downloads a large bundle. This can take a few minutes.",
     },
     { key: "account", label: "Registering your Aztec account" },
     {
@@ -160,6 +160,62 @@ export function startProgress(
   };
 }
 
+/** How long a completed step stays on screen before the panel walks to the next one. */
+export const PROGRESS_STEP_DWELL_MS = 500;
+
+/** Replace em/en dashes in progress copy with a period so the panel stays dash-free. */
+export function stripProgressDashes(text: string): string {
+  return text.replace(/\s*[—–]\s*([A-Za-z])?/g, (_, letter: string | undefined) =>
+    letter ? `. ${letter.toUpperCase()}` : ". ",
+  );
+}
+
+/**
+ * One frame of the on-screen progress walk. The real work can skip ahead; the
+ * panel still ticks through each step so the user can follow the sequence.
+ */
+export function displayProgressAt(
+  shown: ProgressState,
+  target: ProgressState,
+): { next: ProgressState; dwell: boolean } {
+  if (shown.track !== target.track) {
+    const stoppedAtStart =
+      (target.runState === "failed" || target.runState === "rejected") && target.stepIndex === 0;
+    return {
+      next: {
+        ...target,
+        stepIndex: 0,
+        runState: stoppedAtStart ? target.runState : "running",
+      },
+      dwell: target.stepIndex > 0 || target.runState !== "running",
+    };
+  }
+  if (shown.stepIndex < target.stepIndex) {
+    const stepIndex = shown.stepIndex + 1;
+    const caughtUp = stepIndex >= target.stepIndex;
+    const holdLastStepActive = caughtUp && target.runState === "succeeded";
+    return {
+      next: {
+        ...target,
+        stepIndex,
+        runState:
+          !caughtUp || target.runState === "running" || holdLastStepActive
+            ? "running"
+            : target.runState,
+      },
+      dwell: true,
+    };
+  }
+  if (
+    shown.runState === "running" &&
+    target.runState === "succeeded" &&
+    shown.stepIndex === target.stepIndex
+  ) {
+    return { next: target, dwell: true };
+  }
+  return { next: target, dwell: false };
+}
+
 /**
  * Move a track forward. The step index never decreases, because the SDK
  * re-emits earlier phases (`l2-claim` fires again after `l2-sent` while waiting
@@ -202,7 +258,7 @@ export function finishProgress(
 export function stepStateAt(index: number, progress: ProgressState): ProgressStepState {
   if (index < progress.stepIndex) return "done";
   if (index > progress.stepIndex) return "pending";
-  if (progress.runState === "failed") return "failed";
+  if (progress.runState === "failed" || progress.runState === "rejected") return "failed";
   if (progress.runState === "succeeded") return "done";
   return "active";
 }

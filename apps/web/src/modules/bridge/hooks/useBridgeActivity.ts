@@ -48,10 +48,7 @@ import {
 } from "../../../lib/bridge-session.ts";
 import { phaseLabel, recoverySteps, selectSessionForUi, shortHash } from "../../../lib/claim-recovery.ts";
 import {
-  amountQuickFill,
   bridgeShortfall,
-  formatFjAmount,
-  MIN_BRIDGE_FJ,
   parseBridgeAmount,
 } from "../../../lib/bridge-amount.ts";
 import { parseClaimCredentialsFile } from "../../../lib/claim-credentials-import.ts";
@@ -107,17 +104,17 @@ export function useBridgeActivity(session: BridgeSession) {
   const {
     path, navigate,
 networkId, networkMeta, l1Backend, rpcOverrides, settingsOpen, openSettings, closeSettings,
-draftAztecUrl, setDraftAztecUrl, draftL1RpcUrl, setDraftL1RpcUrl, saveSettings, resetSettingsDraft,
+draftAztecUrl, setDraftAztecUrl, saveSettings, resetSettingsDraft,
 setVaultPxeAccount, requireVaultAfterPxeImport, ensureUnlocked, unlockExistingVault, vaultAvailable,
 refreshVaultAvailability, secretsVisible, requestUnlock, lockVaultUi,
 setShellReady, shellReady, closeWalletPanel,
 feeJuiceDetailsOpen, setFeeJuiceDetailsOpen, bridgeConfirmOpen, setBridgeConfirmOpen,
 recoveryAcknowledged, setRecoveryAcknowledged, recoveryPromptOpen, setRecoveryPromptOpen,
 availableWallets, setAvailableWallets, pickerOpen, setPickerOpen, connectingWallet, setConnectingWallet,
-walletConnectError, setWalletConnectError, addressCopied, setAddressCopied, pxeAddressCopied, setPxeAddressCopied,
+walletConnectError, setWalletConnectError,
 wcUri, setWcUri, wallet, setWallet, ethSessionOk, setEthSessionOk, dfPxeAccount, setDfPxeAccount,
 gateImportingPxe, setGateImportingPxe, gateUnlockingVault, setGateUnlockingVault, gateImportError, setGateImportError,
-walletPickerRef, copyResetTimerRef,
+walletPickerRef,
 recipient, setRecipient, amountFj, setAmountFj, autoClaim, setAutoClaim, l2Secret, setL2Secret, l2Salt, setL2Salt,
 l2SigningKey, setL2SigningKey, legacyAccountStyles, setLegacyAccountStyles, showL2Secret, setShowL2Secret,
 busy, setBusy, error, setError, ethServiceFeeWei, setEthServiceFeeWei, bridgePhase, setBridgePhase,
@@ -133,7 +130,7 @@ storageReady, setStorageReady, storageError, setStorageError, selectedSession, r
 applyImportedAccount, importPxeFromGate, unlockVaultFromGate, onAccountFile,
 refreshFeeBalance, refreshL2FeeBalance, refreshBalancesAfterAction,
 connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnect,
-copyWalletAddress, copyPxeAddress,
+vaultTimeoutNotice,
   } = session;
 
   useEffect(() => {
@@ -269,17 +266,24 @@ copyWalletAddress, copyPxeAddress,
     !fundingSponsoredFpc;
 
   useEffect(() => {
-    setShellReady(dfPxeReady);
-    if (dfPxeReady) {
-      pushDappLog({
-        kind: "announce",
-        title: "Session unlocked",
-        detail: "Web3 connector + DF Punk PXE ready — menus and bridge tools are available.",
-        ttlMs: 12_000,
-      });
+    if (vaultTimeoutNotice) {
+      setShellReady(false);
+      return;
     }
-    return () => setShellReady(false);
-  }, [dfPxeReady, setShellReady]);
+    setShellReady(
+      dfPxeReady || busy || progress?.runState === "running",
+    );
+  }, [vaultTimeoutNotice, dfPxeReady, busy, progress?.runState, setShellReady]);
+
+  useEffect(() => {
+    if (!dfPxeReady) return;
+    pushDappLog({
+      kind: "announce",
+      title: "Session unlocked",
+      detail: "Web3 connector + DF Punk PXE ready — menus and bridge tools are available.",
+      ttlMs: 12_000,
+    });
+  }, [dfPxeReady]);
 
   const canBridge =
     dfPxeReady &&
@@ -303,22 +307,12 @@ copyWalletAddress, copyPxeAddress,
               : autoClaim && !l2Secret.trim()
                 ? "Enter DF Punk L2 secret for auto-claim"
                 : autoClaim
-                  ? "Bridge + claim (DF Punk PXE)"
-                  : "Bridge via wallet (DF Punk PXE)";
+                  ? "Bridge and claim"
+                  : "Bridge";
   const recoveryAccountReady =
     !!selectedSession?.credentials &&
     !!l2Secret.trim() &&
     recipient.trim().toLowerCase() === selectedSession.credentials.recipient.toLowerCase();
-
-  const amountQuickAction = feeBalance
-    ? amountQuickFill(feeBalance.balance, canMintFeeJuice)
-    : null;
-
-  const applyAmountQuickFill = () => {
-    if (!amountQuickAction) return;
-    setAmountFj(amountQuickAction.amountFj);
-    setError(null);
-  };
 
   const requestBridge = () => {
     if (!dfPxeReady) {
@@ -370,8 +364,6 @@ copyWalletAddress, copyPxeAddress,
     canBridge,
     bridgeButtonLabel,
     recoveryAccountReady,
-    amountQuickAction,
-    applyAmountQuickFill,
     requestBridge,
   };
 }

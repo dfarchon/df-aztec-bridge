@@ -20,6 +20,7 @@ export interface WebNetworkConfig {
  * Static network presets for the web app (no API required for bridge).
  * L1 Fee Juice / Portal addresses are protocol contracts and rarely change.
  * Override URLs via VITE_*_AZTEC_NODE_URL / VITE_*_L1_RPC_URL at build time if needed.
+ * Local `pnpm dev` also reads MAINNET_AZTEC_NODE_URL (keyed dRPC) as the mainnet default.
  */
 const NETWORKS_BASE: Record<string, WebNetworkConfig> = {
   testnet: {
@@ -42,7 +43,7 @@ const NETWORKS_BASE: Record<string, WebNetworkConfig> = {
   mainnet: {
     id: "mainnet",
     name: "Aztec Alpha (Mainnet)",
-    // Public endpoint in source. Optional keyed lb.drpc.live URL via VITE_MAINNET_AZTEC_NODE_URL only.
+    // Public endpoint in source. Keyed lb.drpc.live URLs: MAINNET_AZTEC_NODE_URL in .env (pnpm dev only).
     aztecNodeUrl: "https://aztec-mainnet.drpc.org",
     l1RpcUrl: "https://ethereum-rpc.publicnode.com",
     l1ChainId: 1,
@@ -90,13 +91,26 @@ export function getNetwork(id: string): WebNetworkConfig {
   const prefix = id.toUpperCase().replace(/-/g, "_");
   return {
     ...base,
-    aztecNodeUrl: envOverride(`VITE_${prefix}_AZTEC_NODE_URL`) ?? base.aztecNodeUrl,
+    aztecNodeUrl:
+      envOverride(`VITE_${prefix}_AZTEC_NODE_URL`) ??
+      (id === "mainnet" ? envOverride("DEV_MAINNET_AZTEC_NODE_URL") : undefined) ??
+      base.aztecNodeUrl,
     l1RpcUrl: envOverride(`VITE_${prefix}_L1_RPC_URL`) ?? base.l1RpcUrl,
   };
 }
 
 export function listNetworkIds(): string[] {
   return Object.keys(NETWORKS_BASE);
+}
+
+const L1_CHAIN_LABELS: Record<number, string> = {
+  1: "Ethereum",
+  11155111: "Sepolia",
+  31337: "Local Network",
+};
+
+export function l1ChainLabel(chainId: number): string {
+  return L1_CHAIN_LABELS[chainId] ?? `chain ${chainId}`;
 }
 
 export const DEFAULT_NETWORK_ID = "mainnet";

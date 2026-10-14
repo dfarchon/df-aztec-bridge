@@ -2,7 +2,15 @@
  * Auto-lock the vault after idle / tab hidden to shrink unlocked-session XSS window.
  */
 
-import { isVaultUnlocked, lockVault, subscribeVault } from "./vault.ts";
+import {
+  isVaultUnlocked,
+  lockVault,
+  subscribeVault,
+  type VaultAutoLockReason,
+} from "./vault.ts";
+
+export const VAULT_TIMEOUT_NOTICE =
+  "This session timed out and locked. Enter your password to open it again.";
 
 const IDLE_MS = 15 * 60 * 1000;
 const HIDDEN_MS = 5 * 60 * 1000;
@@ -21,9 +29,9 @@ function clearHidden() {
   hiddenTimer = null;
 }
 
-function lockIfUnlocked(reason: string) {
+function lockIfUnlocked(reason: VaultAutoLockReason) {
   if (!isVaultUnlocked()) return;
-  lockVault();
+  lockVault(reason);
   try {
     console.info(`[vault] auto-locked (${reason})`);
   } catch {

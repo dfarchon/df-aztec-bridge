@@ -8,8 +8,6 @@ export const OFFICIAL_DOCS_NETWORKS = "https://docs.aztec.network/networks";
 export const OFFICIAL_DOCS_FEE_JUICE =
   "https://docs.aztec.network/participate/basics/fees#what-is-fee-juice";
 export const OFFICIAL_AZTEC_JS = "https://docs.aztec.network/developers/docs/aztec-js";
-/** Chainlist Aztec Mainnet RPC directory (community registry). */
-export const OFFICIAL_CHAINLIST_AZTEC = "https://chainlist.org/chain/677868";
 
 export const AZTECSCAN_MAINNET = "https://aztecscan.xyz";
 export const AZTECSCAN_TESTNET = "https://testnet.aztecscan.xyz";
@@ -30,7 +28,6 @@ export const OFFICIAL_HTTPS_HOST_ALLOWLIST = new Set([
   "sepolia.etherscan.io",
   "df-atlas.onchainreality.xyz",
   "aztec.dfpunk.xyz",
-  "chainlist.org",
 ]);
 
 export function isOfficialHttpsUrl(url: string): boolean {

@@ -48,15 +48,29 @@ export async function listStoredAztecWallets(): Promise<ImportedAztecAccount[]> 
   );
 }
 
+export function needsAztecAccountReplace(
+  existingAddress: string | null | undefined,
+  incomingAddress: string,
+): boolean {
+  if (!existingAddress?.trim() || !incomingAddress.trim()) return false;
+  return existingAddress.toLowerCase() !== incomingAddress.toLowerCase();
+}
+
+export function assertAztecReplaceBackupReady(opts: {
+  existingAddress: string | null | undefined;
+  incomingAddress: string;
+  backupReady: boolean;
+}): void {
+  if (!needsAztecAccountReplace(opts.existingAddress, opts.incomingAddress)) return;
+  if (!opts.backupReady) {
+    throw new Error(
+      "This browser keeps one Aztec account. Download a JSON backup of the current account before importing another.",
+    );
+  }
+}
+
 export async function saveAztecWallet(account: ImportedAztecAccount): Promise<void> {
-  const doc = await readDoc();
-  const accounts = asAccounts(doc.accounts);
-  const idx = accounts.findIndex(
-    (a) => a.address.toLowerCase() === account.address.toLowerCase(),
-  );
-  if (idx >= 0) accounts[idx] = account;
-  else accounts.push(account);
-  await writeDoc({ accounts, activeAddress: account.address });
+  await writeDoc({ accounts: [account], activeAddress: account.address });
 }
 
 export async function removeAztecWallet(address: string): Promise<void> {

@@ -10,9 +10,19 @@ const BROWSER_CLAIM = import.meta.env.VITE_ENABLE_BROWSER_CLAIM !== "false";
 const MAINTENANCE_MODE = import.meta.env.VITE_MAINTENANCE_MODE === "true";
 
 function setSplashHint(text: string) {
-  const el = document.querySelector(".boot-splash-hint");
-  if (el) el.textContent = text;
+  const hint = document.querySelector(".boot-splash-hint");
+  const note = document.querySelector(".boot-splash-note");
+  const match = text.match(/^(.*?)(?:\s+(\([^)]*\)))?$/);
+  const lead = match?.[1]?.trim() || text;
+  const aside = match?.[2] ?? "";
+  if (hint) hint.textContent = lead;
+  if (note instanceof HTMLElement) {
+    note.textContent = aside;
+    note.hidden = aside.length === 0;
+  }
 }
+
+document.getElementById("boot-reload")?.addEventListener("click", () => window.location.reload());
 
 function dismissBootSplash() {
   const el = document.getElementById("boot-splash");
@@ -37,6 +47,9 @@ function showBootFailure(error: unknown) {
   splash.setAttribute("aria-busy", "false");
   splash.querySelector(".boot-spinner")?.remove();
 
+  splash.querySelector(".boot-splash-copy")?.classList.add("is-error");
+  const note = splash.querySelector(".boot-splash-note");
+  if (note instanceof HTMLElement) note.hidden = true;
   const hint = splash.querySelector(".boot-splash-hint");
   if (hint) {
     hint.textContent =
@@ -44,13 +57,6 @@ function showBootFailure(error: unknown) {
         ? "Could not load the app bundle. This is usually a stale cache — reload to fetch a fresh copy."
         : `Could not start the app: ${error instanceof Error ? error.message : String(error)}`;
   }
-
-  const retry = document.createElement("button");
-  retry.type = "button";
-  retry.textContent = "Reload";
-  retry.className = "boot-reload-btn";
-  retry.addEventListener("click", () => window.location.reload());
-  inner.appendChild(retry);
 }
 
 async function warmupPxeIfEnabled() {
@@ -82,7 +88,7 @@ async function warmupPxeIfEnabled() {
       aztecNodeUrl,
       onProgress: (detail) => {
         const secs = Math.floor((Date.now() - startedAt) / 1000);
-        setSplashHint(`${detail} (${secs}s)`);
+        setSplashHint(`${detail} ${secs}s`);
       },
     });
     setSplashHint("PXE ready — opening app…");

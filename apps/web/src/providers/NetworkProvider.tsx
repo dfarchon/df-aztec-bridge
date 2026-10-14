@@ -38,8 +38,6 @@ type NetworkContextValue = {
   closeSettings: () => void;
   draftAztecUrl: string;
   setDraftAztecUrl: (v: string) => void;
-  draftL1RpcUrl: string;
-  setDraftL1RpcUrl: (v: string) => void;
   saveSettings: () => void;
   resetSettingsDraft: () => void;
   settingsError: string | null;
@@ -52,7 +50,7 @@ function withRpcOverrides(networkId: string, overrides: RpcOverrides): NetworkMe
   return {
     ...base,
     aztecNodeUrl: overrides.aztecNodeUrl?.trim() || base.aztecNodeUrl,
-    l1RpcUrl: overrides.l1RpcUrl?.trim() || base.l1RpcUrl,
+    l1RpcUrl: base.l1RpcUrl,
   };
 }
 
@@ -67,7 +65,6 @@ export function NetworkProvider(props: { children: ReactNode }) {
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [draftAztecUrl, setDraftAztecUrl] = useState("");
-  const [draftL1RpcUrl, setDraftL1RpcUrl] = useState("");
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [vaultTick, setVaultTick] = useState(0);
 
@@ -100,15 +97,8 @@ export function NetworkProvider(props: { children: ReactNode }) {
       const overrides = isVaultUnlocked() ? await getRpcOverrides(networkId) : {};
       const defaults = getNetwork(networkId);
       setDraftAztecUrl(overrides.aztecNodeUrl ?? defaults.aztecNodeUrl);
-      setDraftL1RpcUrl(overrides.l1RpcUrl ?? defaults.l1RpcUrl);
+      setSettingsError(null);
       setSettingsOpen(true);
-      pushDappLog({
-        kind: "info",
-        title: "RPC settings opened",
-        detail:
-          "Pick an Aztec node from Chainlist options or edit the URL. Saves into the vault when unlocked.",
-        ttlMs: 8_000,
-      });
     })();
   }, [networkId]);
 
@@ -119,10 +109,6 @@ export function NetworkProvider(props: { children: ReactNode }) {
         aztecNodeUrl:
           draftAztecUrl.trim() && draftAztecUrl.trim() !== defaults.aztecNodeUrl
             ? draftAztecUrl.trim()
-            : undefined,
-        l1RpcUrl:
-          draftL1RpcUrl.trim() && draftL1RpcUrl.trim() !== defaults.l1RpcUrl
-            ? draftL1RpcUrl.trim()
             : undefined,
       };
       try {
@@ -139,21 +125,20 @@ export function NetworkProvider(props: { children: ReactNode }) {
         pushDappLog({
           kind: "tx",
           title: "RPC overrides saved",
-          detail: next.aztecNodeUrl || next.l1RpcUrl
-            ? `Aztec: ${next.aztecNodeUrl ?? "(default)"} · L1: ${next.l1RpcUrl ?? "(default)"}`
-            : "Cleared — using network defaults.",
+          detail: next.aztecNodeUrl
+            ? `Aztec: ${next.aztecNodeUrl}`
+            : "Cleared — using network default.",
           ttlMs: 10_000,
         });
       } catch (e: unknown) {
         setSettingsError(e instanceof Error ? e.message : String(e));
       }
     })();
-  }, [networkId, draftAztecUrl, draftL1RpcUrl, ensureUnlocked]);
+  }, [networkId, draftAztecUrl, ensureUnlocked]);
 
   const resetSettingsDraft = useCallback(() => {
     const defaults = getNetwork(networkId);
     setDraftAztecUrl(defaults.aztecNodeUrl);
-    setDraftL1RpcUrl(defaults.l1RpcUrl);
   }, [networkId]);
 
   const value = useMemo<NetworkContextValue>(
@@ -170,8 +155,6 @@ export function NetworkProvider(props: { children: ReactNode }) {
       closeSettings: () => setSettingsOpen(false),
       draftAztecUrl,
       setDraftAztecUrl,
-      draftL1RpcUrl,
-      setDraftL1RpcUrl,
       saveSettings,
       resetSettingsDraft,
       settingsError,
@@ -185,7 +168,6 @@ export function NetworkProvider(props: { children: ReactNode }) {
       settingsOpen,
       openSettings,
       draftAztecUrl,
-      draftL1RpcUrl,
       saveSettings,
       resetSettingsDraft,
       settingsError,

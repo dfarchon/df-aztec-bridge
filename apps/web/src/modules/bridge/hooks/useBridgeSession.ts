@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { formatEther, formatUnits, type Hex } from "viem";
+import { formatEther, formatUnits } from "viem";
 import {
   bridgeFromConnectedWallet,
   connectEvmWalletDetail,
@@ -48,14 +48,7 @@ import {
   upsertSession,
   type BridgeSessionEntry,
 } from "../../../lib/bridge-session.ts";
-import { phaseLabel, recoverySteps, selectSessionForUi, shortHash } from "../../../lib/claim-recovery.ts";
-import {
-  amountQuickFill,
-  bridgeShortfall,
-  formatFjAmount,
-  MIN_BRIDGE_FJ,
-  parseBridgeAmount,
-} from "../../../lib/bridge-amount.ts";
+import { selectSessionForUi, sessionsForAccounts, shortHash } from "../../../lib/claim-recovery.ts";
 import { parseClaimCredentialsFile } from "../../../lib/claim-credentials-import.ts";
 import {
   downloadClaimCredentials,
@@ -74,8 +67,10 @@ import {
   hasRpcOverrides,
 } from "../../../lib/rpc-overrides.ts";
 import { formatDappError, logDappError, pushDappLog, pushL1TxDappLog, pushL2TxDappLog } from "../../../lib/dapp-log.ts";
+import { pushAppError } from "../../../lib/app-error-toast.ts";
 import { importDfPunkFileIntoPxe, registerDfPunkAccountIntoPxe } from "../../../lib/df-pxe-import.ts";
-import { saveAztecWallet } from "../../../lib/aztec-wallet-store.ts";
+import { listStoredAztecWallets, saveAztecWallet } from "../../../lib/aztec-wallet-store.ts";
+import { recordHistory } from "../../../lib/operation-history.ts";
 import {
   AZTEC_MAINNET_NODE_PUBLIC,
   OFFICIAL_DOCS_FEE_JUICE,
@@ -88,13 +83,18 @@ import {
   isBridgeReadyDfPxeAccount,
 } from "../../../lib/df-pxe-bridge-guard.ts";
 import {
+  decideProviderAccountsProbe,
+  decideProviderSessionEvent,
   isTrustedConnector,
   validateConnectedWalletSession,
+  type ProviderSessionDecision,
 } from "../../../lib/wallet-session-guard.ts";
 import { LEGACY_WALLET_RDNS } from "@df-bridge/browser-sdk";
 import { usePath, useNavigate } from "../../../app/router.tsx";
 import { ROUTES } from "../../../app/routes.ts";
 import { useNetwork } from "../../../providers/NetworkProvider.tsx";
+import { getVaultLockReason, isVaultUnlocked, subscribeVault } from "../../../lib/vault.ts";
+import { VAULT_TIMEOUT_NOTICE } from "../../../lib/vault-idle-lock.ts";
 import { useVault } from "../../../providers/VaultProvider.tsx";
 import { useUi } from "../../../providers/UiProvider.tsx";
 import { assertSafeClaimApiBase } from "../../../lib/api-base.ts";
@@ -124,8 +124,6 @@ export function useBridgeSession() {
     closeSettings,
     draftAztecUrl,
     setDraftAztecUrl,
-    draftL1RpcUrl,
-    setDraftL1RpcUrl,
     saveSettings,
     resetSettingsDraft,
   } = networkApi;
@@ -151,8 +149,6 @@ export function useBridgeSession() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [connectingWallet, setConnectingWallet] = useState(false);
   const [walletConnectError, setWalletConnectError] = useState<string | null>(null);
-  const [addressCopied, setAddressCopied] = useState(false);
-  const [pxeAddressCopied, setPxeAddressCopied] = useState(false);
   const [wcUri, setWcUri] = useState<string | null>(null);
   const [wallet, setWallet] = useState<ConnectedWallet | null>(null);
   const [ethSessionOk, setEthSessionOk] = useState(false);
@@ -161,7 +157,6 @@ export function useBridgeSession() {
   const [gateUnlockingVault, setGateUnlockingVault] = useState(false);
   const [gateImportError, setGateImportError] = useState<string | null>(null);
   const walletPickerRef = useRef<HTMLDivElement>(null);
-  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [recipient, setRecipient] = useState("");
   const [amountFj, setAmountFj] = useState("");
   /** When false: L1 bridge only — no L2 secret needed. */
@@ -173,10 +168,18 @@ export function useBridgeSession() {
   const [legacyAccountStyles, setLegacyAccountStyles] = useState(true);
   const [showL2Secret, setShowL2Secret] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const busyRef = useRef(false);
+  const [error, setErrorState] = useState<string | null>(null);
+  const setError = useCallback((next: string | null) => {
+    setErrorState(next);
+    if (next) pushAppError({ title: next });
+  }, []);
   const [ethServiceFeeWei, setEthServiceFeeWei] = useState<bigint | null>(null);
   const [bridgePhase, setBridgePhase] = useState<string | null>(null);
   const [progress, setProgress] = useState<ProgressState | null>(null);
+  const progressRef = useRef<ProgressState | null>(null);
+  busyRef.current = busy;
+  progressRef.current = progress;
   const [l1TxHash, setL1TxHash] = useState<string | null>(null);
   /**
    * Only a bridge started on this page shows its result cards. A session
@@ -206,13 +209,18 @@ export function useBridgeSession() {
   const [selectedRecoveryHash, setSelectedRecoveryHash] = useState<string | null>(null);
   const [storageReady, setStorageReady] = useState<boolean | null>(null);
   const [storageError, setStorageError] = useState<string | null>(null);
+  const [vaultTimeoutNotice, setVaultTimeoutNotice] = useState<string | null>(null);
 
   const selectedSession = selectSessionForUi(recoverySessions, selectedRecoveryHash);
 
   const refreshSessions = useCallback(async () => {
-    const sessions = await listIncompleteSessions(networkId);
-    setRecoverySessions(sessions);
-    return sessions;
+    const [sessions, accounts] = await Promise.all([
+      listIncompleteSessions(networkId),
+      listStoredAztecWallets(),
+    ]);
+    const visible = sessionsForAccounts(sessions, accounts);
+    setRecoverySessions(visible);
+    return visible;
   }, [networkId]);
 
   useEffect(() => {
@@ -220,18 +228,47 @@ export function useBridgeSession() {
   }, [shellReady, closeWalletPanel]);
 
   useEffect(() => {
+    let wasUnlocked = isVaultUnlocked();
+    return subscribeVault(() => {
+      const nowUnlocked = isVaultUnlocked();
+      if (wasUnlocked && !nowUnlocked) {
+        const reason = getVaultLockReason();
+        if (reason === "idle" || reason === "tab-hidden") {
+          setDfPxeAccount(null);
+          setVaultPxeAccount(null);
+          setRecipient("");
+          setL2Secret("");
+          setL2Salt("0");
+          setL2SigningKey("");
+          setVaultTimeoutNotice(VAULT_TIMEOUT_NOTICE);
+          closeWalletPanel();
+        }
+      }
+      wasUnlocked = nowUnlocked;
+    });
+  }, [setVaultPxeAccount, closeWalletPanel]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
-      const session = await loadInitialSession(networkId);
-      const sessions = await loadInitialSessions(networkId);
+      const [session, sessions, accounts] = await Promise.all([
+        loadInitialSession(networkId),
+        loadInitialSessions(networkId),
+        listStoredAztecWallets(),
+      ]);
       if (cancelled) return;
-      setRecoverySessions(sessions);
-      if (session) {
-        setSelectedRecoveryHash(session.l1TxHash);
-        setL1TxHash(session.l1TxHash);
-        setCredentials(session.credentials ?? null);
-        setClaimJobId(session.claimJobId ?? null);
-        if (session.credentials) setRecoveryPromptOpen(true);
+      const visible = sessionsForAccounts(sessions, accounts);
+      setRecoverySessions(visible);
+      const visibleSession = session
+        ? visible.find(
+            (entry) => entry.l1TxHash.toLowerCase() === session.l1TxHash.toLowerCase(),
+          ) ?? null
+        : null;
+      if (visibleSession) {
+        setL1TxHash(visibleSession.l1TxHash);
+        setCredentials(visibleSession.credentials ?? null);
+        setClaimJobId(visibleSession.claimJobId ?? null);
+        if (visibleSession.credentials) setRecoveryPromptOpen(true);
       }
     })();
     return () => {
@@ -255,6 +292,7 @@ export function useBridgeSession() {
         );
         return;
       }
+      setVaultTimeoutNotice(null);
       setRecipient(account.address);
       setL2Secret(account.secretKey);
       setL2Salt(account.salt);
@@ -276,7 +314,6 @@ export function useBridgeSession() {
         setBridgePhase("Recovery account verified — ready to resume claim");
       } else if (isBridgeReadyDfPxeAccount(account, wallet?.address)) {
         setError(null);
-        setBridgePhase("DF Punk PXE session ready — bridge unlocked");
       }
     },
     [wallet?.address, setVaultPxeAccount, requireVaultAfterPxeImport],
@@ -311,6 +348,9 @@ export function useBridgeSession() {
         await requireVaultAfterPxeImport(stored);
         const ok = await ensureUnlocked("secrets", stored);
         if (!ok) throw new Error("Vault password required after PXE import.");
+        const replaced =
+          !!dfPxeAccount &&
+          dfPxeAccount.address.toLowerCase() !== stored.address.toLowerCase();
         await saveAztecWallet(stored);
         await refreshVaultAvailability();
         applyImportedAccount(stored);
@@ -318,6 +358,11 @@ export function useBridgeSession() {
           kind: "announce",
           title: "DF Punk PXE session ready",
           detail: `Bound ${shortHash(stored.address)} to ${shortHash(wallet.address)}.`,
+        });
+        void recordHistory({
+          networkId,
+          kind: replaced ? "account-replaced" : "account-imported",
+          recipient: stored.address,
         });
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : String(e);
@@ -336,6 +381,7 @@ export function useBridgeSession() {
       ensureUnlocked,
       refreshVaultAvailability,
       applyImportedAccount,
+      dfPxeAccount,
     ],
   );
 
@@ -355,30 +401,29 @@ export function useBridgeSession() {
 
     setGateUnlockingVault(true);
     setGateImportError(null);
-    setBridgePhase("Unlocking IndexedDB vault…");
+    setBridgePhase(null);
     try {
       const restored = await unlockExistingVault();
-      if (!restored) throw new Error("Vault unlock cancelled.");
+      if (!restored) return;
       assertDfClientAccount(restored);
       let stored: ImportedAztecAccount = { ...restored, fromDfClient: true };
-      if (restored.pxeRegistered) {
-        setBridgePhase("Vault unlocked — using the saved PXE account.");
-      } else {
-        setBridgePhase("Restoring DF Punk wallet into PXE…");
+      if (!restored.pxeRegistered) {
         try {
           stored = await registerDfPunkAccountIntoPxe({
             account: stored,
             ethWallet: wallet,
             networkId,
             aztecNodeUrl: networkMeta.aztecNodeUrl,
-            onProgress: (detail) => setBridgePhase(detail),
           });
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err);
           if (!/derive/i.test(message)) throw err;
-          setBridgePhase(
-            "Vault unlocked with the saved address. Re-import the DF JSON if a later claim rejects the keys.",
-          );
+          pushDappLog({
+            kind: "info",
+            title: "Vault unlocked with the saved address",
+            detail:
+              "PXE re-registration derived a different address — re-import the DF JSON if a later claim rejects the keys.",
+          });
         }
       }
       await saveAztecWallet(stored);
@@ -529,10 +574,10 @@ export function useBridgeSession() {
     setStorageError(null);
   }, []);
 
-  // Keep the recovery session list in sync with storage.
+  // Keep the recovery session list in sync with storage and the saved Aztec account.
   useEffect(() => {
     void refreshSessions();
-  }, [refreshSessions]);
+  }, [refreshSessions, dfPxeAccount?.address]);
 
   // Keep PXE warm for the active Aztec node (boot already warms the default).
   useEffect(() => {
@@ -558,34 +603,68 @@ export function useBridgeSession() {
     };
   }, [networkMeta?.id, networkMeta?.aztecNodeUrl]);
 
-  // Auto-update address / chain when user switches in the wallet extension
+  // Auto-update address / chain when user switches in the wallet extension.
+  // MetaMask emits disconnect / empty accountsChanged while its confirm popup
+  // is open — do not treat that as logout.
   useEffect(() => {
     if (!wallet) return;
-    return watchProviderSession(wallet.provider, {
-      onAccountsChanged: (accounts) => {
-        const next = accounts[0] as Hex | undefined;
-        if (!next) {
-          setWallet(null);
-          setFeeBalance(null);
-          return;
-        }
+    const provider = wallet.provider;
+    let cancelled = false;
+
+    const inFlight = () =>
+      busyRef.current || progressRef.current?.runState === "running";
+
+    const applyDecision = (decision: ProviderSessionDecision) => {
+      if (cancelled) return;
+      if (decision.action === "ignore") return;
+      if (decision.action === "updateAddress") {
         setWallet((prev) =>
-          prev
-            ? {
-                ...prev,
-                address: next,
-              }
-            : prev,
+          prev ? { ...prev, address: decision.address } : prev,
+        );
+        return;
+      }
+      if (decision.action === "clear") {
+        setWallet(null);
+        setFeeBalance(null);
+        return;
+      }
+      void (async () => {
+        try {
+          const accounts = (await provider.request({
+            method: "eth_accounts",
+          })) as string[];
+          applyDecision(decideProviderAccountsProbe({ accounts }));
+        } catch (error) {
+          applyDecision(decideProviderAccountsProbe({ error }));
+        }
+      })();
+    };
+
+    const unsub = watchProviderSession(provider, {
+      onAccountsChanged: (accounts) => {
+        applyDecision(
+          decideProviderSessionEvent(
+            { kind: "accountsChanged", accounts },
+            { inFlight: inFlight() },
+          ),
         );
       },
       onChainChanged: (chainId) => {
         setWallet((prev) => (prev ? { ...prev, chainId } : prev));
       },
       onDisconnect: () => {
-        setWallet(null);
-        setFeeBalance(null);
+        applyDecision(
+          decideProviderSessionEvent(
+            { kind: "disconnect" },
+            { inFlight: inFlight() },
+          ),
+        );
       },
     });
+    return () => {
+      cancelled = true;
+      unsub();
+    };
   }, [wallet?.provider]);
 
   // When UI network changes, ask the wallet to match L1 chainId
@@ -862,37 +941,6 @@ export function useBridgeSession() {
     }
   }, [wallet?.rdns, setVaultPxeAccount, lockVaultUi]);
 
-  const copyWalletAddress = useCallback(async () => {
-    if (!wallet) return;
-    try {
-      await navigator.clipboard.writeText(wallet.address);
-      setAddressCopied(true);
-      if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
-      copyResetTimerRef.current = setTimeout(() => setAddressCopied(false), 2_000);
-    } catch {
-      setError("Could not copy the wallet address. Please copy it manually.");
-    }
-  }, [wallet]);
-
-  const copyPxeAddress = useCallback(async () => {
-    const value = recipient.trim();
-    if (!value) return;
-    try {
-      await navigator.clipboard.writeText(value);
-      setPxeAddressCopied(true);
-      window.setTimeout(() => setPxeAddressCopied(false), 2_000);
-    } catch {
-      setError("Could not copy the PXE address. Please copy it manually.");
-    }
-  }, [recipient]);
-
-  useEffect(
-    () => () => {
-      if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
-    },
-    [],
-  );
-
   useEffect(() => {
     if (!pickerOpen) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -939,17 +987,17 @@ export function useBridgeSession() {
   return {
     path, navigate,
 networkId, networkMeta, l1Backend, rpcOverrides, settingsOpen, openSettings, closeSettings,
-draftAztecUrl, setDraftAztecUrl, draftL1RpcUrl, setDraftL1RpcUrl, saveSettings, resetSettingsDraft,
+draftAztecUrl, setDraftAztecUrl, saveSettings, resetSettingsDraft,
 setVaultPxeAccount, requireVaultAfterPxeImport, ensureUnlocked, unlockExistingVault, vaultAvailable,
 refreshVaultAvailability, secretsVisible, requestUnlock, lockVaultUi,
 setShellReady, shellReady, closeWalletPanel,
 feeJuiceDetailsOpen, setFeeJuiceDetailsOpen, bridgeConfirmOpen, setBridgeConfirmOpen,
 recoveryAcknowledged, setRecoveryAcknowledged, recoveryPromptOpen, setRecoveryPromptOpen,
 availableWallets, setAvailableWallets, pickerOpen, setPickerOpen, connectingWallet, setConnectingWallet,
-walletConnectError, setWalletConnectError, addressCopied, setAddressCopied, pxeAddressCopied, setPxeAddressCopied,
+walletConnectError, setWalletConnectError,
 wcUri, setWcUri, wallet, setWallet, ethSessionOk, setEthSessionOk, dfPxeAccount, setDfPxeAccount,
 gateImportingPxe, setGateImportingPxe, gateUnlockingVault, setGateUnlockingVault, gateImportError, setGateImportError,
-walletPickerRef, copyResetTimerRef,
+walletPickerRef,
 recipient, setRecipient, amountFj, setAmountFj, autoClaim, setAutoClaim, l2Secret, setL2Secret, l2Salt, setL2Salt,
 l2SigningKey, setL2SigningKey, legacyAccountStyles, setLegacyAccountStyles, showL2Secret, setShowL2Secret,
 busy, setBusy, error, setError, ethServiceFeeWei, setEthServiceFeeWei, bridgePhase, setBridgePhase,
@@ -962,10 +1010,10 @@ importDragOver, setImportDragOver, credentialsImportError, setCredentialsImportE
 credentialsImportNotice, setCredentialsImportNotice,
 recoverySessions, setRecoverySessions, selectedRecoveryHash, setSelectedRecoveryHash,
 storageReady, setStorageReady, storageError, setStorageError, selectedSession, refreshSessions,
+vaultTimeoutNotice, setVaultTimeoutNotice,
 applyImportedAccount, importPxeFromGate, unlockVaultFromGate, onAccountFile,
 refreshFeeBalance, refreshL2FeeBalance, refreshBalancesAfterAction,
 connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnect,
-copyWalletAddress, copyPxeAddress,
   };
 }
 

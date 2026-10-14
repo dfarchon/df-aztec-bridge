@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   defaultTtlMs,
   subscribeDappLog,
@@ -70,55 +63,6 @@ function TxExplorerLink(props: { link: DappLogTxLink }) {
   );
 }
 
-function LogLine(props: { text: string; className?: string }) {
-  const { text, className } = props;
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const measureRef = useRef<HTMLSpanElement>(null);
-  const [overflow, setOverflow] = useState(false);
-  const [durationSec, setDurationSec] = useState(22);
-
-  useLayoutEffect(() => {
-    const viewport = viewportRef.current;
-    const measure = measureRef.current;
-    if (!viewport || !measure) return;
-    const update = () => {
-      const need = measure.scrollWidth > viewport.clientWidth + 2;
-      setOverflow(need);
-      setDurationSec(Math.max(16, Math.min(42, measure.scrollWidth / 32)));
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(viewport);
-    ro.observe(measure);
-    return () => ro.disconnect();
-  }, [text]);
-
-  return (
-    <div
-      className={`dapp-log-line${overflow ? " is-overflow" : ""}${className ? ` ${className}` : ""}`}
-      ref={viewportRef}
-      title={text}
-      style={
-        overflow
-          ? ({ "--dapp-log-wave-duration": `${durationSec}s` } as CSSProperties)
-          : undefined
-      }
-    >
-      <span ref={measureRef} className="dapp-log-measure" aria-hidden="true">
-        {text}
-      </span>
-      <div className="dapp-log-wave">
-        <span className="dapp-log-segment">{text}</span>
-        {overflow ? (
-          <span className="dapp-log-segment" aria-hidden="true">
-            {text}
-          </span>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
 function LogCard(props: {
   entry: DappLogEntry;
   onDismiss: (id: string) => void;
@@ -128,8 +72,8 @@ function LogCard(props: {
   return (
     <article className={`dapp-log-card dapp-log-${entry.kind}`} role="status">
       <header className="dapp-log-card-head">
-        <span className="dapp-log-kind mono">{kindLabel(entry.kind)}</span>
-        <time className="dapp-log-time mono" dateTime={new Date(entry.at).toISOString()}>
+        <span className="dapp-log-kind">{kindLabel(entry.kind)}</span>
+        <time className="dapp-log-time" dateTime={new Date(entry.at).toISOString()}>
           {new Date(entry.at).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
@@ -138,9 +82,8 @@ function LogCard(props: {
         </time>
         <button
           type="button"
-          className="icon-btn dapp-log-dismiss"
+          className="dapp-log-dismiss"
           aria-label="Dismiss log"
-          title="Dismiss"
           onClick={() => onDismiss(entry.id)}
         >
           <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">
@@ -151,14 +94,14 @@ function LogCard(props: {
           </svg>
         </button>
       </header>
-      <LogLine text={entry.title} className="dapp-log-title" />
+      <p className="dapp-log-title">{entry.title}</p>
       {entry.txLink ? <TxExplorerLink link={entry.txLink} /> : null}
-      {showDetail ? <LogLine text={entry.detail!} className="dapp-log-detail" /> : null}
+      {showDetail ? <p className="dapp-log-detail">{entry.detail}</p> : null}
     </article>
   );
 }
 
-/** Fixed atlas-style toast stack for tx / info / error / announce. */
+/** Fixed activity sheet for tx / info / error / announce. */
 export function DappLogToaster() {
   const [entries, setEntries] = useState<DappLogEntry[]>([]);
   const [open, setOpen] = useState(true);
@@ -214,29 +157,31 @@ export function DappLogToaster() {
       <div className="dapp-log-shell">
         <div className="dapp-log-shell-head">
           <p className="label">dapp log</p>
-          <span className="dapp-log-count mono">
+          <span className="dapp-log-count">
             {entries.length}
             {errorCount ? ` · ${errorCount} err` : ""}
           </span>
-          <button
-            type="button"
-            className="ghost dapp-log-toggle"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-          >
-            {open ? "Hide" : "Show"}
-          </button>
-          <button
-            type="button"
-            className="ghost dapp-log-toggle"
-            onClick={() => {
-              for (const timer of timersRef.current.values()) window.clearTimeout(timer);
-              timersRef.current.clear();
-              setEntries([]);
-            }}
-          >
-            Clear
-          </button>
+          <div className="dapp-log-actions">
+            <button
+              type="button"
+              className="dapp-log-toggle"
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+            >
+              {open ? "Hide" : "Show"}
+            </button>
+            <button
+              type="button"
+              className="dapp-log-toggle"
+              onClick={() => {
+                for (const timer of timersRef.current.values()) window.clearTimeout(timer);
+                timersRef.current.clear();
+                setEntries([]);
+              }}
+            >
+              Clear
+            </button>
+          </div>
         </div>
         {open ? (
           <div className="dapp-log-stack">

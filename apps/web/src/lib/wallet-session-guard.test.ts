@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { isBridgeReadyDfPxeAccount } from "./df-pxe-bridge-guard.ts";
-import { isTrustedConnector } from "./wallet-session-guard.ts";
+import {
+  decideProviderAccountsProbe,
+  decideProviderSessionEvent,
+  isTrustedConnector,
+} from "./wallet-session-guard.ts";
 import type { ConnectedWallet } from "@df-bridge/browser-sdk";
 import { LEGACY_WALLET_RDNS } from "@df-bridge/browser-sdk";
 
@@ -50,5 +54,58 @@ describe("wallet session + DF PXE bridge guards", () => {
     expect(
       isBridgeReadyDfPxeAccount({ ...account, fromDfClient: false }, eth),
     ).toBe(false);
+  });
+});
+
+describe("provider session events during wallet confirmation", () => {
+  const addr = ("0x" + "ab".repeat(20)) as `0x${string}`;
+
+  it("updates on a real account switch even while a tx is in flight", () => {
+    expect(
+      decideProviderSessionEvent(
+        { kind: "accountsChanged", accounts: [addr] },
+        { inFlight: true },
+      ),
+    ).toEqual({ action: "updateAddress", address: addr });
+  });
+
+  it("ignores empty accountsChanged and disconnect while a confirmation is in flight", () => {
+    expect(
+      decideProviderSessionEvent(
+        { kind: "accountsChanged", accounts: [] },
+        { inFlight: true },
+      ),
+    ).toEqual({ action: "ignore" });
+    expect(
+      decideProviderSessionEvent({ kind: "disconnect" }, { inFlight: true }),
+    ).toEqual({ action: "ignore" });
+  });
+
+  it("probes eth_accounts on idle empty accounts or disconnect", () => {
+    expect(
+      decideProviderSessionEvent(
+        { kind: "accountsChanged", accounts: [] },
+        { inFlight: false },
+      ),
+    ).toEqual({ action: "probeAccounts" });
+    expect(
+      decideProviderSessionEvent({ kind: "disconnect" }, { inFlight: false }),
+    ).toEqual({ action: "probeAccounts" });
+  });
+
+  it("keeps the session if the probe RPC fails or still has an account", () => {
+    expect(decideProviderAccountsProbe({ error: new Error("popup") })).toEqual({
+      action: "ignore",
+    });
+    expect(decideProviderAccountsProbe({ accounts: [addr] })).toEqual({
+      action: "updateAddress",
+      address: addr,
+    });
+  });
+
+  it("clears the session only after an idle probe finds no accounts", () => {
+    expect(decideProviderAccountsProbe({ accounts: [] })).toEqual({
+      action: "clear",
+    });
   });
 });

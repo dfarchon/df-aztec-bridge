@@ -46,15 +46,18 @@ import {
   upsertSession,
   type BridgeSessionEntry,
 } from "../../../lib/bridge-session.ts";
-import { phaseLabel, recoverySteps, selectSessionForUi, shortHash } from "../../../lib/claim-recovery.ts";
 import {
-  amountQuickFill,
-  bridgeShortfall,
-  formatFjAmount,
+  phaseLabel,
+  sessionsForAccounts,
+  shortHash,
+  unknownAccountClaimMessage,
+} from "../../../lib/claim-recovery.ts";
+import {
   MIN_BRIDGE_FJ,
   parseBridgeAmount,
 } from "../../../lib/bridge-amount.ts";
 import { parseClaimCredentialsFile } from "../../../lib/claim-credentials-import.ts";
+import { recordHistory } from "../../../lib/operation-history.ts";
 import {
   downloadClaimCredentials,
   downloadJson,
@@ -72,8 +75,13 @@ import {
   hasRpcOverrides,
 } from "../../../lib/rpc-overrides.ts";
 import { formatDappError, logDappError, pushDappLog, pushL1TxDappLog, pushL2TxDappLog } from "../../../lib/dapp-log.ts";
+import {
+  pushAppError,
+  WALLET_TX_REJECTED_DETAIL,
+  WALLET_TX_REJECTED_TITLE,
+} from "../../../lib/app-error-toast.ts";
 import { importDfPunkFileIntoPxe, registerDfPunkAccountIntoPxe } from "../../../lib/df-pxe-import.ts";
-import { saveAztecWallet } from "../../../lib/aztec-wallet-store.ts";
+import { listStoredAztecWallets, saveAztecWallet } from "../../../lib/aztec-wallet-store.ts";
 import {
   AZTEC_MAINNET_NODE_PUBLIC,
   OFFICIAL_DOCS_FEE_JUICE,
@@ -109,25 +117,24 @@ export function useBridgeActions(session: BridgeSession) {
   const {
     path, navigate,
 networkId, networkMeta, l1Backend, rpcOverrides, settingsOpen, openSettings, closeSettings,
-draftAztecUrl, setDraftAztecUrl, draftL1RpcUrl, setDraftL1RpcUrl, saveSettings, resetSettingsDraft,
+draftAztecUrl, setDraftAztecUrl, saveSettings, resetSettingsDraft,
 setVaultPxeAccount, requireVaultAfterPxeImport, ensureUnlocked, unlockExistingVault, vaultAvailable,
 refreshVaultAvailability, secretsVisible, requestUnlock, lockVaultUi,
 setShellReady, shellReady, closeWalletPanel,
 feeJuiceDetailsOpen, setFeeJuiceDetailsOpen, bridgeConfirmOpen, setBridgeConfirmOpen,
 recoveryAcknowledged, setRecoveryAcknowledged, recoveryPromptOpen, setRecoveryPromptOpen,
 availableWallets, setAvailableWallets, pickerOpen, setPickerOpen, connectingWallet, setConnectingWallet,
-walletConnectError, setWalletConnectError, addressCopied, setAddressCopied, pxeAddressCopied, setPxeAddressCopied,
+walletConnectError, setWalletConnectError,
 wcUri, setWcUri, wallet, setWallet, ethSessionOk, setEthSessionOk, dfPxeAccount, setDfPxeAccount,
 gateImportingPxe, setGateImportingPxe, gateUnlockingVault, setGateUnlockingVault, gateImportError, setGateImportError,
-walletPickerRef, copyResetTimerRef,
-recipient, setRecipient, amountFj, setAmountFj, autoClaim, setAutoClaim, l2Secret, setL2Secret, l2Salt, setL2Salt,
-l2SigningKey, setL2SigningKey, legacyAccountStyles, setLegacyAccountStyles, showL2Secret, setShowL2Secret,
+walletPickerRef,
+recipient, amountFj, setAmountFj, autoClaim, setAutoClaim, l2Secret, l2Salt,
+l2SigningKey, legacyAccountStyles, setLegacyAccountStyles, showL2Secret, setShowL2Secret,
 busy, setBusy, error, setError, ethServiceFeeWei, setEthServiceFeeWei, bridgePhase, setBridgePhase,
 progress, setProgress, l1TxHash, setL1TxHash, showBridgeResult, setShowBridgeResult,
 credentials, setCredentials, claimJobId, setClaimJobId, claimStatus, setClaimStatus, l2TxHash, setL2TxHash,
 feeBalance, setFeeBalance, balanceError, setBalanceError, balanceRefreshing, setBalanceRefreshing,
 l2FeeBalance, setL2FeeBalance, l2BalanceError, setL2BalanceError, l2BalanceRefreshing, setL2BalanceRefreshing,
-importedAccounts, setImportedAccounts, importedIndex, setImportedIndex, importName, setImportName,
 importDragOver, setImportDragOver, credentialsImportError, setCredentialsImportError,
 credentialsImportNotice, setCredentialsImportNotice,
 recoverySessions, setRecoverySessions, selectedRecoveryHash, setSelectedRecoveryHash,
@@ -135,8 +142,21 @@ storageReady, setStorageReady, storageError, setStorageError, selectedSession, r
 applyImportedAccount, importPxeFromGate, unlockVaultFromGate, onAccountFile,
 refreshFeeBalance, refreshL2FeeBalance, refreshBalancesAfterAction,
 connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnect,
-copyWalletAddress, copyPxeAddress,
   } = session;
+
+  const endFlowFromError = useCallback((cause: unknown) => {
+    if (isWalletUserRejection(cause)) {
+      pushAppError({ title: WALLET_TX_REJECTED_TITLE, detail: WALLET_TX_REJECTED_DETAIL });
+      setError(null);
+      setBridgePhase(WALLET_TX_REJECTED_DETAIL);
+      setProgress((prev) => finishProgress(prev, "rejected"));
+      return;
+    }
+    const message = cause instanceof Error && cause.message ? cause.message : formatWalletError(cause);
+    setBridgePhase(message);
+    setProgress((prev) => finishProgress(prev, "failed"));
+    setError(message);
+  }, [setError, setBridgePhase, setProgress]);
 
   // On mount (once networkMeta is ready): resume every saved session that is
   // still waiting on L1 confirmation or L2 claim confirmation. Only the
@@ -194,7 +214,7 @@ copyWalletAddress, copyPxeAddress,
             if (isActiveFlow) {
               setL1TxHash(result.l1TxHash);
               setCredentials(result.credentials);
-              setBridgePhase("L1 bridge recovered — claim credentials restored");
+              setBridgePhase("L1 bridge recovered. Claim credentials restored.");
               setProgress((prev) => finishProgress(prev, "succeeded"));
             }
           } catch (cause: unknown) {
@@ -205,7 +225,7 @@ copyWalletAddress, copyPxeAddress,
                   cause instanceof Error ? cause.message : String(cause)
                 }`,
               );
-              setBridgePhase("Pending bridge recovery failed — saved recovery data was kept");
+              setBridgePhase("Pending bridge recovery failed. Saved recovery data was kept.");
               setProgress((prev) => finishProgress(prev, "failed"));
             }
           } finally {
@@ -231,7 +251,7 @@ copyWalletAddress, copyPxeAddress,
             if (isActiveFlow) {
               setL2TxHash(session.l2TxHash);
               setClaimStatus("succeeded");
-              setBridgePhase(`L2 claim complete — ${session.l2TxHash}`);
+              setBridgePhase(`L2 claim complete. ${session.l2TxHash}`);
               setProgress((prev) => finishProgress(prev, "succeeded"));
               setRecoveryPromptOpen(false);
               refreshBalancesAfterAction();
@@ -304,9 +324,17 @@ copyWalletAddress, copyPxeAddress,
           await removeSession(networkId, l1Hash);
           await refreshSessions();
           setClaimStatus("succeeded");
-          setBridgePhase("Claim message already consumed — nothing to do");
+          setBridgePhase("Claim message already consumed. Nothing to do.");
           setProgress((prev) => finishProgress(prev, "succeeded"));
           setRecoveryPromptOpen(false);
+          void recordHistory({
+            networkId,
+            kind: "claim-confirmed",
+            amount: creds.claimAmount,
+            recipient: creds.recipient,
+            l1TxHash: l1Hash,
+            detail: "Claim message already consumed.",
+          });
           return;
         }
 
@@ -342,6 +370,14 @@ copyWalletAddress, copyPxeAddress,
             onTxSent: async (l2Hash) => {
               submittedHash = l2Hash;
               setL2TxHash(l2Hash);
+              void recordHistory({
+                networkId,
+                kind: "claim-submitted",
+                amount: creds.claimAmount,
+                recipient: creds.recipient,
+                l1TxHash: l1Hash,
+                l2TxHash: l2Hash,
+              });
               setProgress((prev) =>
                 advanceProgress(prev, {
                   track: "claim",
@@ -381,51 +417,80 @@ copyWalletAddress, copyPxeAddress,
             await removeSession(networkId, l1Hash);
             await refreshSessions();
             setClaimStatus("succeeded");
-            setBridgePhase("Claim message already consumed — nothing to do");
+            setBridgePhase("Claim message already consumed. Nothing to do.");
             setProgress((prev) => finishProgress(prev, "succeeded"));
             setRecoveryPromptOpen(false);
+            void recordHistory({
+              networkId,
+              kind: "claim-confirmed",
+              amount: creds.claimAmount,
+              recipient: creds.recipient,
+              l1TxHash: l1Hash,
+              detail: "Claim message already consumed.",
+            });
             return;
           }
 
           setL2TxHash(hash);
           setClaimStatus("succeeded");
-          setBridgePhase(`L2 claim complete — ${hash}`);
+          setBridgePhase(`L2 claim complete. ${hash}`);
           setProgress((prev) => finishProgress(prev, "succeeded"));
           setRecoveryPromptOpen(false);
           await removeSession(networkId, l1Hash);
           await refreshSessions();
           refreshBalancesAfterAction();
+          void recordHistory({
+            networkId,
+            kind: "claim-confirmed",
+            amount: creds.claimAmount,
+            recipient: creds.recipient,
+            l1TxHash: l1Hash,
+            l2TxHash: hash,
+          });
           return;
         } catch (claimError: unknown) {
           const message = claimError instanceof Error ? claimError.message : String(claimError);
-          setProgress((prev) => finishProgress(prev, "failed"));
-          try {
-            await upsertSession(networkId, {
-              l1TxHash: l1Hash,
-              phase: submittedHash ? "claim-sent" : "failed",
-              recipient: creds.recipient,
-              claimAmount: creds.claimAmount,
-              credentials: creds,
-              ...(submittedHash ? { l2TxHash: submittedHash } : {}),
-              lastError: message,
-              makeActive: false,
-            });
-            await refreshSessions();
-          } catch (storageError: unknown) {
-            if (submittedHash) {
-              downloadJson(`claim-sent-${shortHash(l1Hash)}.json`, {
-                networkId,
+          const skipFailedSession = isWalletUserRejection(claimError) && !submittedHash;
+          if (!skipFailedSession) {
+            try {
+              await upsertSession(networkId, {
                 l1TxHash: l1Hash,
-                l2TxHash: submittedHash,
+                phase: submittedHash ? "claim-sent" : "failed",
+                recipient: creds.recipient,
+                claimAmount: creds.claimAmount,
                 credentials: creds,
-                error: message,
+                ...(submittedHash ? { l2TxHash: submittedHash } : {}),
+                lastError: message,
+                makeActive: false,
               });
+              await refreshSessions();
+            } catch (storageError: unknown) {
+              if (submittedHash) {
+                downloadJson(`claim-sent-${shortHash(l1Hash)}.json`, {
+                  networkId,
+                  l1TxHash: l1Hash,
+                  l2TxHash: submittedHash,
+                  credentials: creds,
+                  error: message,
+                });
+              }
+              setError(
+                `Claim recovery storage failed: ${storageErrorMessage(storageError)}${
+                  submittedHash ? ". A backup JSON was downloaded." : ""
+                }`,
+              );
             }
-            setError(
-              `Claim recovery storage failed: ${storageErrorMessage(storageError)}${
-                submittedHash ? ". A backup JSON was downloaded." : ""
-              }`,
-            );
+          }
+          if (!skipFailedSession) {
+            void recordHistory({
+              networkId,
+              kind: "claim-failed",
+              amount: creds.claimAmount,
+              recipient: creds.recipient,
+              l1TxHash: l1Hash,
+              ...(submittedHash ? { l2TxHash: submittedHash } : {}),
+              detail: message,
+            });
           }
           throw claimError;
         }
@@ -547,6 +612,13 @@ copyWalletAddress, copyPxeAddress,
         onPending: async (pending: PendingBridge) => {
           setL1TxHash(pending.l1TxHash);
           setShowBridgeResult(true);
+          void recordHistory({
+            networkId,
+            kind: "l1-submitted",
+            amount: pending.claimAmount,
+            recipient: pending.recipient,
+            l1TxHash: pending.l1TxHash,
+          });
           try {
             await upsertSession(networkId, {
               l1TxHash: pending.l1TxHash,
@@ -572,23 +644,23 @@ copyWalletAddress, copyPxeAddress,
         onProgress: (phase: BridgeProgressPhase, detail?: string) => {
           const labels: Record<BridgeProgressPhase, string> = {
             prepare: "Preparing…",
-            eth_fee_wallet: "Confirm batched L1 bridge (ETH fee + fees + deposit) in wallet…",
-            eth_fee_wait: "ETH service fee submitted — waiting…",
+            eth_fee_wallet: "Confirm ETH service fee in wallet…",
+            eth_fee_wait: "ETH service fee submitted. Waiting…",
             check_allowance: "Checking token allowance…",
             approve_wallet: "Confirm approve in wallet…",
-            approve_wait: "Approve submitted — waiting for confirmation…",
+            approve_wait: "Approve submitted. Waiting for confirmation…",
             mint_wallet: "Confirm faucet mint in wallet…",
-            mint_wait: "Mint submitted — waiting for confirmation…",
+            mint_wait: "Mint submitted. Waiting for confirmation…",
             bridge_wallet:
               backend === "portal"
-                ? "Confirm batched portal bridge (or deposit) in wallet…"
+                ? "Confirm L1 deposit in wallet…"
                 : mint
                   ? "Confirm mintAndBridge in wallet…"
-                  : "Approve done — confirm GoBridge tx in wallet…",
-            bridge_wait: "Bridge submitted — waiting for confirmation…",
+                  : "Confirm GoBridge tx in wallet…",
+            bridge_wait: "Bridge submitted. Waiting for confirmation…",
             parse_receipt: "Parsing L1 deposit event…",
           };
-          setBridgePhase(detail ? `${labels[phase]} ${detail}` : labels[phase]);
+          setBridgePhase(detail ?? labels[phase]);
           setProgress((prev) =>
             advanceProgress(prev, { track: "bridge", stepKey: bridgePhaseStep(phase) }),
           );
@@ -596,7 +668,7 @@ copyWalletAddress, copyPxeAddress,
       });
       setL1TxHash(result.l1TxHash);
       setCredentials(result.credentials);
-      setBridgePhase("L1 bridge complete — credentials saved locally and downloaded");
+      setBridgePhase("Saving claim credentials.");
       setProgress((prev) => advanceProgress(prev, { track: "bridge", stepKey: "saved" }));
 
       const backupErrors: string[] = [];
@@ -616,7 +688,7 @@ copyWalletAddress, copyPxeAddress,
       }
 
       try {
-        downloadClaimCredentials(result.credentials.recipient, result.credentials, {
+        await downloadClaimCredentials(result.credentials.recipient, result.credentials, {
           l1TxHash: result.l1TxHash,
           networkId,
         });
@@ -632,26 +704,21 @@ copyWalletAddress, copyPxeAddress,
 
       refreshBalancesAfterAction();
 
-      if (autoClaim) {
-        setBridgePhase("Starting L2 claim…");
-        await startClaimJob(
-          result.l1TxHash,
-          result.credentials,
-          l2Secret.trim(),
-          l2Salt,
-          resolveClaimSigningKey(result.credentials.recipient, l2SigningKey, dfPxeAccount),
-        );
-        // Browser claim already set the final phase / L2 tx; API claim stays "queued".
-        if (!BROWSER_CLAIM) {
-          setBridgePhase("L2 claim job queued — polling status…");
-        }
-      } else {
-        setProgress((prev) => finishProgress(prev, "succeeded"));
-      }
+      setBridgePhase(
+        backupErrors.length > 0
+          ? "L1 bridge complete. Keep the recovery data from this browser."
+          : "L1 bridge complete. Credentials saved locally and downloaded.",
+      );
+      setProgress((prev) => finishProgress(prev, "succeeded"));
+      void recordHistory({
+        networkId,
+        kind: "l1-confirmed",
+        amount: result.credentials.claimAmount,
+        recipient: result.credentials.recipient,
+        l1TxHash: result.l1TxHash,
+      });
     } catch (e: unknown) {
-      setError(formatWalletError(e));
-      setBridgePhase(null);
-      setProgress((prev) => finishProgress(prev, "failed"));
+      endFlowFromError(e);
     } finally {
       setBusy(false);
     }
@@ -662,14 +729,12 @@ copyWalletAddress, copyPxeAddress,
     amountFj,
     autoClaim,
     l2Secret,
-    l2Salt,
-    l2SigningKey,
+    dfPxeAccount,
     l1Backend,
-    startClaimJob,
     networkId,
     refreshSessions,
     refreshBalancesAfterAction,
-    dfPxeAccount,
+    endFlowFromError,
   ]);
 
   const selectRecoverySession = useCallback(
@@ -690,13 +755,6 @@ copyWalletAddress, copyPxeAddress,
       setBridgePhase(null);
       setProgress(null);
       setRecoveryPromptOpen(false);
-      setImportedAccounts([]);
-      setImportName(null);
-      setImportedIndex(0);
-      setRecipient("");
-      setL2Secret("");
-      setL2Salt("");
-      setL2SigningKey("");
     },
     [networkId],
   );
@@ -714,6 +772,16 @@ copyWalletAddress, copyPxeAddress,
           );
         }
 
+        const unlocked = await ensureUnlocked("secrets");
+        if (!unlocked) {
+          throw new Error("Unlock the vault to import claim credentials into this browser.");
+        }
+
+        const accounts = await listStoredAztecWallets();
+        if (!sessionsForAccounts([{ recipient: parsed.recipient }], accounts).length) {
+          throw new Error(unknownAccountClaimMessage(parsed.recipient));
+        }
+
         const sessions = await listIncompleteSessions(networkId);
         const duplicate = sessions.find(
           (session) => normalizeL1TxHash(session.l1TxHash) === parsed.l1TxHash,
@@ -728,11 +796,6 @@ copyWalletAddress, copyPxeAddress,
           return;
         }
 
-        const unlocked = await ensureUnlocked("secrets");
-        if (!unlocked) {
-          throw new Error("Unlock the vault to import claim credentials into this browser.");
-        }
-
         const entry = await upsertSession(networkId, {
           l1TxHash: parsed.l1TxHash,
           phase: "ready-to-claim",
@@ -743,8 +806,15 @@ copyWalletAddress, copyPxeAddress,
         await refreshSessions();
         selectRecoverySession(entry);
         setCredentialsImportNotice(
-          `Imported L1 ${shortHash(entry.l1TxHash)} — follow the steps below to finish the claim.`,
+          `Imported L1 ${shortHash(entry.l1TxHash)}. Claim it with the Aztec account already in this browser.`,
         );
+        void recordHistory({
+          networkId,
+          kind: "claim-imported",
+          amount: entry.claimAmount,
+          recipient: entry.recipient,
+          l1TxHash: entry.l1TxHash,
+        });
       } catch (e: unknown) {
         setCredentialsImportError(e instanceof Error ? e.message : String(e));
       }
@@ -788,17 +858,23 @@ copyWalletAddress, copyPxeAddress,
           setCredentials(result.credentials);
           setL1TxHash(result.l1TxHash);
         }
-        setBridgePhase("L1 bridge recovered — claim credentials restored");
+        setBridgePhase("L1 bridge recovered. Claim credentials restored.");
         setProgress((prev) => finishProgress(prev, "succeeded"));
+        void recordHistory({
+          networkId,
+          kind: "l1-confirmed",
+          amount: result.credentials.claimAmount,
+          recipient: result.credentials.recipient,
+          l1TxHash: result.l1TxHash,
+          detail: "L1 deposit recovered in this browser.",
+        });
       } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : String(e));
-        setBridgePhase("Pending bridge recovery failed — saved recovery data was kept");
-        setProgress((prev) => finishProgress(prev, "failed"));
+        endFlowFromError(e);
       } finally {
         setBusy(false);
       }
     },
-    [networkMeta, networkId, refreshSessions, selectedRecoveryHash],
+    [networkMeta, networkId, refreshSessions, selectedRecoveryHash, endFlowFromError],
   );
 
   const waitForSessionL2 = useCallback(
@@ -817,14 +893,21 @@ copyWalletAddress, copyPxeAddress,
         });
         await removeSession(networkId, session.l1TxHash);
         await refreshSessions();
-        setBridgePhase(`L2 claim complete — ${session.l2TxHash}`);
+        setBridgePhase(`L2 claim complete. ${session.l2TxHash}`);
         setProgress((prev) => finishProgress(prev, "succeeded"));
         setClaimStatus("succeeded");
         setL2TxHash(session.l2TxHash);
         refreshBalancesAfterAction();
+        void recordHistory({
+          networkId,
+          kind: "claim-confirmed",
+          amount: session.claimAmount,
+          recipient: session.recipient,
+          l1TxHash: session.l1TxHash,
+          l2TxHash: session.l2TxHash,
+        });
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : String(e);
-        setProgress((prev) => finishProgress(prev, "failed"));
         try {
           await upsertSession(networkId, {
             l1TxHash: session.l1TxHash,
@@ -837,17 +920,15 @@ copyWalletAddress, copyPxeAddress,
             makeActive: false,
           });
           await refreshSessions();
-          setError(message);
-        } catch (storageError: unknown) {
-          setError(
-            `${message} Recovery status could not be updated: ${storageErrorMessage(storageError)}`,
-          );
+        } catch {
+          /* toast still shows the wait error */
         }
+        endFlowFromError(e);
       } finally {
         setBusy(false);
       }
     },
-    [networkMeta, networkId, refreshSessions, refreshBalancesAfterAction],
+    [networkMeta, networkId, refreshSessions, refreshBalancesAfterAction, endFlowFromError],
   );
 
   const onResumeClaim = useCallback(
@@ -871,40 +952,79 @@ copyWalletAddress, copyPxeAddress,
           legacyAccountStyles,
         );
       } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : String(e));
+        endFlowFromError(e);
       } finally {
         setBusy(false);
         await refreshSessions();
       }
     },
-    [l2Secret, l2Salt, l2SigningKey, dfPxeAccount, legacyAccountStyles, startClaimJob, refreshSessions],
+    [l2Secret, l2Salt, l2SigningKey, dfPxeAccount, legacyAccountStyles, startClaimJob, refreshSessions, endFlowFromError],
   );
 
   const onRemoveSession = useCallback(
     async (session: BridgeSessionEntry) => {
       await removeSession(networkId, session.l1TxHash);
-      const remaining = await refreshSessions();
-      const wasSelected =
-        selectedSession &&
-        normalizeL1TxHash(selectedSession.l1TxHash) === normalizeL1TxHash(session.l1TxHash);
-      if (wasSelected) {
-        const next = remaining[0] ?? null;
-        setSelectedRecoveryHash(next?.l1TxHash ?? null);
-        if (next) {
-          await selectRecoverySession(next);
-        } else {
-          setCredentials(null);
-          setL1TxHash(null);
-          setBridgePhase(null);
-          setProgress(null);
-        }
-      }
+      await refreshSessions();
+      setSelectedRecoveryHash(null);
+      setCredentials(null);
+      setL1TxHash(null);
+      setBridgePhase(null);
+      setProgress(null);
+      void recordHistory({
+        networkId,
+        kind: "claim-removed",
+        amount: session.claimAmount,
+        recipient: session.recipient,
+        l1TxHash: session.l1TxHash,
+        detail: "Removed from this browser. The Ethereum deposit was not undone.",
+      });
     },
-    [networkId, refreshSessions, selectedSession, selectRecoverySession],
+    [networkId, refreshSessions],
   );
+
+  const claimAfterBridge = useCallback(async () => {
+    if (!credentials || !l1TxHash) {
+      setError("Claim credentials are missing. Open Recover to finish the claim.");
+      return;
+    }
+    if (!l2Secret.trim()) {
+      setError("Enter the Aztec L2 secret to claim.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await startClaimJob(
+        l1TxHash,
+        credentials,
+        l2Secret.trim(),
+        l2Salt,
+        resolveClaimSigningKey(credentials.recipient, l2SigningKey, dfPxeAccount),
+        legacyAccountStyles,
+      );
+      if (!BROWSER_CLAIM) {
+        setBridgePhase("L2 claim job queued. Polling status.");
+      }
+    } catch (e: unknown) {
+      endFlowFromError(e);
+    } finally {
+      setBusy(false);
+    }
+  }, [
+    credentials,
+    l1TxHash,
+    l2Secret,
+    l2Salt,
+    l2SigningKey,
+    dfPxeAccount,
+    legacyAccountStyles,
+    startClaimJob,
+    endFlowFromError,
+  ]);
 
   return {
     startClaimJob,
+    claimAfterBridge,
     onBridge,
     selectRecoverySession,
     onClaimCredentialsFile,

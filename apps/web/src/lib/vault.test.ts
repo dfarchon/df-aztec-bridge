@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createMemoryVaultBackend } from "./vault-idb.ts";
 import {
+  deleteVaultProfile,
+  getVaultLockReason,
   hasAnyVaultProfile,
   hasVaultProfile,
   isVaultUnlocked,
@@ -13,6 +15,7 @@ import {
   vaultExportAllJson,
   vaultGetJson,
   vaultSetJson,
+  wipeUnlockedVaultProfile,
 } from "./vault.ts";
 
 const ADDR = "0x1111111111111111111111111111111111111111111111111111111111111111";
@@ -46,6 +49,41 @@ describe("vault", () => {
 
     const exported = await vaultExportAllJson();
     expect(exported.aztecAddress).toBe(ADDR);
+  });
+
+  it("deletes an unlocked profile so no vault remains", async () => {
+    await setupVault({ aztecAddress: ADDR, password: PASS, signingKey: SIGNING });
+    await vaultSetJson("wallets", {
+      accounts: [{ address: ADDR, secretKey: "0x1", salt: "0x0", signingKey: SIGNING }],
+      activeAddress: ADDR,
+    });
+    await wipeUnlockedVaultProfile();
+    expect(isVaultUnlocked()).toBe(false);
+    expect(await hasVaultProfile(ADDR)).toBe(false);
+    expect(await hasAnyVaultProfile()).toBe(false);
+  });
+
+  it("can delete a previous profile after another address is active", async () => {
+    const other = "0x2222222222222222222222222222222222222222222222222222222222222222";
+    await setupVault({ aztecAddress: ADDR, password: PASS, signingKey: SIGNING });
+    lockVault();
+    await setupVault({ aztecAddress: other, password: PASS, signingKey: SIGNING });
+    expect(await hasAnyVaultProfile()).toBe(true);
+    await deleteVaultProfile(ADDR);
+    expect(await hasVaultProfile(ADDR)).toBe(false);
+    expect(await hasVaultProfile(other)).toBe(true);
+    expect(isVaultUnlocked()).toBe(true);
+  });
+
+  it("records idle lock reason and clears it on unlock", async () => {
+    await setupVault({ aztecAddress: ADDR, password: PASS, signingKey: SIGNING });
+    lockVault("idle");
+    expect(isVaultUnlocked()).toBe(false);
+    expect(getVaultLockReason()).toBe("idle");
+    lockVault();
+    expect(getVaultLockReason()).toBeNull();
+    await unlockVault({ aztecAddress: ADDR, password: PASS });
+    expect(getVaultLockReason()).toBeNull();
   });
 
   it("rejects wrong password on unlock", async () => {

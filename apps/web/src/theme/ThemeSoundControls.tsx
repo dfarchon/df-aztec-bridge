@@ -67,7 +67,6 @@ export function ThemeToggle() {
       type="button"
       onClick={toggleTheme}
       aria-label={label}
-      title={label}
     >
       {theme === "dark" ? <IconSun /> : <IconMoon />}
     </button>
@@ -127,25 +126,60 @@ function BackgroundMusic() {
   );
 }
 
+const CLICK_SOUND_TARGET = [
+  "button",
+  "a[href]",
+  "summary",
+  "select",
+  "[role='button']",
+  "[role='tab']",
+  "[role='menuitem']",
+  "[role='option']",
+  "[role='switch']",
+  "input[type='checkbox']",
+  "input[type='radio']",
+  "input[type='submit']",
+  "input[type='button']",
+].join(", ");
+
+function clickSoundControl(target: EventTarget | null) {
+  if (!(target instanceof Element)) return null;
+  const control = target.closest(CLICK_SOUND_TARGET);
+  if (!control || control.getAttribute("aria-disabled") === "true") return null;
+  if (
+    (control instanceof HTMLButtonElement ||
+      control instanceof HTMLInputElement ||
+      control instanceof HTMLSelectElement) &&
+    control.disabled
+  ) {
+    return null;
+  }
+  return control;
+}
+
 function InterfaceSounds() {
   const { effectsEnabled } = useSound();
   useEffect(() => {
     if (!effectsEnabled) return;
     let context: AudioContext | undefined;
     const play = (event: MouseEvent) => {
-      if (!(event.target instanceof Element) || !event.target.closest("button, a[href]")) return;
-      if (event.target.closest(".sound-menu")) return;
+      if (!clickSoundControl(event.target)) return;
       context ??= new AudioContext();
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(520, context.currentTime);
-      oscillator.frequency.exponentialRampToValueAtTime(760, context.currentTime + 0.045);
-      gain.gain.setValueAtTime(navigator.maxTouchPoints > 0 ? 0.015 : 0.035, context.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.06);
-      oscillator.connect(gain).connect(context.destination);
-      oscillator.start();
-      oscillator.stop(context.currentTime + 0.065);
+      const start = () => {
+        if (!context) return;
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(520, context.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(760, context.currentTime + 0.045);
+        gain.gain.setValueAtTime(navigator.maxTouchPoints > 0 ? 0.015 : 0.035, context.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.06);
+        oscillator.connect(gain).connect(context.destination);
+        oscillator.start();
+        oscillator.stop(context.currentTime + 0.065);
+      };
+      if (context.state === "suspended") void context.resume().then(start);
+      else start();
     };
     document.addEventListener("click", play, true);
     return () => {
@@ -181,7 +215,7 @@ export function SoundMenu() {
       </button>
       {open ? (
         <div className="sound-popover">
-          <p>Sound // settings</p>
+          <p className="label">Sound</p>
           <button type="button" onClick={toggleMusic}>
             <span>Background music</span>
             <small>{musicEnabled ? status : "off"}</small>

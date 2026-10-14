@@ -48,12 +48,16 @@ export type VaultSession = {
   unlocked: boolean;
 };
 
+/** Why the vault last locked. Only set by idle / tab-hidden auto-lock. */
+export type VaultAutoLockReason = "idle" | "tab-hidden";
+
 type Listener = () => void;
 
 let backend: VaultBackend = createIdbVaultBackend();
 let cek: CryptoKey | null = null;
 let activeAddress: string | null = null;
 let unlocked = false;
+let lastLockReason: VaultAutoLockReason | null = null;
 const listeners = new Set<Listener>();
 
 export function setVaultBackend(next: VaultBackend): void {
@@ -64,6 +68,7 @@ export function resetVaultSession(): void {
   cek = null;
   activeAddress = null;
   unlocked = false;
+  lastLockReason = null;
   notify();
 }
 
@@ -83,6 +88,10 @@ export function getVaultSession(): VaultSession | null {
 
 export function isVaultUnlocked(): boolean {
   return unlocked && !!cek && !!activeAddress;
+}
+
+export function getVaultLockReason(): VaultAutoLockReason | null {
+  return lastLockReason;
 }
 
 export function getVaultAddress(): string | null {
@@ -152,6 +161,7 @@ export async function setupVault(opts: {
   cek = key;
   activeAddress = meta.aztecAddress;
   unlocked = true;
+  lastLockReason = null;
 
   await migrateLocalStorageIntoVault();
   notify();
@@ -199,13 +209,27 @@ export async function wipeVaultProfileWithPassword(opts: {
     skipPasskey: true,
   });
   const address = opts.aztecAddress.trim();
+  await deleteVaultProfile(address);
+}
+
+/** Delete a vault profile and its encrypted docs. Safe to call for a non-active address. */
+export async function deleteVaultProfile(aztecAddress: string): Promise<void> {
+  const address = aztecAddress.trim();
+  if (!address) throw new VaultError("Missing Aztec address.");
   await backend.deleteProfile(address);
-  cek = null;
-  unlocked = false;
   if (activeAddress?.toLowerCase() === address.toLowerCase()) {
+    cek = null;
+    unlocked = false;
     activeAddress = null;
+    lastLockReason = null;
   }
   notify();
+}
+
+/** Delete the currently unlocked vault profile without asking for the password again. */
+export async function wipeUnlockedVaultProfile(): Promise<void> {
+  const { address } = requireUnlocked();
+  await deleteVaultProfile(address);
 }
 
 export async function unlockVault(opts: {
@@ -269,12 +293,14 @@ export async function unlockVault(opts: {
   cek = await deriveCek(opts.password, salt, iterations);
   activeAddress = meta.aztecAddress;
   unlocked = true;
+  lastLockReason = null;
   notify();
 }
 
-export function lockVault(): void {
+export function lockVault(reason?: VaultAutoLockReason): void {
   cek = null;
   unlocked = false;
+  lastLockReason = reason ?? null;
   // Keep activeAddress so UI knows which profile is selected but locked.
   notify();
 }
@@ -284,6 +310,7 @@ export function bindVaultAddress(aztecAddress: string | null): void {
   if (next?.toLowerCase() !== activeAddress?.toLowerCase()) {
     cek = null;
     unlocked = false;
+    lastLockReason = null;
   }
   activeAddress = next;
   notify();

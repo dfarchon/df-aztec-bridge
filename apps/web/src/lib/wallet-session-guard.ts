@@ -5,7 +5,7 @@
 
 import type { ConnectedWallet } from "@df-bridge/browser-sdk";
 import { LEGACY_WALLET_RDNS } from "@df-bridge/browser-sdk";
-import type { EIP1193Provider } from "viem";
+import type { EIP1193Provider, Hex } from "viem";
 import { redactForLog } from "./privacy.ts";
 
 export class WalletSessionError extends Error {
@@ -28,7 +28,7 @@ export function assertSecureWalletContext(): void {
   if (typeof window === "undefined") return;
   if (import.meta.env.PROD && !window.isSecureContext) {
     throw new WalletSessionError(
-      "Refusing wallet / PXE unlock outside a secure context (HTTPS). Injection hardening requires HTTPS.",
+      "Open this site over HTTPS to connect a wallet.",
     );
   }
 }
@@ -43,7 +43,7 @@ export async function validateConnectedWalletSession(
   assertSecureWalletContext();
   if (!isTrustedConnector(wallet)) {
     throw new WalletSessionError(
-      "Connect via MetaMask (EIP-6963) or WalletConnect. Anonymous window.ethereum injection cannot unlock DF Punk PXE.",
+      "Connect MetaMask or WalletConnect. This browser wallet isn't supported.",
     );
   }
 
@@ -86,7 +86,7 @@ export async function validateConnectedWalletSession(
 export async function tryValidateConnectedWalletSession(
   wallet: ConnectedWallet | null,
 ): Promise<{ ok: true; wallet: ConnectedWallet } | { ok: false; reason: string }> {
-  if (!wallet) return { ok: false, reason: "Connect MetaMask or WalletConnect first." };
+  if (!wallet) return { ok: false, reason: "Connect a wallet first." };
   try {
     const validated = await validateConnectedWalletSession(wallet);
     return { ok: true, wallet: validated };
@@ -96,4 +96,40 @@ export async function tryValidateConnectedWalletSession(
       reason: e instanceof Error ? e.message : String(e),
     };
   }
+}
+
+/**
+ * MetaMask (and some injected wallets) emit `disconnect` or `accountsChanged([])`
+ * when a confirmation popup opens. Trust a new account, but probe before logout.
+ */
+export type ProviderSessionEvent =
+  | { kind: "accountsChanged"; accounts: readonly string[] }
+  | { kind: "disconnect" };
+
+export type ProviderSessionDecision =
+  | { action: "ignore" }
+  | { action: "updateAddress"; address: Hex }
+  | { action: "clear" }
+  | { action: "probeAccounts" };
+
+export function decideProviderSessionEvent(
+  event: ProviderSessionEvent,
+  opts: { inFlight: boolean },
+): ProviderSessionDecision {
+  if (event.kind === "accountsChanged") {
+    const next = event.accounts[0];
+    if (next) return { action: "updateAddress", address: next as Hex };
+  }
+  return opts.inFlight ? { action: "ignore" } : { action: "probeAccounts" };
+}
+
+/** Result of `eth_accounts` after an idle disconnect / empty-accounts event. */
+export function decideProviderAccountsProbe(result: {
+  accounts?: readonly string[] | null;
+  error?: unknown;
+}): Extract<ProviderSessionDecision, { action: "ignore" | "updateAddress" | "clear" }> {
+  if (result.error != null) return { action: "ignore" };
+  const next = result.accounts?.[0];
+  if (next) return { action: "updateAddress", address: next as Hex };
+  return { action: "clear" };
 }

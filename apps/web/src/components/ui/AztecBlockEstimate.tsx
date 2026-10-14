@@ -110,6 +110,10 @@ export function AztecBlockEstimate(props: {
           : `Estimated ~${Math.round(intervalMs / 1000)}s between tips`
       }
     >
+      <p className="hint aztec-block-estimate-hint">
+        Current Aztec block height, then the wait until the next block. The claim waits for your
+        L1 deposit to land in one of these blocks.
+      </p>
       <div className="aztec-block-estimate-row">
         <span className="aztec-block-estimate-label">Aztec tip</span>
         <span className="aztec-block-estimate-tip mono">

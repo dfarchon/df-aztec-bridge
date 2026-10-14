@@ -37,7 +37,7 @@ This is an **estimate for UX**, not a consensus guarantee. Public nets start fro
 
 ## Dapp log (toasts)
 
-Bottom/side **dapp log** shows short-lived activity:
+Bottom/side **dapp log** shows short-lived activity when `VITE_ENABLE_DAPP_LOG=true`. Unset or any other value hides the panel (the default).
 
 | Kind | Examples |
 |------|----------|

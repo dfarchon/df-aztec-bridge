@@ -6,6 +6,27 @@ import { useUi } from "../../providers/UiProvider.tsx";
 import { useNetwork } from "../../providers/NetworkProvider.tsx";
 import type { ConnectedWallet } from "@df-bridge/browser-sdk";
 
+function WalletMark() {
+  return (
+    <svg className="wallet-chip-mark" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+      <path
+        d="M4 8.25h16v11H4z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      />
+      <path
+        d="M4 8.25 6.5 5h11L20 8.25"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="miter"
+      />
+      <rect className="wallet-chip-clasp" x="14.15" y="12.05" width="5.85" height="3.35" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
 export function TopBar(props: {
   wallet: ConnectedWallet | null;
   ethSessionOk: boolean;
@@ -58,11 +79,8 @@ export function TopBar(props: {
           aria-expanded={shellReady ? walletPanelOpen : centerWalletsOpen}
           aria-haspopup="dialog"
         >
-          <span
-            className={`wallet-chip-dot${props.ethSessionOk ? " ok" : ""}`}
-            aria-hidden="true"
-          />
-          <span className="wallet-chip-label mono">
+          <WalletMark />
+          <span className="wallet-chip-label">
             {props.wallet ? shortHash(props.wallet.address) : "Wallets"}
           </span>
         </button>

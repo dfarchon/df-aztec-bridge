@@ -175,9 +175,11 @@ export default defineConfig(({ mode }) => {
   if (/lb\.drpc\.live\/aztec-mainnet\/[^/\s?#]+/i.test(viteMainnetNode)) {
     throw new Error(
       "VITE_MAINNET_AZTEC_NODE_URL must not include a dRPC path key (baked into the client). " +
-        "Use https://aztec-mainnet.drpc.org, or put a keyed URL only in non-VITE MAINNET_AZTEC_NODE_URL for CLI/API.",
+        "Use https://aztec-mainnet.drpc.org, or put a keyed URL in MAINNET_AZTEC_NODE_URL for local pnpm dev.",
     );
   }
+  const devMainnetNode =
+    mode === "development" ? (env.MAINNET_AZTEC_NODE_URL?.trim() ?? "") : "";
   if (!browserClaim && !apiAuthToken) {
     throw new Error(
       "VITE_ENABLE_BROWSER_CLAIM=false requires API_AUTH_TOKEN (≥32) so the /api proxy can authenticate /v1/claim.",
@@ -205,6 +207,9 @@ export default defineConfig(({ mode }) => {
 
   return {
     envDir: rootDir,
+    define: {
+      "import.meta.env.DEV_MAINNET_AZTEC_NODE_URL": JSON.stringify(devMainnetNode),
+    },
     assetsInclude: ["**/*.wasm"],
     plugins: [
       react(),

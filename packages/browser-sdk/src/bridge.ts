@@ -63,6 +63,23 @@ function notifyPending(
   }
 }
 
+/** One wallet-confirm sentence for the portal batch that is actually being sent. */
+export function describePortalBatchConfirm(parts: {
+  ethServiceFee: boolean;
+  aztecFee: boolean;
+  approve: boolean;
+}): string {
+  const items: string[] = [];
+  if (parts.ethServiceFee) items.push("ETH service fee");
+  if (parts.aztecFee) items.push("5% AZTEC fee");
+  if (parts.approve) items.push("Fee Juice approval");
+  items.push("the L1 deposit");
+  if (items.length === 1) return "Confirm the L1 deposit in your wallet.";
+  if (items.length === 2) return `Confirm in your wallet: ${items[0]} and ${items[1]}.`;
+  const last = items[items.length - 1];
+  return `Confirm in your wallet: ${items.slice(0, -1).join(", ")}, and ${last}.`;
+}
+
 function isSendCallsUnsupported(error: unknown): boolean {
   const err = error as { name?: string; shortMessage?: string; details?: string; message?: string };
   const text = `${err.name ?? ""} ${err.shortMessage ?? ""} ${err.details ?? ""} ${err.message ?? ""}`.toLowerCase();
@@ -319,12 +336,16 @@ async function bridgeViaPortal(params: {
     args: [recipientHex, net, secretHashHex],
   });
 
-  // Prefer one wallet confirm for ETH fee + AZTEC fee + approve + deposit (EIP-5792).
+  // Prefer one wallet confirm for the calls that are actually in this batch (EIP-5792).
   let hash: Hex | null = null;
   if (batchCalls.length > 1) {
     progress(
       ethServiceFee > 0n ? "eth_fee_wallet" : "bridge_wallet",
-      "Confirm batched L1 bridge (ETH fee + AZTEC fee + approve + deposit) in wallet",
+      describePortalBatchConfirm({
+        ethServiceFee: ethServiceFee > 0n,
+        aztecFee: fee > 0n,
+        approve: needsApprove,
+      }),
     );
     let bundleId =
       (await tryWalletSendCalls({
@@ -568,7 +589,7 @@ async function bridgeViaGoBridge(params: {
       ethServiceFee > 0n ? "eth_fee_wallet" : "bridge_wallet",
       ethServiceFee > 0n
         ? "Confirm bridge + ETH service fee (AZTEC fee skimmed onchain) in your wallet"
-        : "Approve done — confirm bridge tx in your wallet",
+        : "Approve done. Confirm bridge tx in your wallet",
     );
     hash = await walletClient.writeContract({
       address: bridgeAddr,
