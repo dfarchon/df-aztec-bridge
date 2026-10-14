@@ -67,7 +67,7 @@ Open app
 
 ## Safety tips (plain)
 
-1. Use a **strong** password (the code allows short passwords for setup, but short passwords are weak for wallet vaults).
+1. Use a **strong** password. New vaults require at least 12 characters. Existing shorter passwords still unlock.
 2. Download **claim-*.json** after L1 deposit and keep a copy offline.
 3. Lock the vault when you walk away (or let idle lock do it).
 4. Same-origin XSS while unlocked ≈ attacker can use your CEK. Keep the site + CSP healthy.

@@ -15,7 +15,9 @@ import {
   verifyPassword,
   verifyPasswordOnly,
   VAULT_KDF_ITERATIONS,
+  VAULT_PASSWORD_MIN_LENGTH,
   VAULT_SALT_BYTES,
+  type VaultEnvelope,
   type VaultPasskeyMeta,
   type VaultProfileMeta,
 } from "./vault-crypto.ts";
@@ -133,8 +135,8 @@ export async function setupVault(opts: {
   const address = opts.aztecAddress.trim();
   const password = opts.password;
   if (!address) throw new VaultError("Missing Aztec address for vault setup.");
-  if (password.length < 8) {
-    throw new VaultError("Password must be at least 8 characters.");
+  if (password.length < VAULT_PASSWORD_MIN_LENGTH) {
+    throw new VaultError(`Password must be at least ${VAULT_PASSWORD_MIN_LENGTH} characters.`);
   }
 
   const existing = await backend.getMeta(address);
@@ -341,22 +343,66 @@ export async function vaultListDocs(): Promise<string[]> {
   return backend.listDocIds(address);
 }
 
-export async function vaultExportAllJson(): Promise<Record<string, unknown>> {
-  const { address, key } = requireUnlocked();
+const VAULT_BACKUP_FORMAT = "df-bridge-vault-backup-v1";
+const VAULT_DOC_ID = /^[a-zA-Z0-9:_-]{1,64}$/;
+
+export type VaultEncryptedBackup = {
+  format: typeof VAULT_BACKUP_FORMAT;
+  exportedAt: string;
+  aztecAddress: string;
+  docs: Record<string, VaultEnvelope>;
+};
+
+function isVaultEnvelope(value: unknown): value is VaultEnvelope {
+  if (!value || typeof value !== "object") return false;
+  const env = value as VaultEnvelope;
+  return env.v === 1 && typeof env.iv === "string" && !!env.iv && typeof env.ct === "string" && !!env.ct;
+}
+
+/** Downloadable backup is the ciphertext already stored in IndexedDB. */
+export async function vaultExportAllJson(): Promise<VaultEncryptedBackup> {
+  const { address } = requireUnlocked();
   const ids = await backend.listDocIds(address);
-  const out: Record<string, unknown> = {
-    exportedAt: new Date().toISOString(),
-    aztecAddress: address,
-    docs: {},
-  };
-  const docs: Record<string, unknown> = {};
+  const docs: Record<string, VaultEnvelope> = {};
   for (const id of ids) {
     const env = await backend.getDoc(address, id);
-    if (!env) continue;
-    docs[id] = await decryptJson(key, env);
+    if (!env || !isVaultEnvelope(env)) continue;
+    docs[id] = { v: 1, iv: env.iv, ct: env.ct };
   }
-  out.docs = docs;
-  return out;
+  return {
+    format: VAULT_BACKUP_FORMAT,
+    exportedAt: new Date().toISOString(),
+    aztecAddress: address,
+    docs,
+  };
+}
+
+/** Restore a ciphertext backup into the unlocked profile. Same password must still unlock it. */
+export async function vaultImportEncryptedBackup(raw: unknown): Promise<number> {
+  const { address } = requireUnlocked();
+  if (!raw || typeof raw !== "object") {
+    throw new VaultError("Backup file is not a vault backup.");
+  }
+  const file = raw as Partial<VaultEncryptedBackup>;
+  if (file.format !== VAULT_BACKUP_FORMAT) {
+    throw new VaultError("Backup file is not an encrypted vault backup.");
+  }
+  if (typeof file.aztecAddress !== "string" || file.aztecAddress.trim().toLowerCase() !== address.toLowerCase()) {
+    throw new VaultError("Backup address does not match the unlocked vault.");
+  }
+  if (!file.docs || typeof file.docs !== "object" || Array.isArray(file.docs)) {
+    throw new VaultError("Backup file has no documents.");
+  }
+  const entries = Object.entries(file.docs);
+  for (const [id, env] of entries) {
+    if (!VAULT_DOC_ID.test(id) || !isVaultEnvelope(env)) {
+      throw new VaultError("Backup file contains an invalid document.");
+    }
+  }
+  for (const [id, env] of entries) {
+    await backend.putDoc(address, id, { v: 1, iv: env.iv, ct: env.ct });
+  }
+  return entries.length;
 }
 
 const LS_WALLETS = "df-bridge:aztec-wallets:v1";

@@ -110,10 +110,17 @@ export function VaultProvider(props: { children: ReactNode }) {
   }, [refreshVaultAvailability]);
 
   useEffect(() => {
+    let wasUnlocked = isVaultUnlocked();
     return subscribeVault(() => {
       const s = getVaultSession();
-      setUnlocked(!!s?.unlocked);
+      const nowUnlocked = !!s?.unlocked;
+      setUnlocked(nowUnlocked);
       setAddress(s?.address ?? null);
+      if (wasUnlocked && !nowUnlocked) {
+        pxeAccountRef.current = null;
+        setPxeAccountState(null);
+      }
+      wasUnlocked = nowUnlocked;
       void refreshVaultAvailability();
     });
   }, [refreshVaultAvailability]);
@@ -156,7 +163,7 @@ export function VaultProvider(props: { children: ReactNode }) {
           title: mode === "setup" ? "Set vault password + passkey" : "Unlock vault",
           detail:
             mode === "setup"
-              ? "Choose an admin password (min 8 chars) and register a device / phone passkey."
+              ? "Choose an admin password (at least 12 characters) and register a device / phone passkey."
               : "Enter your vault password — then approve passkey if one was registered.",
           ttlMs: 10_000,
         });

@@ -6,6 +6,8 @@
  */
 
 export const VAULT_KDF_ITERATIONS = 210_000;
+/** New vaults only. Existing shorter passwords still unlock. */
+export const VAULT_PASSWORD_MIN_LENGTH = 12;
 export const VAULT_SALT_BYTES = 16;
 export const VAULT_IV_BYTES = 12;
 export const VAULT_PASSWORD_VERIFIER_PURPOSE = "df-bridge-vault-v2";

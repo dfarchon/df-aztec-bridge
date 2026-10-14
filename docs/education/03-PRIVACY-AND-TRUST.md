@@ -47,7 +47,7 @@ That you visited the website         Unlocked browser session memory
 
 From [NETWORK_INTEGRITY.md](../NETWORK_INTEGRITY.md) and `privacy.ts`:
 
-- No third-party analytics / Google Fonts CDN in production posture.
+- No third-party analytics. Fira Sans is self-hosted (no Google Fonts CDN).
 - `privacyFetch`: no cookies, no-referrer, fixed `Accept-Language: en`, strip client-IP headers.
 - Logs / toasts: full 32-byte hex is **not** dumped to console; toasts show **short** ids + explorer links.
 ## CROPS-style snapshot (honest)
