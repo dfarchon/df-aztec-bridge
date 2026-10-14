@@ -28,7 +28,6 @@ export const CSP_CONNECT_HOSTS = [
   "https://sepolia.etherscan.io",
   "https://df-atlas.onchainreality.xyz",
   "https://aztec.dfpunk.xyz",
-  "https://chainlist.org",
   "https://rpc.walletconnect.com",
   "https://rpc.walletconnect.org",
   "https://explorer-api.walletconnect.com",

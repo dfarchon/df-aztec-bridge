@@ -10,6 +10,7 @@ import {
   shouldBlockUnload,
   startProgress,
   stepStateAt,
+  stripProgressDashes,
 } from "./progress-track.ts";
 
 describe("phase mapping", () => {
@@ -88,6 +89,17 @@ describe("finishProgress", () => {
     expect(failed?.stepIndex).toBe(running.stepIndex);
     expect(stepStateAt(running.stepIndex, failed!)).toBe("failed");
   });
+
+  it("keeps the current step visible when the wallet rejects", () => {
+    const running = advanceProgress(startProgress("bridge", "prepare", 0), {
+      track: "bridge",
+      stepKey: "approve",
+    });
+    const rejected = finishProgress(running, "rejected");
+    expect(rejected?.stepIndex).toBe(running.stepIndex);
+    expect(rejected?.runState).toBe("rejected");
+    expect(stepStateAt(running.stepIndex, rejected!)).toBe("failed");
+  });
 });
 
 describe("stepStateAt", () => {
@@ -156,7 +168,7 @@ describe("displayProgressAt", () => {
     expect(reset.dwell).toBe(true);
 
     let shown = reset.next;
-    while (shown.stepIndex < claim.stepIndex) {
+    while (shown.stepIndex < claim.stepIndex || shown.runState !== "succeeded") {
       const frame = displayProgressAt(shown, claim);
       expect(frame.dwell).toBe(true);
       shown = frame.next;
@@ -165,11 +177,37 @@ describe("displayProgressAt", () => {
     expect(shown.runState).toBe("succeeded");
   });
 
+  it("keeps the last step active before marking success", () => {
+    const shown = startProgress("claim", "confirm", 0);
+    const target = finishProgress(shown, "succeeded")!;
+    const ontoLast = displayProgressAt(shown, target);
+    expect(ontoLast.next.stepIndex).toBe(getTrack("claim").steps.length - 1);
+    expect(ontoLast.next.runState).toBe("running");
+    expect(ontoLast.dwell).toBe(true);
+
+    const finish = displayProgressAt(ontoLast.next, target);
+    expect(finish.next.runState).toBe("succeeded");
+    expect(finish.dwell).toBe(true);
+
+    const settled = displayProgressAt(finish.next, target);
+    expect(settled.dwell).toBe(false);
+    expect(settled.next.runState).toBe("succeeded");
+  });
+
   it("does not delay once the panel has caught up", () => {
     const state = startProgress("claim", "pxe", 0);
     const frame = displayProgressAt(state, state);
     expect(frame.dwell).toBe(false);
     expect(frame.next).toEqual(state);
+  });
+});
+
+describe("stripProgressDashes", () => {
+  it("turns em and en dashes into sentence breaks", () => {
+    expect(stripProgressDashes("L1 bridge complete — credentials saved")).toBe(
+      "L1 bridge complete. Credentials saved",
+    );
+    expect(stripProgressDashes("Queued – polling status")).toBe("Queued. Polling status");
   });
 });
 

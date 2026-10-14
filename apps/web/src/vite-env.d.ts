@@ -11,6 +11,8 @@ interface ImportMetaEnv {
   readonly VITE_TESTNET_AZTEC_NODE_URL?: string;
   readonly VITE_TESTNET_L1_RPC_URL?: string;
   readonly VITE_MAINNET_AZTEC_NODE_URL?: string;
+  /** Local `pnpm dev` only: injected from MAINNET_AZTEC_NODE_URL. Empty in production builds. */
+  readonly DEV_MAINNET_AZTEC_NODE_URL?: string;
   readonly VITE_MAINNET_L1_RPC_URL?: string;
   readonly VITE_LOCAL_AZTEC_NODE_URL?: string;
   readonly VITE_LOCAL_L1_RPC_URL?: string;

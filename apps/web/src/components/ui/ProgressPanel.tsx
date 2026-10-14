@@ -6,9 +6,11 @@ import {
   PROGRESS_STEP_DWELL_MS,
   shouldBlockUnload,
   stepStateAt,
+  stripProgressDashes,
   type ProgressState,
   type ProgressStepState,
 } from "../../lib/progress-track.ts";
+import { WALLET_TX_REJECTED_DETAIL, WALLET_TX_REJECTED_TITLE } from "../../lib/app-error-toast.ts";
 import { AztecBlockEstimate } from "./AztecBlockEstimate.tsx";
 
 interface ProgressPanelProps {
@@ -16,9 +18,14 @@ interface ProgressPanelProps {
   /** Free-form message from the running flow, shown verbatim under the steps. */
   detail: string | null;
   onDismiss: () => void;
+  onRetry?: () => void;
+  /** After a finished L1 bridge, start the in-tab L2 claim. */
+  onClaimL2?: () => void;
   /** When set, show Aztec tip + next-block countdown for L2 claim tracks. */
   aztecNodeUrl?: string | null;
   networkId?: string;
+  /** Render inside an existing pane instead of a full-screen overlay. */
+  embedded?: boolean;
 }
 
 function markerFor(state: ProgressStepState, index: number) {
@@ -87,11 +94,16 @@ export function ProgressPanel({
   progress: liveProgress,
   detail,
   onDismiss,
+  onRetry,
+  onClaimL2,
   aztecNodeUrl,
   networkId,
+  embedded = false,
 }: ProgressPanelProps) {
   const progress = usePacedProgress(liveProgress);
   const running = progress.runState === "running";
+  const rejected = progress.runState === "rejected";
+  const failed = progress.runState === "failed";
   const [elapsed, setElapsed] = useState(() => Date.now() - liveProgress.startedAt);
 
   useEffect(() => {
@@ -109,11 +121,10 @@ export function ProgressPanel({
       <AztecBlockEstimate aztecNodeUrl={aztecNodeUrl} networkId={networkId} />
     ) : null;
 
-  return (
-    <div className="progress-panel-backdrop">
+  const panel = (
       <section
-        className={`progress-panel progress-panel-${progress.runState}`}
-        aria-label={track.title}
+        className={`progress-panel progress-panel-${progress.runState}${embedded ? " progress-panel-embedded" : ""}`}
+        aria-label={rejected ? WALLET_TX_REJECTED_TITLE : track.title}
       >
         {running ? <span className="progress-panel-bar" aria-hidden="true" /> : null}
 
@@ -126,9 +137,13 @@ export function ProgressPanel({
             </span>
           )}
           <div className="progress-panel-title">
-            <strong className="wallet-manager-pane-title">{track.title}</strong>
+            <strong className="wallet-manager-pane-title">
+              {rejected ? WALLET_TX_REJECTED_TITLE : track.title}
+            </strong>
             <p className="hint progress-panel-step" role="status" aria-live="polite">
-              Step {progress.stepIndex + 1} of {track.steps.length} · {activeStep?.label}
+              {rejected
+                ? WALLET_TX_REJECTED_DETAIL
+                : `Step ${progress.stepIndex + 1} of ${track.steps.length} · ${activeStep?.label}`}
             </p>
           </div>
           <span className="hint progress-elapsed" title="Elapsed time">
@@ -151,8 +166,6 @@ export function ProgressPanel({
             </button>
           )}
         </div>
-
-        {estimate}
 
         {running ? (
           shouldBlockUnload(progress) ? (
@@ -181,7 +194,7 @@ export function ProgressPanel({
                 <span className="progress-step-body">
                   <span className="progress-step-label">{step.label}</span>
                   {state === "active" && step.note ? (
-                    <span className="progress-step-note">{step.note}</span>
+                    <span className="progress-step-note">{stripProgressDashes(step.note)}</span>
                   ) : null}
                 </span>
               </li>
@@ -189,8 +202,40 @@ export function ProgressPanel({
           })}
         </ol>
 
-        {detail ? <p className="hint progress-detail">{detail}</p> : null}
+        {estimate}
+
+        {detail && (!rejected || detail !== WALLET_TX_REJECTED_DETAIL) ? (
+          <p className="hint progress-detail">{stripProgressDashes(detail)}</p>
+        ) : null}
+
+        {progress.runState === "succeeded" &&
+        (progress.track === "claim" || progress.track === "resume-l1" || progress.track === "wait-l2") ? (
+          <p className="progress-success-line">Fee Juice is on this Aztec account.</p>
+        ) : null}
+
+        {progress.runState === "succeeded" && progress.track === "bridge" && onClaimL2 ? (
+          <div className="progress-panel-actions">
+            <button type="button" onClick={onClaimL2}>
+              Claim on L2
+            </button>
+          </div>
+        ) : null}
+
+        {rejected || failed ? (
+          <div className="progress-panel-actions">
+            <button type="button" className="ghost" onClick={onDismiss}>
+              Close
+            </button>
+            {onRetry ? (
+              <button type="button" onClick={onRetry}>
+                Try again
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </section>
-    </div>
   );
+
+  if (embedded) return panel;
+  return <div className="progress-panel-backdrop">{panel}</div>;
 }

@@ -104,7 +104,7 @@ export function useBridgeActivity(session: BridgeSession) {
   const {
     path, navigate,
 networkId, networkMeta, l1Backend, rpcOverrides, settingsOpen, openSettings, closeSettings,
-draftAztecUrl, setDraftAztecUrl, draftL1RpcUrl, setDraftL1RpcUrl, saveSettings, resetSettingsDraft,
+draftAztecUrl, setDraftAztecUrl, saveSettings, resetSettingsDraft,
 setVaultPxeAccount, requireVaultAfterPxeImport, ensureUnlocked, unlockExistingVault, vaultAvailable,
 refreshVaultAvailability, secretsVisible, requestUnlock, lockVaultUi,
 setShellReady, shellReady, closeWalletPanel,
@@ -130,6 +130,7 @@ storageReady, setStorageReady, storageError, setStorageError, selectedSession, r
 applyImportedAccount, importPxeFromGate, unlockVaultFromGate, onAccountFile,
 refreshFeeBalance, refreshL2FeeBalance, refreshBalancesAfterAction,
 connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnect,
+vaultTimeoutNotice,
   } = session;
 
   useEffect(() => {
@@ -265,17 +266,24 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
     !fundingSponsoredFpc;
 
   useEffect(() => {
-    setShellReady(dfPxeReady);
-    if (dfPxeReady) {
-      pushDappLog({
-        kind: "announce",
-        title: "Session unlocked",
-        detail: "Web3 connector + DF Punk PXE ready — menus and bridge tools are available.",
-        ttlMs: 12_000,
-      });
+    if (vaultTimeoutNotice) {
+      setShellReady(false);
+      return;
     }
-    return () => setShellReady(false);
-  }, [dfPxeReady, setShellReady]);
+    setShellReady(
+      dfPxeReady || busy || progress?.runState === "running",
+    );
+  }, [vaultTimeoutNotice, dfPxeReady, busy, progress?.runState, setShellReady]);
+
+  useEffect(() => {
+    if (!dfPxeReady) return;
+    pushDappLog({
+      kind: "announce",
+      title: "Session unlocked",
+      detail: "Web3 connector + DF Punk PXE ready — menus and bridge tools are available.",
+      ttlMs: 12_000,
+    });
+  }, [dfPxeReady]);
 
   const canBridge =
     dfPxeReady &&

@@ -93,7 +93,6 @@ export function VaultProvider(props: { children: ReactNode }) {
   const [modalMode, setModalMode] = useState<VaultModalMode>("unlock");
   const [modalBusy, setModalBusy] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
-  const [modalRequired, setModalRequired] = useState(false);
   const [modalPasskeyRequired, setModalPasskeyRequired] = useState(false);
   const [modalPasskeyRecovery, setModalPasskeyRecovery] = useState(false);
   const [modalAddress, setModalAddress] = useState<string | null>(null);
@@ -125,7 +124,6 @@ export function VaultProvider(props: { children: ReactNode }) {
     setModalOpen(false);
     setModalBusy(false);
     setModalError(null);
-    setModalRequired(false);
     setModalPasskeyRequired(false);
     setModalPasskeyRecovery(false);
     pendingResolve.current?.(ok);
@@ -133,7 +131,7 @@ export function VaultProvider(props: { children: ReactNode }) {
   }, []);
 
   const openModal = useCallback(
-    (mode: VaultModalMode, required: boolean, aztecAddress?: string) =>
+    (mode: VaultModalMode, _required: boolean, aztecAddress?: string) =>
       new Promise<boolean>((resolve) => {
         if (mode === "unlock" && isVaultUnlocked()) {
           resolve(true);
@@ -143,7 +141,6 @@ export function VaultProvider(props: { children: ReactNode }) {
         pendingResolve.current?.(false);
         pendingResolve.current = resolve;
         setModalMode(mode);
-        setModalRequired(required);
         setModalError(null);
         setModalPasskeyRequired(false);
         setModalPasskeyRecovery(false);
@@ -480,7 +477,7 @@ export function VaultProvider(props: { children: ReactNode }) {
         onSubmit={onSubmitPassword}
         onReplacePasskey={modalPasskeyRecovery ? onReplacePasskey : undefined}
         onRecoverViaJson={modalPasskeyRecovery ? onRecoverViaJson : undefined}
-        onCancel={modalRequired ? undefined : () => finishModal(false)}
+        onCancel={() => finishModal(false)}
       />
     </VaultContext.Provider>
   );

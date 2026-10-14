@@ -7,6 +7,7 @@ import { TopBar } from "../../../components/layout/TopBar.tsx";
 import { WalletDrawer } from "../../../components/wallet/WalletDrawer.tsx";
 import { WalletManagerPanel } from "../../wallet/WalletManagerPanel.tsx";
 import { VaultPage } from "../../vault/VaultPage.tsx";
+import { HistoryPage } from "../../history/HistoryPage.tsx";
 import { NetworkIntegrityPanel } from "../../network/NetworkIntegrityPanel.tsx";
 import { ROUTES } from "../../../app/routes.ts";
 import {
@@ -31,7 +32,7 @@ export function WorkspaceView({ session, flows }: { session: BridgeSession; flow
   const {
     path, navigate,
 networkId, networkMeta, l1Backend, rpcOverrides, settingsOpen, openSettings, closeSettings,
-draftAztecUrl, setDraftAztecUrl, draftL1RpcUrl, setDraftL1RpcUrl, saveSettings, resetSettingsDraft,
+draftAztecUrl, setDraftAztecUrl, saveSettings, resetSettingsDraft,
 setVaultPxeAccount, requireVaultAfterPxeImport, ensureUnlocked, unlockExistingVault, vaultAvailable,
 refreshVaultAvailability, secretsVisible, requestUnlock, lockVaultUi,
 setShellReady, shellReady, closeWalletPanel,
@@ -57,15 +58,50 @@ storageReady, setStorageReady, storageError, setStorageError, selectedSession, r
 applyImportedAccount, importPxeFromGate, unlockVaultFromGate, onAccountFile,
 refreshFeeBalance, refreshL2FeeBalance, refreshBalancesAfterAction,
 connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnect,
+vaultTimeoutNotice,
   } = session;
   const {
-    startClaimJob, onBridge, selectRecoverySession, onClaimCredentialsFile, retryResumeL1, waitForSessionL2,
+    startClaimJob, claimAfterBridge, onBridge, selectRecoverySession, onClaimCredentialsFile, retryResumeL1, waitForSessionL2,
 onResumeClaim, onRemoveSession, amountCheck, feeSplit, canMintFeeJuice, shortfall, fundingSponsoredFpc,
 dfPxeReady, canBridge, bridgeButtonLabel, recoveryAccountReady,
 requestBridge,
   } = flows;
   const [riskAccepted, setRiskAccepted] = useState(readBridgeRiskAccepted);
   const [riskNoticeOpen, setRiskNoticeOpen] = useState(false);
+
+  const retryProgress = () => {
+    if (!progress) return;
+    if (progress.track === "bridge") {
+      void onBridge();
+      return;
+    }
+    if (!selectedSession) return;
+    if (progress.track === "claim") void onResumeClaim(selectedSession);
+    else if (progress.track === "resume-l1") void retryResumeL1(selectedSession);
+    else if (progress.track === "wait-l2") void waitForSessionL2(selectedSession);
+  };
+
+  const recoverOwnsProgress =
+    path === ROUTES.recover &&
+    !!progress &&
+    (progress.track === "claim" ||
+      progress.track === "resume-l1" ||
+      progress.track === "wait-l2");
+  const progressPanel =
+    progress && !recoverOwnsProgress ? (
+    <ProgressPanel
+      progress={progress}
+      detail={bridgePhase}
+      aztecNodeUrl={networkMeta?.aztecNodeUrl}
+      networkId={networkId}
+      onDismiss={() => {
+        setProgress(null);
+        setBridgePhase(null);
+      }}
+      onRetry={retryProgress}
+      onClaimL2={BROWSER_CLAIM ? () => void claimAfterBridge() : undefined}
+    />
+  ) : null;
 
   return (
     <>
@@ -118,13 +154,17 @@ requestBridge,
                 setL2Salt("0");
                 setL2SigningKey("");
               }}
+              vaultTimeoutNotice={vaultTimeoutNotice}
             />
           }
         />
 
       ) : (
         <div className={`app-main-inner${path === ROUTES.bridge ? " app-main-inner-bridge" : ""}`}>
-      {path === ROUTES.bridge ? null : (
+      {path === ROUTES.bridge ||
+      path === ROUTES.recover ||
+      path === ROUTES.history ||
+      path === ROUTES.vault ? null : (
       <p className="brand-lead app-lead">
         Connect an Ethereum wallet, fund an Aztec address, and claim Fee Juice. Styled for the{" "}
         <a href={BRIDGE_PUBLIC_URL} target="_blank" rel="noreferrer">
@@ -145,18 +185,6 @@ requestBridge,
         <div className="bridge-flow">
           <div className="bridge-flow-stage">
             {wallet && ethSessionOk ? <BridgeRoute session={session} flows={flows} /> : null}
-            {progress ? (
-              <ProgressPanel
-                progress={progress}
-                detail={bridgePhase}
-                aztecNodeUrl={networkMeta?.aztecNodeUrl}
-                networkId={networkId}
-                onDismiss={() => {
-                  setProgress(null);
-                  setBridgePhase(null);
-                }}
-              />
-            ) : null}
           </div>
         </div>
         <aside className="bridge-aside">
@@ -176,13 +204,11 @@ requestBridge,
       </div>
       ) : null}
 
-      {path === ROUTES.vault ? (
-        <section className="route-page" aria-label="Vault">
-          <VaultPage />
-        </section>
-      ) : null}
+      {path === ROUTES.vault ? <VaultPage /> : null}
 
-      {path !== ROUTES.vault && wallet && ethSessionOk ? (
+      {path === ROUTES.history ? <HistoryPage /> : null}
+
+      {path !== ROUTES.vault && path !== ROUTES.history && wallet && ethSessionOk ? (
         <>
           {path === ROUTES.recover ? <RecoverRoute session={session} flows={flows} /> : null}
         </>
@@ -193,21 +219,6 @@ requestBridge,
           {bridgePhase}
         </p>
       )}
-
-      {error ? <p className="error">{error}</p> : null}
-
-      {progress && path !== ROUTES.bridge ? (
-        <ProgressPanel
-          progress={progress}
-          detail={bridgePhase}
-          aztecNodeUrl={networkMeta?.aztecNodeUrl}
-          networkId={networkId}
-          onDismiss={() => {
-            setProgress(null);
-            setBridgePhase(null);
-          }}
-        />
-      ) : null}
 
         </div>
       )}
@@ -242,6 +253,7 @@ requestBridge,
         walletPickerRef={walletPickerRef}
         wcProjectId={WC_PROJECT_ID}
         hasNetwork={!!networkMeta}
+        vaultTimeoutNotice={vaultTimeoutNotice}
       />
 
       <WorkspaceModals session={session} flows={flows} />
@@ -249,6 +261,7 @@ requestBridge,
         <BridgeRiskNoticeDialog onClose={() => setRiskNoticeOpen(false)} />
       ) : null}
     </main>
+    {progressPanel}
     </>
   );
 }

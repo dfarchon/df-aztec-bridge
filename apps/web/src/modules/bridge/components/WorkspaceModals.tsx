@@ -1,9 +1,10 @@
-import { formatEther, formatUnits } from "viem";
+import { formatEther } from "viem";
 import { BRIDGE_FEE_BPS } from "@df-bridge/browser-sdk";
 import { getNetwork } from "../../../config/networks.ts";
-import { phaseLabel, recoverySteps, shortHash } from "../../../lib/claim-recovery.ts";
-import { AZTEC_MAINNET_NODE_PUBLIC } from "../../../lib/official-links.ts";
-import { AztecRpcOptionsField } from "../../../components/ui/AztecRpcOptionsField.tsx";
+import { hasRpcOverrides } from "../../../lib/rpc-overrides.ts";
+import { phaseLabel } from "../../../lib/claim-recovery.ts";
+import { formatFjAmount } from "../../../lib/bridge-amount.ts";
+import { useNetwork } from "../../../providers/NetworkProvider.tsx";
 import { ROUTES } from "../../../app/routes.ts";
 import {
   API_BASE,
@@ -19,7 +20,7 @@ export function WorkspaceModals({ session, flows }: { session: BridgeSession; fl
   const {
     path, navigate,
 networkId, networkMeta, l1Backend, rpcOverrides, settingsOpen, openSettings, closeSettings,
-draftAztecUrl, setDraftAztecUrl, draftL1RpcUrl, setDraftL1RpcUrl, saveSettings, resetSettingsDraft,
+draftAztecUrl, setDraftAztecUrl, saveSettings, resetSettingsDraft,
 setVaultPxeAccount, requireVaultAfterPxeImport, ensureUnlocked, unlockExistingVault, vaultAvailable,
 refreshVaultAvailability, secretsVisible, requestUnlock, lockVaultUi,
 setShellReady, shellReady, closeWalletPanel,
@@ -46,6 +47,9 @@ applyImportedAccount, importPxeFromGate, unlockVaultFromGate, onAccountFile,
 refreshFeeBalance, refreshL2FeeBalance, refreshBalancesAfterAction,
 connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnect,
   } = session;
+  const { settingsError } = useNetwork();
+  const defaultAztecUrl = getNetwork(networkId).aztecNodeUrl;
+  const liveAztecUrl = networkMeta?.aztecNodeUrl ?? defaultAztecUrl;
   const {
     startClaimJob, onBridge, selectRecoverySession, onClaimCredentialsFile, retryResumeL1, waitForSessionL2,
 onResumeClaim, onRemoveSession, amountCheck, feeSplit, canMintFeeJuice, shortfall, fundingSponsoredFpc,
@@ -161,29 +165,12 @@ requestBridge,
             <div className="modal-header">
               <strong id="claim-recovery-title">Unfinished claim found</strong>
             </div>
-            <div className="recovery-warning">
-              <strong>Saved claim credentials were recovered from this browser.</strong>
-              <p>
-                {phaseLabel(selectedSession.phase)} —{" "}
-                <span className="mono">
-                  {formatUnits(BigInt(selectedSession.credentials.claimAmount), 18)} FJ
-                </span>{" "}
-                is still waiting for you. Your Ethereum wallet is not needed to finish it.
-              </p>
-            </div>
-
-            <p className="recovery-steps-title">What to do next</p>
-            <ol className="recovery-steps">
-              {recoverySteps(selectedSession.phase, { includeNavigation: true }).map((step) => (
-                <li key={step}>{step}</li>
-              ))}
-            </ol>
-
             <p className="hint">
-              Recipient account:{" "}
-              <span className="mono">{selectedSession.credentials.recipient}</span>
-              <br />
-              L1 tx: <span className="mono">{shortHash(selectedSession.l1TxHash)}</span>
+              {phaseLabel(selectedSession.phase)} —{" "}
+              <span className="mono">
+                {formatFjAmount(BigInt(selectedSession.credentials.claimAmount), 5)} FJ
+              </span>{" "}
+              is still waiting.
             </p>
             <div className="modal-actions">
               <button
@@ -203,10 +190,9 @@ requestBridge,
                   void selectRecoverySession(selectedSession);
                   navigate(ROUTES.recover);
                   window.setTimeout(() => {
-                    const target =
-                      document.getElementById("aztec-recovery-account-import") ??
-                      document.getElementById("recovery-session-guide");
-                    target?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    document
+                      .getElementById("recovery-session-guide")
+                      ?.scrollIntoView({ behavior: "smooth", block: "center" });
                   }, 0);
                 }}
               >
@@ -229,7 +215,7 @@ requestBridge,
         >
           <div className="modal" role="dialog" aria-modal="true" aria-labelledby="rpc-settings-title">
             <div className="modal-header">
-              <strong id="rpc-settings-title">RPC settings</strong>
+              <strong id="rpc-settings-title">RPC</strong>
               <button
                 type="button"
                 className="icon-btn"
@@ -245,38 +231,42 @@ requestBridge,
                 </svg>
               </button>
             </div>
-            <p className="hint">
-              Overrides for <span className="mono">{networkId}</span>. Saved in the password vault
-              when unlocked. Leave as defaults or clear and save to reset.
-            </p>
-            <AztecRpcOptionsField
-              value={draftAztecUrl}
-              networkDefaultUrl={getNetwork(networkId).aztecNodeUrl}
-              preferredUrls={
-                networkId === "mainnet" ? [AZTEC_MAINNET_NODE_PUBLIC] : undefined
-              }
-              onChange={setDraftAztecUrl}
-            />
+            <p className="hint">Set the Aztec RPC.</p>
+            <div className="rpc-using">
+              <div className="rpc-using-head">
+                <span className="label">Using</span>
+                <span className="label">{hasRpcOverrides(rpcOverrides) ? "Custom" : "Default"}</span>
+              </div>
+              <p className="rpc-using-url">{liveAztecUrl}</p>
+            </div>
             <label>
-              L1_RPC_URL
+              RPC URL
               <input
-                value={draftL1RpcUrl}
-                onChange={(e) => setDraftL1RpcUrl(e.target.value)}
-                placeholder={getNetwork(networkId).l1RpcUrl}
+                value={draftAztecUrl}
+                onChange={(e) => setDraftAztecUrl(e.target.value)}
+                placeholder={defaultAztecUrl}
                 autoComplete="off"
                 spellCheck={false}
               />
             </label>
-            <div className="modal-actions">
-              <button type="button" className="ghost" onClick={resetSettingsDraft}>
-                Reset defaults
+            {settingsError ? <p className="hint error">{settingsError}</p> : null}
+            <div className="modal-actions rpc-settings-actions">
+              <button
+                type="button"
+                className="ghost"
+                onClick={resetSettingsDraft}
+                disabled={draftAztecUrl.trim() === defaultAztecUrl}
+              >
+                Reset to default
               </button>
-              <button type="button" className="ghost" onClick={() => closeSettings()}>
-                Cancel
-              </button>
-              <button type="button" onClick={saveSettings}>
-                Save
-              </button>
+              <div className="rpc-settings-actions-end">
+                <button type="button" className="ghost" onClick={() => closeSettings()}>
+                  Cancel
+                </button>
+                <button type="button" onClick={saveSettings}>
+                  Save
+                </button>
+              </div>
             </div>
           </div>
         </div>

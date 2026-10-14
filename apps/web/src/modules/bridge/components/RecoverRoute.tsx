@@ -1,318 +1,460 @@
-import { formatUnits } from "viem";
-import { phaseLabel, recoverySteps, shortHash } from "../../../lib/claim-recovery.ts";
+import { useEffect, useRef, useState, type RefObject } from "react";
+import { phaseLabel, shortHash } from "../../../lib/claim-recovery.ts";
+import { formatFjAmount } from "../../../lib/bridge-amount.ts";
 import { downloadClaimCredentials } from "../../../lib/claim-credentials-store.ts";
+import { getStoredAztecWallet } from "../../../lib/aztec-wallet-store.ts";
 import { TxAnalysisLinks } from "../../../components/ui/TxAnalysisLinks.tsx";
-import { ActionHintButton } from "../../../components/ui/ActionHintButton.tsx";
-import { normalizeL1TxHash } from "../../../lib/bridge-session.ts";
+import { ProgressPanel } from "../../../components/ui/ProgressPanel.tsx";
+import { normalizeL1TxHash, type BridgeSessionEntry } from "../../../lib/bridge-session.ts";
 import type { BridgeSession } from "../hooks/useBridgeSession.ts";
 import type { BridgeFlows } from "../hooks/useBridgeFlows.ts";
-import { AccountImportCard } from "./AccountImportCard.tsx";
-import { ClaimKeyFields } from "./ClaimKeyFields.tsx";
 
 export function RecoverRoute({ session, flows }: { session: BridgeSession; flows: BridgeFlows }) {
   const {
-    path, navigate,
-networkId, networkMeta, l1Backend, rpcOverrides, settingsOpen, openSettings, closeSettings,
-draftAztecUrl, setDraftAztecUrl, draftL1RpcUrl, setDraftL1RpcUrl, saveSettings, resetSettingsDraft,
-setVaultPxeAccount, requireVaultAfterPxeImport, ensureUnlocked, unlockExistingVault, vaultAvailable,
-refreshVaultAvailability, secretsVisible, requestUnlock, lockVaultUi,
-setShellReady, shellReady, closeWalletPanel,
-feeJuiceDetailsOpen, setFeeJuiceDetailsOpen, bridgeConfirmOpen, setBridgeConfirmOpen,
-recoveryAcknowledged, setRecoveryAcknowledged, recoveryPromptOpen, setRecoveryPromptOpen,
-availableWallets, setAvailableWallets, pickerOpen, setPickerOpen, connectingWallet, setConnectingWallet,
-walletConnectError, setWalletConnectError,
-wcUri, setWcUri, wallet, setWallet, ethSessionOk, setEthSessionOk, dfPxeAccount, setDfPxeAccount,
-gateImportingPxe, setGateImportingPxe, gateUnlockingVault, setGateUnlockingVault, gateImportError, setGateImportError,
-walletPickerRef,
-recipient, setRecipient, amountFj, setAmountFj, autoClaim, setAutoClaim, l2Secret, setL2Secret, l2Salt, setL2Salt,
-l2SigningKey, setL2SigningKey, legacyAccountStyles, setLegacyAccountStyles, showL2Secret, setShowL2Secret,
-busy, setBusy, error, setError, ethServiceFeeWei, setEthServiceFeeWei, bridgePhase, setBridgePhase,
-progress, setProgress, l1TxHash, setL1TxHash, showBridgeResult, setShowBridgeResult,
-credentials, setCredentials, claimJobId, setClaimJobId, claimStatus, setClaimStatus, l2TxHash, setL2TxHash,
-feeBalance, setFeeBalance, balanceError, setBalanceError, balanceRefreshing, setBalanceRefreshing,
-l2FeeBalance, setL2FeeBalance, l2BalanceError, setL2BalanceError, l2BalanceRefreshing, setL2BalanceRefreshing,
-importedAccounts, setImportedAccounts, importedIndex, setImportedIndex, importName, setImportName,
-importDragOver, setImportDragOver, credentialsImportError, setCredentialsImportError,
-credentialsImportNotice, setCredentialsImportNotice,
-recoverySessions, setRecoverySessions, selectedRecoveryHash, setSelectedRecoveryHash,
-storageReady, setStorageReady, storageError, setStorageError, selectedSession, refreshSessions,
-applyImportedAccount, importPxeFromGate, unlockVaultFromGate, onAccountFile,
-refreshFeeBalance, refreshL2FeeBalance, refreshBalancesAfterAction,
-connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnect,
+    networkId,
+    networkMeta,
+    setRecipient,
+    setL2Secret,
+    setL2Salt,
+    setL2SigningKey,
+    busy,
+    error,
+    credentialsImportError,
+    credentialsImportNotice,
+    recoverySessions,
+    selectedRecoveryHash,
+    setSelectedRecoveryHash,
+    storageReady,
+    storageError,
+    selectedSession,
+    progress,
+    setProgress,
+    setBridgePhase,
+    bridgePhase,
   } = session;
   const {
-    startClaimJob, onBridge, selectRecoverySession, onClaimCredentialsFile, retryResumeL1, waitForSessionL2,
-onResumeClaim, onRemoveSession, amountCheck, feeSplit, canMintFeeJuice, shortfall, fundingSponsoredFpc,
-dfPxeReady, canBridge, bridgeButtonLabel, recoveryAccountReady,
-requestBridge,
+    selectRecoverySession,
+    onClaimCredentialsFile,
+    retryResumeL1,
+    waitForSessionL2,
+    onResumeClaim,
+    onRemoveSession,
+    recoveryAccountReady,
   } = flows;
+
+  const [importOpen, setImportOpen] = useState(false);
+  const [removeOpen, setRemoveOpen] = useState(false);
+  const [accountMissing, setAccountMissing] = useState(false);
+  const claimFileRef = useRef<HTMLInputElement>(null);
+
+  const selectedKey = selectedRecoveryHash ? normalizeL1TxHash(selectedRecoveryHash) : null;
+  const showDetail =
+    !!selectedSession &&
+    !!selectedKey &&
+    normalizeL1TxHash(selectedSession.l1TxHash) === selectedKey;
+  const recoverProgress =
+    !!progress &&
+    (progress.track === "claim" ||
+      progress.track === "resume-l1" ||
+      progress.track === "wait-l2");
+
+  const pane = recoverProgress
+    ? "progress"
+    : removeOpen && showDetail
+      ? "remove"
+      : importOpen
+        ? "import"
+        : showDetail
+          ? "detail"
+          : "list";
+
+  const pickSession = (entry: BridgeSessionEntry) => {
+    setRemoveOpen(false);
+    setImportOpen(false);
+    void selectRecoverySession(entry);
+  };
+
+  const pickClaimFile = (file: File | null) => {
+    void onClaimCredentialsFile(file);
+    setImportOpen(false);
+  };
+
+  const backToList = () => {
+    setRemoveOpen(false);
+    setImportOpen(false);
+    setSelectedRecoveryHash(null);
+  };
+
+  useEffect(() => {
+    if (!showDetail || !selectedSession) return;
+    const needsAccount =
+      selectedSession.phase === "ready-to-claim" ||
+      selectedSession.phase === "claiming" ||
+      selectedSession.phase === "failed";
+    if (!needsAccount) {
+      setAccountMissing(false);
+      return;
+    }
+    const recipient = selectedSession.credentials?.recipient ?? selectedSession.recipient;
+    let cancelled = false;
+    setAccountMissing(false);
+    void (async () => {
+      const account = await getStoredAztecWallet(recipient);
+      if (cancelled) return;
+      if (!account) {
+        setAccountMissing(true);
+        return;
+      }
+      setRecipient(account.address);
+      setL2Secret(account.secretKey);
+      setL2Salt(account.salt);
+      setL2SigningKey(account.signingKey ?? "");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    showDetail,
+    selectedSession,
+    setRecipient,
+    setL2Secret,
+    setL2Salt,
+    setL2SigningKey,
+  ]);
+
+  return (
+    <div className="bridge-layout recover-layout" aria-label="Recover">
+      <section className="bridge-step" id="recovery-session-guide">
+        {pane === "progress" && progress ? (
+          <ProgressPanel
+            embedded
+            progress={progress}
+            detail={bridgePhase}
+            aztecNodeUrl={networkMeta?.aztecNodeUrl}
+            networkId={networkId}
+            onDismiss={() => {
+              setProgress(null);
+              setBridgePhase(null);
+              if (progress.runState === "succeeded") backToList();
+            }}
+            onRetry={() => {
+              if (!selectedSession) return;
+              if (progress.track === "claim") void onResumeClaim(selectedSession);
+              else if (progress.track === "resume-l1") void retryResumeL1(selectedSession);
+              else if (progress.track === "wait-l2") void waitForSessionL2(selectedSession);
+            }}
+          />
+        ) : null}
+
+        {pane === "import" ? (
+          <div className="df-pxe-format-pane">
+            <p className="wallet-manager-pane-title">Import claim</p>
+            <p className="hint">
+              Pick the claim-*.json downloaded after the L1 deposit. It has to be for the Aztec
+              account already in this browser. A file for another account is not saved.
+            </p>
+            <ClaimFileButton
+              inputRef={claimFileRef}
+              busy={busy}
+              label="Choose claim JSON"
+              onFile={pickClaimFile}
+            />
+            <ImportFeedback
+              error={credentialsImportError}
+              notice={credentialsImportNotice}
+            />
+            <button type="button" className="ghost" onClick={() => setImportOpen(false)}>
+              Back
+            </button>
+          </div>
+        ) : null}
+
+        {pane === "remove" && selectedSession ? (
+          <div className="df-pxe-format-pane">
+            <p className="wallet-manager-pane-title">Think twice before removing</p>
+            <p className="hint">
+              This only deletes the saved claim from this browser. The Ethereum deposit is not
+              undone. Without a downloaded claim JSON, this Fee Juice may be unclaimable later.
+            </p>
+            <button type="button" onClick={() => setRemoveOpen(false)}>
+              Keep this claim
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              disabled={busy}
+              onClick={() => {
+                setRemoveOpen(false);
+                void onRemoveSession(selectedSession);
+              }}
+            >
+              Delete anyway
+            </button>
+          </div>
+        ) : null}
+
+        {pane === "detail" && selectedSession ? (
+          <DetailStep
+            networkId={networkId}
+            l1ExplorerUrl={networkMeta?.l1ExplorerUrl}
+            aztecExplorerUrl={networkMeta?.aztecExplorerUrl}
+            selectedSession={selectedSession}
+            recoveryAccountReady={recoveryAccountReady}
+            accountMissing={accountMissing}
+            busy={busy}
+            error={error}
+            onRetry={() => void retryResumeL1(selectedSession)}
+            onWait={() => void waitForSessionL2(selectedSession)}
+            onResume={() => void onResumeClaim(selectedSession)}
+            onDownload={() => {
+              if (!selectedSession.credentials) return;
+              downloadClaimCredentials(
+                selectedSession.credentials.recipient,
+                selectedSession.credentials,
+                { l1TxHash: selectedSession.l1TxHash, networkId },
+              );
+            }}
+            onRemove={() => setRemoveOpen(true)}
+            onBackToList={backToList}
+          />
+        ) : null}
+
+        {pane === "list" ? (
+          <>
+            <p className="wallet-manager-pane-title">Which claim</p>
+            {storageReady === false ? (
+              <p className="error">{storageError ?? "Browser storage is unavailable."}</p>
+            ) : null}
+            {recoverySessions.length === 0 ? (
+              <>
+                <p className="hint">
+                  No unfinished claim for the Aztec account in this browser. Import the claim-*.json
+                  downloaded after the L1 deposit.
+                </p>
+                <ClaimFileButton
+                  inputRef={claimFileRef}
+                  busy={busy}
+                  label="Import claim"
+                  onFile={pickClaimFile}
+                />
+                <ImportFeedback
+                  error={credentialsImportError}
+                  notice={credentialsImportNotice}
+                />
+              </>
+            ) : (
+              <>
+                <ul className="recovery-session-list">
+                  {recoverySessions.map((entry) => {
+                    const key = normalizeL1TxHash(entry.l1TxHash);
+                    return (
+                      <li key={key}>
+                        <button
+                          type="button"
+                          className="recovery-session-item"
+                          onClick={() => pickSession(entry)}
+                        >
+                          <span className="recovery-session-amount">
+                            {sessionAmountFj(entry.claimAmount)} FJ → {shortHash(entry.recipient)}
+                          </span>
+                          <span className="hint">
+                            {phaseLabel(entry.phase)}
+                            {entry.updatedAt ? ` · ${formatUpdatedAt(entry.updatedAt)}` : ""}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <ImportFeedback
+                  error={credentialsImportError}
+                  notice={credentialsImportNotice}
+                />
+                <button type="button" className="ghost" onClick={() => setImportOpen(true)}>
+                  Import claim
+                </button>
+              </>
+            )}
+          </>
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
+function ClaimFileButton({
+  inputRef,
+  busy,
+  label,
+  onFile,
+}: {
+  inputRef: RefObject<HTMLInputElement | null>;
+  busy: boolean;
+  label: string;
+  onFile: (file: File | null) => void;
+}) {
+  return (
+    <>
+      <button type="button" disabled={busy} onClick={() => inputRef.current?.click()}>
+        {label}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        className="sr-only"
+        accept="application/json,.json,.txt,text/plain"
+        disabled={busy}
+        aria-label="Import claim credentials JSON"
+        onChange={(e) => {
+          const file = e.target.files?.[0] ?? null;
+          onFile(file);
+          e.target.value = "";
+        }}
+      />
+    </>
+  );
+}
+
+function ImportFeedback({ error, notice }: { error: string | null; notice: string | null }) {
+  if (!error && !notice) return null;
+  return (
+    <>
+      {error ? <p className="error">{error}</p> : null}
+      {notice ? <p className="hint credentials-import-ok">{notice}</p> : null}
+    </>
+  );
+}
+
+function DetailStep({
+  networkId,
+  l1ExplorerUrl,
+  aztecExplorerUrl,
+  selectedSession,
+  recoveryAccountReady,
+  accountMissing,
+  busy,
+  error,
+  onRetry,
+  onWait,
+  onResume,
+  onDownload,
+  onRemove,
+  onBackToList,
+}: {
+  networkId: string;
+  l1ExplorerUrl?: string;
+  aztecExplorerUrl?: string;
+  selectedSession: BridgeSessionEntry;
+  recoveryAccountReady: boolean;
+  accountMissing: boolean;
+  busy: boolean;
+  error: string | null;
+  onRetry: () => void;
+  onWait: () => void;
+  onResume: () => void;
+  onDownload: () => void;
+  onRemove: () => void;
+  onBackToList: () => void;
+}) {
+  const needsAccount =
+    selectedSession.phase === "ready-to-claim" ||
+    selectedSession.phase === "claiming" ||
+    selectedSession.phase === "failed";
+  const recipient = selectedSession.credentials?.recipient ?? selectedSession.recipient;
+  const amount = sessionAmountFj(
+    selectedSession.credentials?.claimAmount ?? selectedSession.claimAmount,
+  );
 
   return (
     <>
-        <>
-          <div className="card recovery-status">
-            <strong>Browser storage</strong>
-            {storageReady === null ? (
-              <p className="hint">Checking storage…</p>
-            ) : storageReady ? (
-              <p className="hint">✓ Storage ready — recovery data persists in this browser.</p>
-            ) : (
-              <p className="error">{storageError ?? "Browser storage is unavailable."}</p>
-            )}
-          </div>
+      <p className="wallet-manager-pane-title">{detailTitle(selectedSession)}</p>
+      <p className="hint">
+        {amount} FJ → {shortHash(recipient)}
+      </p>
+      {needsAccount ? (
+        <p className="hint">Claim with the Aztec account already in this browser.</p>
+      ) : null}
+      <TxAnalysisLinks
+        networkId={networkId}
+        l1ExplorerUrl={l1ExplorerUrl}
+        aztecExplorerUrl={aztecExplorerUrl}
+        l1TxHash={selectedSession.l1TxHash}
+        l2TxHash={selectedSession.l2TxHash}
+      />
+      {selectedSession.lastError ? <p className="error">{selectedSession.lastError}</p> : null}
+      {error ? <p className="error">{error}</p> : null}
+      {needsAccount && accountMissing ? (
+        <p className="error">
+          This claim is not for the Aztec account in this browser, so it will not be processed.
+        </p>
+      ) : null}
 
-          {recoverySessions.length === 0 ? (
-            <div className="card recovery-empty">
-              <strong>No unfinished claim found in this browser</strong>
-              <p className="hint">
-                Saved sessions appear here after an L1 deposit on this device. To finish a claim
-                from another browser, import the downloaded{" "}
-                <span className="mono">claim-*.json</span> below.
-              </p>
-            </div>
-          ) : (
-            <div className="card recovery-session-list-card">
-              <strong>Unfinished sessions ({recoverySessions.length})</strong>
-              <ul className="recovery-session-list">
-                {recoverySessions.map((session) => {
-                  const key = normalizeL1TxHash(session.l1TxHash);
-                  const isSelected =
-                    !!selectedSession && normalizeL1TxHash(selectedSession.l1TxHash) === key;
-                  return (
-                    <li
-                      key={key}
-                      className={`recovery-session-row${isSelected ? " active" : ""}`}
-                    >
-                      <button
-                        type="button"
-                        className="recovery-session-item"
-                        onClick={() => selectRecoverySession(session)}
-                      >
-                        <span className="recovery-session-phase">{phaseLabel(session.phase)}</span>
-                        <span className="mono recovery-session-hash">L1 {shortHash(session.l1TxHash)}</span>
-                        {session.l2TxHash ? (
-                          <span className="mono recovery-session-hash">
-                            L2 {shortHash(session.l2TxHash)}
-                          </span>
-                        ) : null}
-                        <span className="hint">
-                          {formatUnits(BigInt(session.claimAmount), 18)} FJ →{" "}
-                          {shortHash(session.recipient)}
-                        </span>
-                        <span className="hint">
-                          Updated {new Date(session.updatedAt).toISOString()}
-                        </span>
-                      </button>
-                      {session.credentials ? (
-                        <button
-                          type="button"
-                          className="ghost recovery-session-download"
-                          title="Download the claim credentials JSON for this bridge"
-                          onClick={() =>
-                            downloadClaimCredentials(
-                              session.credentials!.recipient,
-                              session.credentials!,
-                              { l1TxHash: session.l1TxHash, networkId },
-                            )
-                          }
-                        >
-                          Download JSON
-                        </button>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
+      {selectedSession.phase === "claim-sent" ? (
+        <p className="hint">You can leave this page. The claim finishes on Aztec.</p>
+      ) : null}
 
-          <div className="card credentials-import-card">
-            <strong>Add a claim from a credentials JSON</strong>
-            <p className="hint">
-              Use this to recover a bridge made in another browser or on another device. Pick
-              the <span className="mono">claim-*.json</span> that was downloaded after the L1
-              deposit — it carries the claim secret, which cannot be derived from an address.
-            </p>
-            <label className="recovery-file-label">
-              <span className="recovery-file-label-text">Choose claim-*.json</span>
-              <input
-                type="file"
-                accept="application/json,.json,.txt,text/plain"
-                disabled={busy}
-                onChange={(e) => {
-                  const file = e.target.files?.[0] ?? null;
-                  void onClaimCredentialsFile(file);
-                  e.target.value = "";
-                }}
-              />
-            </label>
-            {credentialsImportError ? (
-              <p className="error credentials-import-message">{credentialsImportError}</p>
-            ) : null}
-            {credentialsImportNotice ? (
-              <p className="hint credentials-import-message credentials-import-ok">
-                {credentialsImportNotice}
-              </p>
-            ) : null}
-          </div>
+      <div className="recovery-actions">
+        {selectedSession.phase === "l1-pending" ? (
+          <button type="button" disabled={busy} onClick={onRetry}>
+            {busy ? "Working…" : "Retry"}
+          </button>
+        ) : null}
 
-          {selectedSession ? (
-            <div className="card claim-recovery-guide" id="recovery-session-guide">
-              <strong>{phaseLabel(selectedSession.phase)}</strong>
-              <p className="hint">
-                L1 tx: <span className="mono">{selectedSession.l1TxHash}</span>
-              </p>
-              {selectedSession.l2TxHash ? (
-                <p className="hint">
-                  L2 tx: <span className="mono">{selectedSession.l2TxHash}</span>
-                </p>
-              ) : null}
-              <TxAnalysisLinks
-                networkId={networkId}
-                l1ExplorerUrl={networkMeta?.l1ExplorerUrl}
-                aztecExplorerUrl={networkMeta?.aztecExplorerUrl}
-                l1TxHash={selectedSession.l1TxHash}
-                l2TxHash={selectedSession.l2TxHash}
-              />
-              {selectedSession.credentials ? (
-                <p>
-                  Claim amount:{" "}
-                  <strong className="mono">
-                    {formatUnits(BigInt(selectedSession.credentials.claimAmount), 18)} FJ
-                  </strong>
-                </p>
-              ) : null}
-              {selectedSession.lastError ? (
-                <p className="error">{selectedSession.lastError}</p>
-              ) : null}
+        {selectedSession.phase === "claim-sent" ? (
+          <button type="button" disabled={busy} onClick={onWait}>
+            {busy ? "Working…" : "Wait for confirmation"}
+          </button>
+        ) : null}
 
-              <p className="recovery-steps-title">What to do next</p>
-              <ol className="recovery-steps">
-                {recoverySteps(selectedSession.phase).map((step) => (
-                  <li key={step}>{step}</li>
-                ))}
-              </ol>
+        {needsAccount && recoveryAccountReady ? (
+          <button
+            type="button"
+            className="recovery-resume"
+            disabled={busy}
+            onClick={onResume}
+          >
+            {busy ? "Working…" : "Resume claim"}
+          </button>
+        ) : null}
 
-              {selectedSession.phase === "l1-pending" ? (
-                <>
-                  <p className="hint">
-                    Waiting for L1 confirmation. This is retried automatically when the page
-                    loads — you can also retry it now.
-                  </p>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void retryResumeL1(selectedSession)}
-                  >
-                    Retry resume
-                  </button>
-                </>
-              ) : null}
-
-              {selectedSession.phase === "claim-sent" ? (
-                <>
-                  <p className="hint">
-                    The L2 claim transaction was already submitted. No account import is
-                    needed — just wait for confirmation.
-                  </p>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void waitForSessionL2(selectedSession)}
-                  >
-                    Wait for L2 confirmation
-                  </button>
-                </>
-              ) : null}
-
-              {selectedSession.phase === "ready-to-claim" ||
-              selectedSession.phase === "claiming" ||
-              selectedSession.phase === "failed" ? (
-                <>
-                  <p className="hint">
-                    Import the original Aztec account JSON for{" "}
-                    <span className="mono">{selectedSession.credentials?.recipient}</span> to
-                    resume the L2 claim. Account keys are used only in memory and are not
-                    persisted.
-                  </p>
-                  <AccountImportCard
-                    session={session}
-                    id="aztec-recovery-account-import"
-                    highlight
-                    hint={
-                      <>
-                        Upload <span className="mono">dfpunk-account-*.json</span> with{" "}
-                        <span className="mono">address / secretKey / salt / signingKey</span> for{" "}
-                        <span className="mono">{selectedSession.credentials?.recipient}</span>.
-                        Fills the fields below (signingKey is required for dfpunk accounts).
-                      </>
-                    }
-                    onFile={(f) =>
-                      void onAccountFile(f, {
-                        expectedRecipient: selectedSession.credentials?.recipient,
-                        forRecovery: true,
-                      })
-                    }
-                    onSelectAccount={(i) => {
-                      setImportedIndex(i);
-                      const acc = importedAccounts[i];
-                      if (acc) {
-                        applyImportedAccount(acc, {
-                          expectedRecipient: selectedSession.credentials?.recipient,
-                          forRecovery: true,
-                        });
-                      }
-                    }}
-                  />
-                  <ClaimKeyFields session={session} />
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={legacyAccountStyles}
-                      onChange={(e) => setLegacyAccountStyles(e.target.checked)}
-                    />
-                    <span>
-                      Also try older account styles if the 5.2 address does not match this backup.
-                      Runs in the 5.2 wallet, one style at a time. Does not mark the old account as lost.
-                    </span>
-                  </label>
-                  <label>
-                    Aztec recipient address
-                    <input
-                      value={recipient}
-                      onChange={(e) => setRecipient(e.target.value)}
-                      placeholder="0x… (32-byte Aztec address)"
-                      readOnly={!!selectedSession.credentials?.recipient}
-                    />
-                  </label>
-                  <ActionHintButton
-                    label={
-                      busy
-                        ? "Working…"
-                        : recoveryAccountReady
-                          ? "Resume L2 claim"
-                          : "Import the matching account to continue"
-                    }
-                    ready={recoveryAccountReady}
-                    busy={busy}
-                    onClick={() => void onResumeClaim(selectedSession)}
-                  />
-                </>
-              ) : null}
-
-              <div className="modal-actions recovery-session-actions">
-                <button
-                  type="button"
-                  className="ghost"
-                  onClick={() => void onRemoveSession(selectedSession)}
-                >
-                  Remove session
-                </button>
-              </div>
-            </div>
-          ) : null}
-        </>
-
+        {selectedSession.credentials ? (
+          <button type="button" className="ghost" onClick={onDownload}>
+            Download claim JSON
+          </button>
+        ) : null}
+        <button type="button" className="ghost" onClick={onRemove}>
+          Remove
+        </button>
+        <button type="button" className="ghost" onClick={onBackToList}>
+          Back to list
+        </button>
+      </div>
     </>
   );
+}
+
+function detailTitle(entry: BridgeSessionEntry): string {
+  if (entry.phase === "l1-pending") return "Waiting for Ethereum";
+  if (entry.phase === "claim-sent") return "Already submitted on Aztec";
+  const recipient = entry.credentials?.recipient ?? entry.recipient;
+  return `Claim with ${shortHash(recipient)}`;
+}
+
+function sessionAmountFj(amount: string): string {
+  try {
+    return formatFjAmount(BigInt(amount), 5);
+  } catch {
+    return amount;
+  }
+}
+
+function formatUpdatedAt(value: number): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }

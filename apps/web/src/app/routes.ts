@@ -3,12 +3,14 @@ export const ROUTES = {
   bridge: "/bridge",
   recover: "/recover",
   vault: "/vault",
+  history: "/history",
 } as const;
 
 export type AppNavPath =
   | typeof ROUTES.bridge
   | typeof ROUTES.recover
-  | typeof ROUTES.vault;
+  | typeof ROUTES.vault
+  | typeof ROUTES.history;
 
 export type AppRoutePath = AppNavPath;
 
@@ -36,7 +38,13 @@ export const NAV_ITEMS: NavItem[] = [
     path: ROUTES.vault,
     label: "Vault",
     short: "V",
-    description: "Password IndexedDB JSON",
+    description: "What's saved in this browser",
+  },
+  {
+    path: ROUTES.history,
+    label: "History",
+    short: "H",
+    description: "Deposits, claims, accounts",
   },
 ];
 
@@ -48,7 +56,8 @@ export function normalizePath(pathname: string): string {
   if (
     cleaned === ROUTES.bridge ||
     cleaned === ROUTES.recover ||
-    cleaned === ROUTES.vault
+    cleaned === ROUTES.vault ||
+    cleaned === ROUTES.history
   ) {
     return cleaned;
   }
@@ -59,6 +68,7 @@ export function isAppRoute(path: string): path is AppNavPath {
   return (
     path === ROUTES.bridge ||
     path === ROUTES.recover ||
-    path === ROUTES.vault
+    path === ROUTES.vault ||
+    path === ROUTES.history
   );
 }

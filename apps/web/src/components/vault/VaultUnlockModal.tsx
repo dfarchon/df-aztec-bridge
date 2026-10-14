@@ -88,8 +88,20 @@ export function VaultUnlockModal(props: {
             {mode === "setup" ? "Set vault password + passkey" : "Unlock vault"}
           </h2>
           {onCancel ? (
-            <button type="button" className="icon-btn ghost" onClick={onCancel} disabled={busy}>
-              ×
+            <button
+              type="button"
+              className="icon-btn vault-modal-close"
+              aria-label="Close"
+              title="Close"
+              onClick={onCancel}
+              disabled={busy}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.3 19.71 2.89 18.3 9.17 12 2.89 5.71 4.3 4.29l6.29 6.3 6.3-6.3z"
+                />
+              </svg>
             </button>
           ) : null}
         </div>

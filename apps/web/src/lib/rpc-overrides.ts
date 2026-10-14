@@ -1,6 +1,7 @@
 /**
- * Per-network RPC URL overrides persisted as encrypted JSON in the vault.
+ * Per-network Aztec node URL overrides persisted as encrypted JSON in the vault.
  * Empty / missing fields fall back to baked-in network defaults.
+ * L1 RPC is always the network preset (not user-overridable).
  *
  * Custom hosts must be loopback or on OFFICIAL_HTTPS_HOST_ALLOWLIST — arbitrary
  * https:// (including random *.drpc.* subdomains) is rejected.
@@ -11,6 +12,7 @@ import { isVaultUnlocked, vaultGetJson, vaultSetJson, VaultLockedError } from ".
 
 export type RpcOverrides = {
   aztecNodeUrl?: string;
+  /** Ignored leftover from older vault blobs. L1 always uses the network preset. */
   l1RpcUrl?: string;
 };
 
@@ -89,23 +91,21 @@ export async function getRpcOverrides(networkId: string): Promise<RpcOverrides> 
   if (!row) return {};
   return {
     aztecNodeUrl: clean(row.aztecNodeUrl),
-    l1RpcUrl: clean(row.l1RpcUrl),
   };
 }
 
-/** Persist overrides for one network. Clears the network entry when both empty. */
+/** Persist Aztec node override for one network. Clears the network entry when empty. */
 export async function setRpcOverrides(
   networkId: string,
   overrides: RpcOverrides,
 ): Promise<void> {
   const next: RpcOverrides = {
     aztecNodeUrl: clean(overrides.aztecNodeUrl),
-    l1RpcUrl: clean(overrides.l1RpcUrl),
   };
   const err = validateRpcOverrides(next);
   if (err) throw new Error(err);
   const all = await loadAll();
-  if (!next.aztecNodeUrl && !next.l1RpcUrl) {
+  if (!next.aztecNodeUrl) {
     delete all[networkId];
   } else {
     all[networkId] = next;
@@ -114,7 +114,7 @@ export async function setRpcOverrides(
 }
 
 export function hasRpcOverrides(overrides: RpcOverrides): boolean {
-  return !!(overrides.aztecNodeUrl || overrides.l1RpcUrl);
+  return !!overrides.aztecNodeUrl;
 }
 
 export const RPC_OVERRIDE_WARNING =

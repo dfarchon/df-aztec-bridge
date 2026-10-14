@@ -23,6 +23,7 @@ import {
   tryValidateConnectedWalletSession,
 } from "../../lib/wallet-session-guard.ts";
 import { logDappError, pushDappLog } from "../../lib/dapp-log.ts";
+import { recordHistory } from "../../lib/operation-history.ts";
 import { hasRpcOverrides, type RpcOverrides } from "../../lib/rpc-overrides.ts";
 import { useVault } from "../../providers/VaultProvider.tsx";
 import {
@@ -35,6 +36,7 @@ import {
   registerDfPunkAccountIntoPxe,
 } from "../../lib/df-pxe-import.ts";
 import { ConnectNoticeHostContext } from "../../components/ui/ConnectSessionGate.tsx";
+import { useUi } from "../../providers/UiProvider.tsx";
 
 export function WalletManagerPanel(props: {
   networkId: string;
@@ -53,6 +55,7 @@ export function WalletManagerPanel(props: {
   initialAztecAccounts?: ImportedAztecAccount[];
   initialActiveAztec?: string | null;
   ethSessionOk?: boolean;
+  vaultTimeoutNotice?: string | null;
 }) {
   const {
     networkId,
@@ -70,6 +73,7 @@ export function WalletManagerPanel(props: {
     initialAztecAccounts,
     initialActiveAztec,
     ethSessionOk = false,
+    vaultTimeoutNotice = null,
   } = props;
 
   const {
@@ -92,6 +96,10 @@ export function WalletManagerPanel(props: {
   const [error, setError] = useState<string | null>(null);
   const [importingPxe, setImportingPxe] = useState(false);
   const [unlockingVault, setUnlockingVault] = useState(false);
+  const [gateHandoff, setGateHandoff] = useState(false);
+  const noticeHost = useContext(ConnectNoticeHostContext);
+  const { shellReady } = useUi();
+  const onConnectGate = noticeHost !== undefined;
   const [sessionSnapshot, setSessionSnapshot] = useState<{
     address: string | null;
     ok: boolean;
@@ -125,6 +133,7 @@ export function WalletManagerPanel(props: {
     setRemoveConfirm(false);
     setImportingPxe(false);
     setUnlockingVault(false);
+    setGateHandoff(false);
   }, []);
 
   useEffect(() => {
@@ -167,6 +176,7 @@ export function WalletManagerPanel(props: {
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
+      if (busy) return;
       if (!ethWallet) {
         if (!cancelled) {
           setSessionSnapshot({
@@ -210,7 +220,7 @@ export function WalletManagerPanel(props: {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [ethWallet, onEthSessionValidated]);
+  }, [ethWallet, onEthSessionValidated, busy]);
 
   const expectedNetwork = (() => {
     try {
@@ -326,6 +336,15 @@ export function WalletManagerPanel(props: {
       setReplaceBackedUp(false);
       setReplaceOpen(false);
       onApplyAztecAccount(stored);
+      void recordHistory({
+        networkId,
+        kind:
+          existingAddress &&
+          existingAddress.toLowerCase() !== stored.address.toLowerCase()
+            ? "account-replaced"
+            : "account-imported",
+        recipient: stored.address,
+      });
       const readyMsg = `DF Punk PXE ready for ${shortHash(stored.address)} (bound to ${shortHash(stored.boundEthAddress ?? ethWallet.address)}). Bridge unlocked.`;
       setStatus(readyMsg);
       pushDappLog({
@@ -361,34 +380,31 @@ export function WalletManagerPanel(props: {
     const live = () => noticeEpoch.current === epoch;
     setUnlockingVault(true);
     setError(null);
-    setStatus("Unlocking IndexedDB vault…");
+    setStatus(null);
     try {
       const restored = await unlockExistingVault();
       if (!live()) return;
-      if (!restored) throw new Error("Vault unlock cancelled.");
+      if (!restored) return;
       assertDfClientAccount(restored);
       let stored: ImportedAztecAccount = { ...restored, fromDfClient: true };
-      if (restored.pxeRegistered) {
-        setStatus("Vault unlocked — using the saved PXE account.");
-      } else {
-        setStatus("Restoring DF Punk wallet into PXE…");
+      if (!restored.pxeRegistered) {
         try {
           stored = await registerDfPunkAccountIntoPxe({
             account: stored,
             ethWallet,
             networkId,
             aztecNodeUrl,
-            onProgress: (detail) => {
-              if (live()) setStatus(detail);
-            },
           });
         } catch (err: unknown) {
           if (!live()) return;
           const message = err instanceof Error ? err.message : String(err);
           if (!/derive/i.test(message)) throw err;
-          setStatus(
-            "Vault unlocked with the saved address. PXE re-registration derived a different address — use Quick Join for this session, or re-import the DF JSON if a claim fails.",
-          );
+          pushDappLog({
+            kind: "info",
+            title: "Vault unlocked with the saved address",
+            detail:
+              "PXE re-registration derived a different address — use Quick Join for this session, or re-import the DF JSON if a claim fails.",
+          });
         }
       }
       if (!live()) return;
@@ -397,15 +413,15 @@ export function WalletManagerPanel(props: {
       await refresh();
       if (!live()) return;
       onApplyAztecAccount(stored);
-      const readyMsg = `PXE restored from IndexedDB for ${shortHash(stored.address)} (bound to ${shortHash(ethWallet.address)}).`;
-      setStatus(readyMsg);
+      if (onConnectGate) setGateHandoff(true);
       pushDappLog({
         kind: "announce",
         title: "Vault unlocked → PXE ready",
-        detail: readyMsg,
+        detail: `PXE restored from IndexedDB for ${shortHash(stored.address)} (bound to ${shortHash(ethWallet.address)}).`,
       });
     } catch (e: unknown) {
       if (!live()) return;
+      setGateHandoff(false);
       const message = e instanceof Error ? e.message : String(e);
       setError(message);
       logDappError(e, "Unlock PXE IndexedDB failed");
@@ -414,14 +430,20 @@ export function WalletManagerPanel(props: {
     }
   };
 
-  const blocked = busy || importingPxe || unlockingVault;
+  const pendingGateHandoff =
+    onConnectGate && (unlockingVault || (gateHandoff && !shellReady));
+  const blocked = busy || importingPxe || unlockingVault || pendingGateHandoff;
   const showAztecPane = !!ethWallet && browserClaimEnabled;
   const l2ActionsDisabled = blocked || !sessionOk || sessionChecking;
 
   const bridgeReadyAccounts = aztecAccounts.filter((a) =>
     isBridgeReadyDfPxeAccount(a, ethWallet?.address),
   );
-  const currentAccount = secretsVisible ? (bridgeReadyAccounts[0] ?? null) : null;
+  const currentAccount = onConnectGate
+    ? null
+    : secretsVisible
+      ? (bridgeReadyAccounts[0] ?? null)
+      : null;
   const showUnlock = vaultAvailable && !currentAccount;
 
   const startReplace = () => {
@@ -437,6 +459,12 @@ export function WalletManagerPanel(props: {
     if (!currentAccount) return;
     const ok = await ensureUnlocked("secrets");
     if (!ok) return;
+    const removedAddress = currentAccount.address;
+    void recordHistory({
+      networkId,
+      kind: "account-removed",
+      recipient: removedAddress,
+    });
     await wipeUnlockedVaultProfile();
     onClearAztecAccount?.();
     await refreshVaultAvailability();
@@ -445,8 +473,6 @@ export function WalletManagerPanel(props: {
     setReplaceOpen(false);
     setStatus("Removed the Aztec account and password vault from this browser.");
   };
-  const noticeHost = useContext(ConnectNoticeHostContext);
-
   const sessionNotice =
     ethWallet && (status || error) ? (
       <div className="wallet-manager-notices">
@@ -552,9 +578,7 @@ export function WalletManagerPanel(props: {
                   {expectedL1Name ?? "the correct network"}.
                 </p>
               ) : null}
-              {sessionChecking ? (
-                <p className="hint">Verifying wallet…</p>
-              ) : sessionOk ? null : (
+              {sessionChecking || sessionOk ? null : (
                 <p className="error">
                   {sessionReason ?? "Reconnect wallet to continue."}
                 </p>
@@ -769,9 +793,11 @@ export function WalletManagerPanel(props: {
                   This browser keeps one Aztec account. In the game, open Settings and choose
                   Download account info, then import that file here.
                 </p>
-                {sessionOk ? (
+                {sessionOk || sessionChecking ? (
                   showUnlock ? (
-                    <p className="hint">Unlock the saved Aztec account to continue.</p>
+                    <p className="hint">
+                      {vaultTimeoutNotice ?? "Unlock the saved Aztec account to continue."}
+                    </p>
                   ) : (
                     <p className="hint">Ready to import.</p>
                   )
@@ -785,7 +811,7 @@ export function WalletManagerPanel(props: {
                     disabled={l2ActionsDisabled}
                     onClick={() => void unlockPxeFromIndexedDb()}
                   >
-                    {unlockingVault ? "Unlocking…" : "Unlock"}
+                    {unlockingVault || pendingGateHandoff ? "Unlocking…" : "Unlock"}
                   </button>
                 ) : (
                   <button

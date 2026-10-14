@@ -261,7 +261,7 @@ async function getOrCreateWarmEntry(params: {
 
   params.onProgress?.(
     "wallet",
-    "Loading browser EmbeddedWallet / PXE (large download on first use — can take minutes)…",
+    "Loading browser EmbeddedWallet / PXE. Large download on first use. Can take minutes…",
   );
   return ensureWarmEntry(params);
 }
@@ -367,7 +367,7 @@ export async function waitAndClaimInBrowser(params: {
     credentials: params.credentials,
   });
   if (messageStatus === "consumed") {
-    progress("done", "Claim message already consumed — nothing to do");
+    progress("done", "Claim message already consumed. Nothing to do.");
     return { l2TxHash: "" };
   }
 
@@ -408,7 +408,7 @@ export async function waitAndClaimInBrowser(params: {
     credentials: params.credentials,
   });
   if (afterWait === "consumed") {
-    progress("done", "Claim message already consumed — nothing to do");
+    progress("done", "Claim message already consumed. Nothing to do.");
     return { l2TxHash: "" };
   }
 
@@ -420,7 +420,7 @@ export async function waitAndClaimInBrowser(params: {
     },
     onTxSent: (hash) => {
       params.onTxSent?.(hash);
-      progress("l2-sent", `L2 claim submitted — ${hash}`);
+      progress("l2-sent", `L2 claim submitted. ${hash}`);
     },
     wait: async (hash) => {
       progress("l2-claim", "Waiting for L2 claim confirmation…");

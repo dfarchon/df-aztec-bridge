@@ -7,6 +7,7 @@ describe("app routes", () => {
     expect(normalizePath("/bridge")).toBe(ROUTES.bridge);
     expect(normalizePath("/recover/")).toBe(ROUTES.recover);
     expect(normalizePath("/vault")).toBe(ROUTES.vault);
+    expect(normalizePath("/history")).toBe(ROUTES.history);
     expect(normalizePath("/explorer")).toBe(ROUTES.bridge);
     expect(normalizePath("/unknown")).toBe(ROUTES.bridge);
   });

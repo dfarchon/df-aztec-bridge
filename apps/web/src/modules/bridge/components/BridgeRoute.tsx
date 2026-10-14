@@ -14,12 +14,9 @@ import {
   sanitizeAmountInput,
   sliderFromAmount,
 } from "../../../lib/bridge-amount.ts";
-import { downloadClaimCredentials } from "../../../lib/claim-credentials-store.ts";
 import { isSponsoredFpcAddress } from "../../../lib/sponsored-fpc.ts";
 import { shortHash } from "../../../lib/claim-recovery.ts";
-import { TxAnalysisLinks } from "../../../components/ui/TxAnalysisLinks.tsx";
 import { ActionHintButton } from "../../../components/ui/ActionHintButton.tsx";
-import { ROUTES } from "../../../app/routes.ts";
 import type { BridgeSession } from "../hooks/useBridgeSession.ts";
 import type { BridgeFlows } from "../hooks/useBridgeFlows.ts";
 
@@ -27,7 +24,7 @@ export function BridgeRoute({ session, flows }: { session: BridgeSession; flows:
   const {
     path, navigate,
 networkId, networkMeta, l1Backend, rpcOverrides, settingsOpen, openSettings, closeSettings,
-draftAztecUrl, setDraftAztecUrl, draftL1RpcUrl, setDraftL1RpcUrl, saveSettings, resetSettingsDraft,
+draftAztecUrl, setDraftAztecUrl, saveSettings, resetSettingsDraft,
 setVaultPxeAccount, requireVaultAfterPxeImport, ensureUnlocked, unlockExistingVault, vaultAvailable,
 refreshVaultAvailability, secretsVisible, requestUnlock, lockVaultUi,
 setShellReady, shellReady, closeWalletPanel,
@@ -283,6 +280,7 @@ requestBridge,
               <p
                 id="bridge-amount-help"
                 className={amountInvalid ? "error" : "hint"}
+                title={amountHelp}
               >
                 {amountHelp}
               </p>
@@ -300,7 +298,7 @@ requestBridge,
 
           {autoClaim ? null : (
             <p className="hint">
-              Auto-claim off. Download credentials after L1 and claim via CLI later.
+              Auto-claim off. Credentials download after L1 — finish from Recover or CLI.
             </p>
           )}
 
@@ -311,66 +309,6 @@ requestBridge,
             onClick={requestBridge}
           />
       </section>
-
-      {showBridgeResult && l1TxHash ? (
-        <div className="card">
-          <strong>L1 transaction</strong>
-          <p className="mono">{l1TxHash}</p>
-          <TxAnalysisLinks
-            networkId={networkId}
-            l1ExplorerUrl={networkMeta?.l1ExplorerUrl}
-            aztecExplorerUrl={networkMeta?.aztecExplorerUrl}
-            l1TxHash={l1TxHash}
-            l2TxHash={l2TxHash}
-          />
-        </div>
-      ) : null}
-
-      {showBridgeResult && credentials ? (
-        <div className="card">
-          <strong>Claim credentials</strong>
-          <p className="hint">
-            Saved in this browser (localStorage) and auto-downloaded after L1 bridge. Keep the
-            downloaded copy until the L2 claim succeeds.
-          </p>
-          <p className="mono">{JSON.stringify(credentials, null, 2)}</p>
-          <button
-            type="button"
-            className="ghost"
-            onClick={() =>
-              downloadClaimCredentials(credentials.recipient, credentials, {
-                l1TxHash: l1TxHash ?? undefined,
-                networkId,
-              })
-            }
-          >
-            Download credentials JSON
-          </button>
-
-          {!autoClaim ? (
-            <button
-              type="button"
-              onClick={() => {
-                if (l1TxHash) setSelectedRecoveryHash(l1TxHash);
-                navigate(ROUTES.recover);
-              }}
-            >
-              Recover this claim
-            </button>
-          ) : null}
-
-          {claimJobId ? (
-            <p>
-              Claim job: <span className="mono">{claimJobId}</span> — {claimStatus}
-            </p>
-          ) : null}
-          {l2TxHash ? (
-            <p>
-              L2 tx: <span className="mono">{l2TxHash}</span>
-            </p>
-          ) : null}
-        </div>
-      ) : null}
       </div>
 
   );

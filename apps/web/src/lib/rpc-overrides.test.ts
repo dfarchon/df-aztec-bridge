@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isAllowedRpcOverrideUrl, validateRpcOverrides } from "./rpc-overrides.ts";
+import { hasRpcOverrides, isAllowedRpcOverrideUrl, validateRpcOverrides } from "./rpc-overrides.ts";
 
 describe("rpc-overrides allowlist", () => {
   it("allows official and loopback only", () => {
@@ -13,5 +13,10 @@ describe("rpc-overrides allowlist", () => {
   it("validateRpcOverrides rejects unlisted hosts", () => {
     expect(validateRpcOverrides({ aztecNodeUrl: "https://evil.drpc.org" })).toMatch(/allowlist/i);
     expect(validateRpcOverrides({ aztecNodeUrl: "https://aztec-mainnet.drpc.org" })).toBeNull();
+  });
+
+  it("hasRpcOverrides ignores leftover L1 URLs", () => {
+    expect(hasRpcOverrides({ l1RpcUrl: "https://ethereum-rpc.publicnode.com" })).toBe(false);
+    expect(hasRpcOverrides({ aztecNodeUrl: "https://aztec-mainnet.drpc.org" })).toBe(true);
   });
 });

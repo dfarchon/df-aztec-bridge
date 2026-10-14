@@ -199,7 +199,7 @@ textarea {
 }
 
 /* Atlas primary: dark surface + soft green edge (toast language), not solid white. */
-button:not(.icon-btn):not(.copy-address-btn):not(.account-menu-item):not(.notice-details-btn):not(.action-hint):not(.ghost):not(.dapp-log-toggle):not(.wallet-manager-pick):not(.wallet-manager-notice-close) {
+button:not(.icon-btn):not(.copy-address-btn):not(.account-menu-item):not(.notice-details-btn):not(.action-hint):not(.ghost):not(.dapp-log-toggle):not(.dapp-log-dismiss):not(.app-error-toast-dismiss):not(.wallet-manager-pick):not(.wallet-manager-notice-close) {
   border: 1px solid rgba(255, 77, 172, 0.35);
   background: linear-gradient(180deg, rgba(14, 22, 17, 0.98) 0%, rgba(0, 0, 0, 0.92) 100%);
   color: var(--ok);
@@ -481,52 +481,6 @@ button:not(.icon-btn):not(.action-hint):not(.ghost):hover:not(:disabled) {
   overflow-y: auto;
 }
 
-.recovery-warning {
-  margin-top: 1rem;
-  padding: 0.85rem;
-  border: 1px solid #8a6725;
-  border-radius: 8px;
-  background: #2a2112;
-  color: #f1dda2;
-}
-
-.recovery-warning p {
-  margin: 0.55rem 0 0;
-  color: #d8c99e;
-  font-size: 0.88rem;
-}
-
-.recovery-confirmation {
-  color: #f0f0f0;
-}
-
-.claim-recovery-guide {
-  border-color: #8a6725;
-  background: #211c12;
-}
-
-.claim-recovery-guide ol {
-  margin: 0.75rem 0;
-  padding-left: 1.25rem;
-}
-
-.claim-recovery-guide li + li {
-  margin-top: 0.45rem;
-}
-
-.claim-recovery-guide button {
-  margin-top: 0.5rem;
-}
-
-.account-import.recovery-active {
-  border-color: #a57a27;
-  box-shadow: 0 0 0 2px rgba(255, 183, 77, 0.12);
-}
-
-.recovery-empty {
-  text-align: center;
-}
-
 .fee-juice-modal p {
   margin: 1rem 0 0;
 }
@@ -562,6 +516,28 @@ button:not(.icon-btn):not(.action-hint):not(.ghost):hover:not(:disabled) {
 /* Above wallet drawer (z-index 90) so vault password is never covered. */
 .vault-modal-backdrop {
   z-index: 110;
+}
+
+.vault-modal {
+  position: relative;
+}
+
+.vault-modal .modal-header {
+  justify-content: flex-start;
+  min-height: 32px;
+  padding-right: 2.35rem;
+}
+
+button.vault-modal-close.icon-btn {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  z-index: 2;
+  width: 32px !important;
+  min-width: 32px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 !important;
 }
 
 /* Portaled above drawer; must accept clicks (drawer root uses pointer-events: none). */
@@ -633,6 +609,47 @@ html[data-theme="light"] .modal {
 
 .modal-actions button {
   margin-top: 0;
+}
+
+.rpc-using {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.7rem 0 0;
+}
+
+.rpc-using-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.rpc-using-head .label {
+  margin: 0;
+}
+
+.rpc-using-url {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  color: var(--text);
+}
+
+.rpc-settings-actions {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.rpc-settings-actions-end {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 
 label {
@@ -777,17 +794,30 @@ input[aria-invalid="true"]:focus {
 }
 
 main.app-main:has(.bridge-risk-gate),
-main.app-main:has(.app-main-inner-bridge) {
+main.app-main:has(.app-main-inner-bridge),
+main.app-main:has(.recover-layout),
+main.app-main:has(.history-layout),
+main.app-main:has(.vault-layout) {
   display: flex;
   flex-direction: column;
 }
 
 .app-main-inner:has(.bridge-risk-gate),
-.app-main-inner-bridge {
+.app-main-inner-bridge,
+.app-main-inner:has(.recover-layout),
+.app-main-inner:has(.history-layout),
+.app-main-inner:has(.vault-layout) {
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: safe center;
+}
+
+.app-main-inner:has(.recover-layout),
+.app-main-inner:has(.history-layout),
+.app-main-inner:has(.vault-layout) {
+  width: min(36rem, 100%);
+  padding-block: 1.25rem;
 }
 
 .bridge-workspace:has(.bridge-risk-gate),
@@ -874,7 +904,14 @@ main.app-main:has(.app-main-inner-bridge) {
 
 .bridge-flow-stage {
   position: relative;
+  display: grid;
   width: 100%;
+  min-height: min(32rem, calc(100dvh - var(--app-topbar-height, 4.5rem) - 1.5rem));
+  max-height: calc(100dvh - var(--app-topbar-height, 4.5rem) - 1.5rem);
+}
+
+.bridge-flow-stage > .bridge-layout {
+  grid-area: 1 / 1;
 }
 
 .bridge-layout {
@@ -882,6 +919,10 @@ main.app-main:has(.app-main-inner-bridge) {
   flex-direction: column;
   gap: 0;
   box-sizing: border-box;
+  min-height: 100%;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 1.1rem 1.2rem 1.15rem;
   border: 1px solid var(--line);
   background: var(--surface);
@@ -1143,8 +1184,15 @@ input.bridge-amount-input:focus-visible {
 .bridge-amount-card #bridge-amount-help,
 .bridge-amount-card .fee-split {
   margin: 0;
+  min-width: 0;
+  min-height: 1.45em;
+  overflow: hidden;
   text-align: left;
   font-size: 0.875rem;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .bridge-autoclaim {
@@ -1154,15 +1202,16 @@ input.bridge-amount-input:focus-visible {
 
 .bridge-step .claim-opts {
   margin-top: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
 }
 
-.bridge-step .action-hint,
-.bridge-step button.action-hint {
+.bridge-step > button,
+.bridge-step > button.action-hint {
+  display: block;
+  width: 100%;
   margin-top: 0.35rem;
-}
-
-.bridge-layout > .card {
-  margin-top: 1.1rem;
 }
 
 @media (max-width: 640px) {
@@ -1575,65 +1624,6 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.2 8.2 6.4 11.4 12.8 4.6' fill='none' stroke='%23000000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
-.claim-opts {
-  margin-top: 0.75rem;
-}
-
-.account-import {
-  margin-top: 1.25rem;
-}
-
-.dropzone {
-  position: relative;
-  margin-top: 0.75rem;
-  padding: 1.25rem 1rem;
-  border: 1px dashed #4a4a4a;
-  border-radius: 10px;
-  background: #151515;
-  text-align: center;
-  transition: border-color 0.15s ease, background 0.15s ease;
-}
-
-.dropzone.drag-over {
-  border-color: #3d5afe;
-  background: #171c28;
-}
-
-.dropzone.disabled {
-  opacity: 0.55;
-  pointer-events: none;
-}
-
-.dropzone-title {
-  margin: 0;
-  color: #ddd;
-  font-size: 0.95rem;
-}
-
-.dropzone .hint {
-  margin: 0.35rem 0 0;
-}
-
-.account-import .file-label {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  cursor: pointer;
-}
-
-.account-import .file-label input[type="file"] {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  opacity: 0;
-  cursor: pointer;
-  border: none;
-  background: transparent;
-}
-
 .sr-only {
   position: absolute;
   width: 1px;
@@ -1644,31 +1634,6 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
-}
-
-.secret-field {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  margin-top: 0.35rem;
-}
-
-.secret-field input {
-  margin-top: 0;
-  flex: 1;
-  min-width: 0;
-}
-
-.secret-toggle {
-  margin-top: 0;
-  flex-shrink: 0;
-  padding: 0.45rem;
-  width: 2.2rem;
-  height: 2.2rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 0;
 }
 
 .wallet-status {
@@ -1816,13 +1781,67 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
   animation: icon-spin 0.8s linear infinite;
 }
 
-.recovery-status p {
-  margin: 0.5rem 0 0;
+.recover-layout,
+.history-layout,
+.vault-layout {
+  min-height: min(32rem, calc(100dvh - var(--app-topbar-height, 4.5rem) - 3rem));
+  height: auto;
+  overflow-y: auto;
 }
 
-.recovery-session-list-card strong {
-  display: block;
-  margin-bottom: 0.5rem;
+.recover-layout,
+.recover-layout .hint,
+.recover-layout .recovery-session-amount,
+.recover-layout .wallet-manager-pane-title,
+.history-layout,
+.history-layout .hint,
+.history-layout .recovery-session-amount,
+.history-layout .wallet-manager-pane-title,
+.vault-layout,
+.vault-layout .hint,
+.vault-layout .recovery-session-amount,
+.vault-layout .wallet-manager-pane-title {
+  font-family: var(--font);
+}
+
+.recover-layout .df-pxe-format-pane > button,
+.recover-layout .df-pxe-format-pane > button.action-hint,
+.history-layout .bridge-step > button,
+.vault-layout .df-pxe-format-pane > button,
+.vault-layout .bridge-step > button {
+  width: 100%;
+}
+
+.recovery-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-top: 0.35rem;
+}
+
+.recovery-actions > button {
+  width: 100%;
+  margin-top: 0;
+}
+
+.progress-panel-embedded {
+  width: 100%;
+  max-height: none;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.history-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.history-day {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 .recovery-session-list {
@@ -1830,120 +1849,85 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 0.5rem;
-}
-
-.recovery-session-row {
-  display: flex;
-  align-items: stretch;
-  gap: 0.5rem;
-  padding: 0.35rem 0.4rem 0.35rem 0.35rem;
-  border: 1px solid #2f2f2f;
-  border-radius: 8px;
-  background: #1e1e1e;
-}
-
-.recovery-session-row:hover {
-  border-color: #444;
-}
-
-.recovery-session-row.active {
-  border-color: #3d5afe;
-  background: #1c2340;
+  gap: 0.35rem;
 }
 
 .recovery-session-item {
-  flex: 1;
-  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.2rem;
+  gap: 0.15rem;
+  width: 100%;
+  min-height: 44px;
   margin: 0;
-  padding: 0.3rem 0.4rem;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: #e8e8e8;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text);
   text-align: left;
   cursor: pointer;
 }
 
 .recovery-session-item:hover {
-  background: #262626;
+  border-color: var(--text-muted);
 }
 
-.recovery-session-row.active .recovery-session-item:hover {
-  background: #222a4a;
+.vault-node-list {
+  border: 1px solid var(--line);
+  overflow: hidden;
+  gap: 0;
 }
 
-.recovery-session-download {
-  align-self: center;
-  flex-shrink: 0;
-  margin: 0;
-  padding: 0.4rem 0.6rem;
-  font-size: 0.78rem;
-  white-space: nowrap;
+.vault-node-list > li {
+  min-width: 0;
 }
 
-.recovery-session-phase {
+.vault-node-list .recovery-session-item {
+  box-sizing: border-box;
+  max-width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.vault-node-list > li:last-child .recovery-session-item {
+  border-bottom: none;
+}
+
+.recovery-session-item-static:hover {
+  border-color: var(--line);
+  cursor: default;
+}
+
+.vault-node-card {
+  gap: 0.35rem;
+}
+
+.vault-node-card .rpc-using-url {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+.recovery-session-item.active {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.recovery-session-amount {
   font-weight: 600;
-  color: #cdd6ff;
+  color: var(--text-heading);
 }
 
-.recovery-session-hash {
-  font-size: 0.78rem;
-  color: #9aa0a6;
-}
-
-.recovery-session-actions {
-  margin-top: 1rem;
-}
-
-.recovery-account-import {
-  margin-top: 0.75rem;
-}
-
-.recovery-file-label {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-top: 0.35rem;
-  padding: 0.65rem 1rem;
-  border: 1px dashed #4a4a4a;
-  border-radius: 10px;
-  background: #151515;
-  text-align: center;
-  cursor: pointer;
-}
-
-.recovery-file-label:hover {
-  border-color: #3d5afe;
-}
-
-.recovery-file-label input[type="file"] {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-}
-
-.recovery-file-label-text {
-  color: #ccc;
-  font-size: 0.9rem;
-}
-
-.credentials-import-card strong {
-  display: block;
-}
-
-.credentials-import-message {
-  margin: 0.6rem 0 0;
+.recovery-actions > button.recovery-resume {
+  font-family: var(--font);
+  font-weight: 800;
+  background: var(--pink-300);
+  color: var(--ink);
+  border: 2px solid var(--ink);
 }
 
 .credentials-import-ok {
-  color: #9adba0;
+  color: var(--ok);
 }
 
 .storage-status-ok {
@@ -1957,15 +1941,6 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
 @media (max-width: 480px) {
   .fee-juice-notice {
     flex-direction: column;
-  }
-
-  .recovery-session-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .recovery-session-download {
-    align-self: stretch;
   }
 }
 
@@ -2001,29 +1976,6 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
   color: #ffcf6b;
 }
 
-/* ── Recovery step list ───────────────────────────────────────────────── */
-
-.recovery-steps-title {
-  margin: 1rem 0 0.4rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #e8e8e8;
-}
-
-.recovery-steps {
-  margin: 0;
-  padding-left: 1.3rem;
-  display: grid;
-  gap: 0.4rem;
-  color: #c8c8c8;
-  font-size: 0.88rem;
-}
-
-.recovery-steps li::marker {
-  color: #8f9bb5;
-  font-weight: 600;
-}
-
 /* ── In-flight progress panel ─────────────────────────────────────────── */
 
 .progress-panel-backdrop {
@@ -2035,25 +1987,9 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
   justify-content: center;
   box-sizing: border-box;
   padding: 0.75rem 1.25rem 1.25rem;
-  pointer-events: none;
-}
-
-@media (min-width: 781px) {
-  .progress-panel-backdrop {
-    padding-top: calc(var(--app-topbar-height) + 0.75rem);
-    padding-bottom: 1.25rem;
-    padding-left: calc(var(--app-sidebar-width) + 1.25rem);
-    padding-right: calc(var(--app-sidebar-width) + 1.25rem);
-  }
-}
-
-.bridge-flow-stage > .progress-panel-backdrop,
-.bridge-flow > .progress-panel-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  display: block;
-  padding: 0;
+  overflow: auto;
+  pointer-events: auto;
+  background: var(--bg);
 }
 
 .progress-panel {
@@ -2062,7 +1998,8 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
   box-sizing: border-box;
   width: min(100%, 36rem);
   max-height: 100%;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 1.1rem 1.2rem 1.15rem;
   border: 1px solid var(--line);
   border-radius: 0;
@@ -2070,19 +2007,9 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
   color: var(--text);
 }
 
-.bridge-flow-stage .progress-panel,
-.bridge-flow .progress-panel {
-  position: absolute;
-  inset: 0;
-  width: auto;
-  max-width: none;
-  height: 100%;
-  max-height: 100%;
-  overflow: auto;
-}
-
 .progress-panel-succeeded,
-.progress-panel-failed {
+.progress-panel-failed,
+.progress-panel-rejected {
   border-color: var(--line);
 }
 
@@ -2144,6 +2071,10 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
   border-radius: 8px;
   border: 1px solid #2f3b55;
   background: #121722;
+}
+
+.aztec-block-estimate-hint {
+  margin: 0 0 0.45rem;
 }
 
 .aztec-block-estimate-row {
@@ -2259,7 +2190,8 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
   color: #9adba0;
 }
 
-.progress-panel-failed .progress-panel-badge {
+.progress-panel-failed .progress-panel-badge,
+.progress-panel-rejected .progress-panel-badge {
   background: #3d1f1c;
   color: #ff8a80;
 }
@@ -2369,8 +2301,25 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
   margin: 0.8rem 0 0;
   padding-top: 0.65rem;
   border-top: 1px solid var(--line);
-  max-height: 3.4rem;
-  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+.progress-success-line {
+  margin: 0.75rem 0 0;
+  font-family: var(--font);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text-heading);
+}
+
+.progress-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin: 0.9rem 0 0;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--line);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3227,6 +3176,84 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
   }
 }
 
+/* User-facing error toasts — always on, separate from the dapp log sheet. */
+.app-error-toaster {
+  position: fixed;
+  top: calc(var(--app-topbar-height, 3.5rem) + 0.75rem);
+  right: 1rem;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: min(22.5rem, calc(100vw - 1.5rem));
+  pointer-events: none;
+}
+
+.app-error-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.7rem 0.75rem 0.7rem 0.85rem;
+  border: 1px solid var(--pink-400);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  animation: dapp-log-in 0.22s ease-out;
+}
+
+.app-error-toast-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.app-error-toast-title,
+.app-error-toast-detail {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.app-error-toast-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--text-heading);
+}
+
+.app-error-toast-detail {
+  margin-top: 0.15rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.app-error-toast-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  box-shadow: none;
+}
+
+.app-error-toast-dismiss:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--accent-tint);
+}
+
+@media (max-width: 520px) {
+  .app-error-toaster {
+    left: 0.75rem;
+    right: 0.75rem;
+    width: auto;
+  }
+}
+
 /* ── App shell: sidebar + topbar + wallet drawer ── */
 .app-frame {
   position: relative;
@@ -3291,6 +3318,13 @@ main.app-main {
 @media (min-width: 781px) {
   .app-main-inner-bridge {
     transform: translateX(calc(var(--app-sidebar-width) / -2));
+  }
+
+  .app-main-inner:has(.recover-layout),
+  .app-main-inner:has(.history-layout),
+  .app-main-inner:has(.vault-layout) {
+    margin-left: max(0px, calc(50% - 18rem - var(--app-sidebar-width) / 2));
+    margin-right: auto;
   }
 }
 
@@ -3641,90 +3675,6 @@ body:has(.app-frame.session-locked) {
   margin-top: 0.35rem;
 }
 
-.rpc-aztec-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  margin-bottom: 0.75rem;
-}
-
-.rpc-aztec-field-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.rpc-aztec-label {
-  font-size: 0.68rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--dim);
-}
-
-.rpc-status-dot {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.1rem;
-  height: 1.1rem;
-  flex-shrink: 0;
-}
-
-.rpc-status-circle {
-  width: 0.55rem;
-  height: 0.55rem;
-  border-radius: 999px;
-  background: var(--dim);
-}
-
-.rpc-status-ok .rpc-status-circle {
-  background: var(--ok);
-  box-shadow: 0 0 6px var(--ok-glow);
-}
-
-.rpc-status-fetching .rpc-status-spinner {
-  width: 0.7rem;
-  height: 0.7rem;
-  border-radius: 999px;
-  border: 2px solid var(--dim);
-  border-top-color: transparent;
-  animation: rpc-spin 0.7s linear infinite;
-}
-
-.rpc-status-error {
-  color: var(--danger, #ff6b6b);
-}
-
-@keyframes rpc-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.rpc-aztec-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.rpc-aztec-select {
-  width: 100%;
-  font-size: 0.78rem !important;
-}
-
-.rpc-aztec-link-row {
-  margin: 0;
-  word-break: break-word;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .rpc-status-fetching .rpc-status-spinner {
-    animation: none;
-    border-color: var(--dim);
-  }
-}
-
 .wallet-float-root {
   position: fixed;
   inset: 0;
@@ -3932,43 +3882,13 @@ html[data-theme="light"] .wallet-float-close {
   }
 }
 
-/* Password vault */
-.vault-page .panel-head {
-  margin-bottom: 0.75rem;
+.recovery-session-item-static {
+  cursor: default;
+  text-align: left;
+  width: 100%;
 }
 
-.vault-browser {
-  display: grid;
-  grid-template-columns: minmax(8rem, 12rem) 1fr;
-  gap: 0.75rem;
-  margin-top: 1rem;
-  align-items: start;
-}
-
-.vault-doc-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.vault-doc-list .is-active {
-  outline: 1px solid var(--accent, #3d8f6a);
-}
-
-.vault-json-preview {
-  margin: 0;
-  padding: 0.75rem;
-  max-height: 28rem;
-  overflow: auto;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(61, 143, 106, 0.35);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
+/* Password vault modal */
 .vault-modal .vault-modal-addr {
   word-break: break-all;
   margin-bottom: 0.75rem;
@@ -4048,12 +3968,6 @@ html[data-theme="light"] .vault-passkey-opt-row input[type="checkbox"]:checked {
 .vault-passkey-recovery-actions {
   flex-wrap: wrap;
   margin-top: 0.5rem;
-}
-
-@media (max-width: 780px) {
-  .vault-browser {
-    grid-template-columns: 1fr;
-  }
 }
 
 .dev-gate-page {
@@ -4499,9 +4413,7 @@ input[type="range"] {
 .fee-juice-notice,
 .maintenance-card,
 .dev-gate-card,
-.dropzone,
 .aztec-block-estimate,
-.recovery-warning,
 .balance-shortfall,
 .progress-notice,
 .vault-passkey-opt,
@@ -4512,6 +4424,10 @@ input[type="range"] {
   border-radius: 0 !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
+}
+
+.progress-panel-backdrop {
+  background: var(--bg) !important;
 }
 
 html[data-theme="light"] .app-sidebar,
@@ -4543,12 +4459,17 @@ html[data-theme="light"] .wallet-manager-notice,
 html[data-theme="light"] .df-pxe-format-sample,
 html[data-theme="light"] .bridge-account,
 html[data-theme="light"] .bridge-amount-card .amount-field,
-html[data-theme="light"] .bridge-amount-unit {
+html[data-theme="light"] .bridge-amount-unit,
+html[data-theme="light"] .recovery-session-item {
+  border-color: var(--ink) !important;
+}
+
+html[data-theme="light"] .vault-node-list,
+html[data-theme="light"] .vault-node-list .recovery-session-item {
   border-color: var(--ink) !important;
 }
 
 .label,
-.rpc-aztec-label,
 .dapp-log-kind,
 .wallet-float-head .label,
 .aztec-block-estimate-label,
@@ -4658,7 +4579,7 @@ a:hover,
   box-shadow: none;
 }
 
-button:not(.dapp-log-toggle):not(.dapp-log-dismiss):not(.df-pxe-import-format-toggle):not(.wallet-manager-notice-close),
+button:not(.dapp-log-toggle):not(.dapp-log-dismiss):not(.app-error-toast-dismiss):not(.df-pxe-import-format-toggle):not(.wallet-manager-notice-close):not(.recovery-resume),
 [role="button"],
 .icon-btn,
 .utility-control,
@@ -4686,11 +4607,28 @@ button.ghost:not(.dapp-log-toggle),
   padding: 0.75em 1.5em;
 }
 
-html[data-theme="light"] :where(button, [role="button"], .icon-btn, .utility-control, .wallet-chip, .action-hint, button.ghost):not(.dapp-log-toggle):not(.dapp-log-dismiss):not(.df-pxe-import-format-toggle):not(.wallet-manager-notice-close) {
+html[data-theme="light"] :where(button, [role="button"], .icon-btn, .utility-control, .wallet-chip, .action-hint, button.ghost):not(.dapp-log-toggle):not(.dapp-log-dismiss):not(.app-error-toast-dismiss):not(.df-pxe-import-format-toggle):not(.wallet-manager-notice-close):not(.recovery-resume) {
   border-color: var(--ink) !important;
 }
 
-:where(button, [role="button"], .icon-btn, .utility-control, .wallet-chip, .action-hint, button.ghost):not(.dapp-log-toggle):not(.dapp-log-dismiss):not(.df-pxe-import-format-toggle):not(.wallet-manager-notice-close):hover:not(:disabled),
+.recover-layout .recovery-resume,
+html[data-theme="light"] .recover-layout .recovery-resume {
+  font-family: var(--font) !important;
+  font-size: 1.125rem !important;
+  font-weight: 800 !important;
+  background: var(--pink-300) !important;
+  color: var(--ink) !important;
+  border: 2px solid var(--ink) !important;
+}
+
+.recover-layout .recovery-resume:hover:not(:disabled),
+html[data-theme="light"] .recover-layout .recovery-resume:hover:not(:disabled) {
+  background: var(--pink-400) !important;
+  color: var(--ink) !important;
+  border-color: var(--ink) !important;
+}
+
+:where(button, [role="button"], .icon-btn, .utility-control, .wallet-chip, .action-hint, button.ghost):not(.dapp-log-toggle):not(.dapp-log-dismiss):not(.app-error-toast-dismiss):not(.df-pxe-import-format-toggle):not(.wallet-manager-notice-close):not(.recovery-resume):hover:not(:disabled),
 .wallet-chip.is-open {
   background: var(--accent-tint) !important;
   color: var(--text) !important;
@@ -4698,14 +4636,14 @@ html[data-theme="light"] :where(button, [role="button"], .icon-btn, .utility-con
   box-shadow: none !important;
 }
 
-html:not([data-theme="light"]) :where(button, [role="button"], .icon-btn, .utility-control, .wallet-chip, .action-hint, button.ghost):not(.dapp-log-toggle):not(.dapp-log-dismiss):not(.df-pxe-import-format-toggle):not(.wallet-manager-notice-close):hover:not(:disabled),
+html:not([data-theme="light"]) :where(button, [role="button"], .icon-btn, .utility-control, .wallet-chip, .action-hint, button.ghost):not(.dapp-log-toggle):not(.dapp-log-dismiss):not(.app-error-toast-dismiss):not(.df-pxe-import-format-toggle):not(.wallet-manager-notice-close):hover:not(:disabled),
 html:not([data-theme="light"]) .wallet-chip.is-open {
   background: var(--pink-200) !important;
   color: var(--ink) !important;
   border-color: var(--pink-200) !important;
 }
 
-html[data-theme="light"] :where(button, [role="button"], .icon-btn, .wallet-chip):not(.dapp-log-toggle):not(.dapp-log-dismiss):not(.df-pxe-import-format-toggle):not(.wallet-manager-notice-close):hover:not(:disabled),
+html[data-theme="light"] :where(button, [role="button"], .icon-btn, .wallet-chip):not(.dapp-log-toggle):not(.dapp-log-dismiss):not(.app-error-toast-dismiss):not(.df-pxe-import-format-toggle):not(.wallet-manager-notice-close):hover:not(:disabled),
 html[data-theme="light"] .wallet-chip.is-open {
   border-color: var(--ink) !important;
 }
@@ -4836,7 +4774,6 @@ html[data-theme="light"] .connect-gate.is-split .wallet-manager-col {
 
 .wallet-manager-pick,
 .account-menu-item,
-.recovery-session-item,
 .sound-popover button {
   min-height: 44px;
   background: transparent !important;
@@ -5023,9 +4960,11 @@ label {
 
 .error,
 .progress-panel-failed .progress-panel-title strong,
+.progress-panel-rejected .progress-panel-title strong,
 .progress-step-failed .progress-step-label,
 .dapp-log-error .dapp-log-title,
 .dapp-log-error .dapp-log-kind,
+.app-error-toast-title,
 .storage-status-error,
 .account-menu-disconnect {
   color: var(--text-heading) !important;
@@ -5033,8 +4972,10 @@ label {
 }
 
 .progress-panel-failed,
+.progress-panel-rejected,
 .progress-step-failed .progress-step-marker,
-.dapp-log-error::before {
+.dapp-log-error::before,
+.app-error-toast {
   border-color: var(--pink-400) !important;
   background: var(--accent-tint) !important;
   color: var(--text-heading) !important;
@@ -5047,17 +4988,21 @@ label {
 .credentials-import-ok,
 .copy-success,
 .storage-status-ok,
-.account-status-dot,
-.rpc-status-ok .rpc-status-circle {
+.account-status-dot {
   color: var(--text) !important;
   border-color: var(--line) !important;
   background: var(--surface) !important;
   box-shadow: none !important;
 }
 
+.progress-success-line {
+  color: var(--text-heading) !important;
+  font-family: var(--font) !important;
+  font-weight: 700 !important;
+}
+
 .progress-notice-warn,
 .fee-juice-notice,
-.recovery-warning,
 .balance-shortfall,
 .aztec-block-estimate-due,
 .aztec-block-estimate-behind,
@@ -5165,7 +5110,6 @@ label {
 
 code,
 pre,
-.vault-json-preview,
 .local-explorer-json {
   font-family: var(--font-mono);
   background: var(--code-surface) !important;
@@ -5276,7 +5220,8 @@ html[data-theme="light"] .dapp-log-shell {
 }
 
 .dapp-log-toggle,
-.dapp-log-dismiss {
+.dapp-log-dismiss,
+.app-error-toast-dismiss {
   width: auto !important;
   min-width: 0 !important;
   height: auto !important;
@@ -5296,7 +5241,8 @@ html[data-theme="light"] .dapp-log-shell {
   color: var(--text-muted) !important;
 }
 
-.dapp-log-dismiss {
+.dapp-log-dismiss,
+.app-error-toast-dismiss {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -5306,7 +5252,8 @@ html[data-theme="light"] .dapp-log-shell {
 }
 
 .dapp-log-toggle:hover:not(:disabled),
-.dapp-log-dismiss:hover:not(:disabled) {
+.dapp-log-dismiss:hover:not(:disabled),
+.app-error-toast-dismiss:hover:not(:disabled) {
   background: var(--accent-tint) !important;
   color: var(--text) !important;
   border-color: transparent !important;

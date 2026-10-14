@@ -40,6 +40,7 @@ export function WalletDrawer(props: {
   walletPickerRef: RefObject<HTMLDivElement | null>;
   wcProjectId: string;
   hasNetwork: boolean;
+  vaultTimeoutNotice?: string | null;
 }) {
   const { walletPanelOpen, closeWalletPanel } = useUi();
   const pickerBusy = props.busy || !!props.connectingWallet;
@@ -239,6 +240,7 @@ export function WalletDrawer(props: {
                 onDisconnectEth={props.onDisconnectEth}
                 onApplyAztecAccount={props.onApplyAztecAccount}
                 onClearAztecAccount={props.onClearAztecAccount}
+                vaultTimeoutNotice={props.vaultTimeoutNotice}
               />
               {props.connectError ? <p className="error small">{props.connectError}</p> : null}
             </div>

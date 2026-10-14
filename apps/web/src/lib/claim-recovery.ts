@@ -43,8 +43,8 @@ function phaseSteps(phase: ClaimPhase): string[] {
     case "claiming":
     case "failed":
       return [
-        "Import the Aztec account JSON for the recipient shown below, or paste its secretKey / salt / signingKey by hand. Keys stay in memory and are never written to browser storage.",
-        "Press “Resume L2 claim”. Proving runs inside this tab and usually takes several minutes.",
+        "This claim uses the Aztec account already saved in this browser. No second account import is required.",
+        "Press “Resume claim”. Proving runs inside this tab and usually takes several minutes.",
         "Leave this tab open until the progress panel reports the claim confirmed.",
       ];
     default: {
@@ -66,6 +66,29 @@ export function recoverySteps(
 ): string[] {
   const steps = phaseSteps(phase);
   return opts?.includeNavigation ? [NAVIGATION_STEP, ...steps] : steps;
+}
+
+export function sessionRecipient(entry: {
+  recipient: string;
+  credentials?: { recipient: string } | null;
+}): string {
+  return entry.credentials?.recipient ?? entry.recipient;
+}
+
+/** Claims whose recipient is an Aztec account already saved in this browser. */
+export function sessionsForAccounts<
+  T extends { recipient: string; credentials?: { recipient: string } | null },
+>(sessions: T[], accounts: { address: string }[]): T[] {
+  const owned = new Set(
+    accounts.map((account) => account.address.trim().toLowerCase()).filter(Boolean),
+  );
+  return sessions.filter((session) =>
+    owned.has(sessionRecipient(session).trim().toLowerCase()),
+  );
+}
+
+export function unknownAccountClaimMessage(recipient: string): string {
+  return `This claim is for ${shortHash(recipient)}. That Aztec account is not in this browser, so the claim was not imported.`;
 }
 
 export function selectSessionForUi(

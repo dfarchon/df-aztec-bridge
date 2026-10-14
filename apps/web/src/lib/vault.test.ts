@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createMemoryVaultBackend } from "./vault-idb.ts";
 import {
   deleteVaultProfile,
+  getVaultLockReason,
   hasAnyVaultProfile,
   hasVaultProfile,
   isVaultUnlocked,
@@ -72,6 +73,17 @@ describe("vault", () => {
     expect(await hasVaultProfile(ADDR)).toBe(false);
     expect(await hasVaultProfile(other)).toBe(true);
     expect(isVaultUnlocked()).toBe(true);
+  });
+
+  it("records idle lock reason and clears it on unlock", async () => {
+    await setupVault({ aztecAddress: ADDR, password: PASS, signingKey: SIGNING });
+    lockVault("idle");
+    expect(isVaultUnlocked()).toBe(false);
+    expect(getVaultLockReason()).toBe("idle");
+    lockVault();
+    expect(getVaultLockReason()).toBeNull();
+    await unlockVault({ aztecAddress: ADDR, password: PASS });
+    expect(getVaultLockReason()).toBeNull();
   });
 
   it("rejects wrong password on unlock", async () => {
