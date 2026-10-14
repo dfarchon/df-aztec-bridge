@@ -233,15 +233,15 @@ export function useBridgeSession() {
       const nowUnlocked = isVaultUnlocked();
       if (wasUnlocked && !nowUnlocked) {
         const reason = getVaultLockReason();
+        setDfPxeAccount(null);
+        setVaultPxeAccount(null);
+        setRecipient("");
+        setL2Secret("");
+        setL2Salt("0");
+        setL2SigningKey("");
+        closeWalletPanel();
         if (reason === "idle" || reason === "tab-hidden") {
-          setDfPxeAccount(null);
-          setVaultPxeAccount(null);
-          setRecipient("");
-          setL2Secret("");
-          setL2Salt("0");
-          setL2SigningKey("");
           setVaultTimeoutNotice(VAULT_TIMEOUT_NOTICE);
-          closeWalletPanel();
         }
       }
       wasUnlocked = nowUnlocked;

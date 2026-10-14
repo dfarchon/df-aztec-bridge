@@ -13,6 +13,7 @@ import {
   setupVault,
   unlockVault,
   vaultExportAllJson,
+  vaultImportEncryptedBackup,
   vaultGetJson,
   vaultSetJson,
   wipeUnlockedVaultProfile,
@@ -48,7 +49,24 @@ describe("vault", () => {
     expect(again?.accounts[0]?.signingKey).toBe(SIGNING);
 
     const exported = await vaultExportAllJson();
+    expect(exported.format).toBe("df-bridge-vault-backup-v1");
     expect(exported.aztecAddress).toBe(ADDR);
+    expect(JSON.stringify(exported)).not.toContain(SIGNING);
+    expect(exported.docs.wallets?.v).toBe(1);
+    expect(exported.docs.wallets?.ct.length).toBeGreaterThan(0);
+
+    lockVault();
+    await unlockVault({ aztecAddress: ADDR, password: PASS });
+    await vaultSetJson("wallets", { accounts: [], activeAddress: ADDR });
+    await vaultImportEncryptedBackup(exported);
+    const restored = await vaultGetJson<{ accounts: { signingKey?: string }[] }>("wallets");
+    expect(restored?.accounts[0]?.signingKey).toBe(SIGNING);
+  });
+
+  it("rejects a new vault password shorter than 12 characters", async () => {
+    await expect(setupVault({ aztecAddress: ADDR, password: "short-pass" })).rejects.toThrow(
+      /at least 12/,
+    );
   });
 
   it("deletes an unlocked profile so no vault remains", async () => {

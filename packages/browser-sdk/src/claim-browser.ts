@@ -104,7 +104,6 @@ async function registerAccount(
     sdk: "5.1.0",
     create: "initializerless",
     expected: expectedAddress,
-    salt: salt.toString(),
     signingKeyFromFile: Boolean(signingKeyHex?.trim()),
   });
   const manager = await wallet.createSchnorrInitializerlessAccount(
@@ -382,10 +381,7 @@ export async function waitAndClaimInBrowser(params: {
   const expected = AztecAddress.fromStringUnsafe(params.credentials.recipient);
   logRegister("0-claim-inputs", {
     recipient: params.credentials.recipient,
-    saltRaw: params.salt ?? "",
     signingKeyPresent: Boolean(params.signingKey?.trim()),
-    signingKeyLen: params.signingKey?.trim().length ?? 0,
-    secretLen: params.l2SecretKey.trim().length,
     legacyAccountStyles: Boolean(params.legacyAccountStyles),
   });
   const manager = await registerAccount(wallet, secret, salt, params.signingKey, expected);

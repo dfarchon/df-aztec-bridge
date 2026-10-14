@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { VAULT_PASSWORD_MIN_LENGTH } from "../../lib/vault-crypto.ts";
 import {
   currentPasskeyRpId,
   isWebAuthnAvailable,
@@ -64,10 +65,10 @@ export function VaultUnlockModal(props: {
   if (!open) return null;
 
   const mismatch = mode === "setup" && confirm.length > 0 && password !== confirm;
-  const tooShort = mode === "setup" && password.length > 0 && password.length < 8;
+  const tooShort = mode === "setup" && password.length > 0 && password.length < VAULT_PASSWORD_MIN_LENGTH;
   const canSubmit =
     !busy &&
-    password.length >= (mode === "unlock" ? 1 : 8) &&
+    password.length >= (mode === "unlock" ? 1 : VAULT_PASSWORD_MIN_LENGTH) &&
     (mode === "unlock" || (password === confirm && !tooShort));
   const canRecover = mode === "unlock" && !!passkeyRecovery && password.length >= 1 && !busy;
 
@@ -170,7 +171,9 @@ export function VaultUnlockModal(props: {
             After password, your device will ask for biometric / PIN / phone confirmation.
           </p>
         ) : null}
-        {tooShort ? <p className="error small">Password must be at least 8 characters.</p> : null}
+        {tooShort ? (
+          <p className="error small">Password must be at least {VAULT_PASSWORD_MIN_LENGTH} characters.</p>
+        ) : null}
         {mismatch ? <p className="error small">Passwords do not match.</p> : null}
         {error ? <p className="error small">{error}</p> : null}
         {passkeyRecovery ? (
