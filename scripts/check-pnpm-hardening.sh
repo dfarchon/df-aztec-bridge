@@ -22,7 +22,33 @@ NODE_PIN="$(node -p "require('./package.json').engines?.node||''")"
 [[ "$NODE_PIN" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "engines.node must be an exact x.y.z (got: ${NODE_PIN:-empty})"
 ok "engines.node=$NODE_PIN"
 
-LOCK_VER="$(node -p "require('fs').readFileSync('pnpm-lock.yaml','utf8').match(/^lockfileVersion:\\s*['\\\"]?([^'\\\"\\n]+)/)?.[1]||''")"
+# Netlify does not read engines.node. NODE_VERSION in netlify.toml must match it.
+NETLIFY_NODE="$(node <<'EOF'
+const fs = require("fs");
+const text = fs.readFileSync("netlify.toml", "utf8");
+const m = text.match(/^\s*NODE_VERSION\s*=\s*"([^"]+)"/m);
+if (!m) {
+  console.error("netlify.toml [build.environment] must set NODE_VERSION");
+  process.exit(2);
+}
+process.stdout.write(m[1]);
+EOF
+)" || fail "netlify.toml NODE_VERSION missing or unreadable"
+[[ "$NETLIFY_NODE" == "$NODE_PIN" ]] || fail "netlify.toml NODE_VERSION=$NETLIFY_NODE must equal engines.node=$NODE_PIN"
+ok "netlify NODE_VERSION=$NETLIFY_NODE matches engines.node"
+
+# pnpm 12 (pmOnFail) prepends an env document. The project graph is the last document.
+LOCK_VER="$(node <<'EOF'
+const fs = require("fs");
+const text = fs.readFileSync("pnpm-lock.yaml", "utf8");
+const docs = text.startsWith("---\n")
+  ? text.split(/\n---\n/).map((part, i) => (i === 0 ? part.replace(/^---\n/, "") : part))
+  : [text];
+const project = docs[docs.length - 1];
+const m = project.match(/^lockfileVersion:\s*['"]?([^'"\n]+)/);
+process.stdout.write(m ? m[1] : "");
+EOF
+)"
 [[ "$LOCK_VER" == "9.0" ]] || fail "unexpected lockfileVersion=$LOCK_VER"
 ok "lockfileVersion=$LOCK_VER"
 
@@ -37,10 +63,18 @@ ok "no exotic git/tarball/directory resolutions"
 node <<'EOF' || fail "lockfile integrity coverage incomplete"
 const fs = require("fs");
 const text = fs.readFileSync("pnpm-lock.yaml", "utf8");
-const packagesIdx = text.indexOf("\npackages:\n");
-if (packagesIdx < 0) { console.error("no packages: section"); process.exit(2); }
-const snapIdx = text.indexOf("\nsnapshots:\n");
-const section = text.slice(packagesIdx, snapIdx > 0 ? snapIdx : undefined);
+const docs = text.startsWith("---\n")
+  ? text.split(/\n---\n/).map((part, i) => (i === 0 ? part.replace(/^---\n/, "") : part))
+  : [text];
+const sections = [];
+for (const doc of docs) {
+  const packagesIdx = doc.indexOf("\npackages:\n");
+  if (packagesIdx < 0) continue;
+  const snapIdx = doc.indexOf("\nsnapshots:\n", packagesIdx);
+  sections.push(doc.slice(packagesIdx, snapIdx > 0 ? snapIdx : undefined));
+}
+if (!sections.length) { console.error("no packages: section"); process.exit(2); }
+const section = sections.join("\n");
 const resolutions = [...section.matchAll(/^\s{2}\S.*:\n(?:.*\n)*?\s{4}resolution: \{([^}]+)\}/gm)];
 let missing = 0, sha512 = 0, other = 0;
 for (const m of resolutions) {
@@ -73,7 +107,6 @@ const need = [
   "trustLockfile: true",
   "verifyDepsBeforeRun: error",
   "shamefullyHoist: false",
-  "confirmModulesPurge: false",
   "strictStorePkgContentCheck: true",
   "allowBuilds:",
 ];
@@ -82,6 +115,10 @@ for (const k of need) {
     console.error("pnpm-workspace.yaml missing: " + k);
     process.exit(2);
   }
+}
+if (/^confirmModulesPurge\s*:/m.test(text)) {
+  console.error("confirmModulesPurge is pnpm 11 only; pnpm 12 rejects it");
+  process.exit(2);
 }
 const builds = [
   "esbuild: true",
@@ -99,7 +136,7 @@ for (const b of builds) {
 }
 const p = require("./package.json");
 if (p.pnpm) {
-  console.error("package.json#pnpm must be removed on pnpm v11");
+  console.error("package.json#pnpm must be removed; settings live in pnpm-workspace.yaml");
   process.exit(4);
 }
 const nodePin = p.engines?.node;
@@ -144,11 +181,18 @@ function collect(p) {
   return { ...(p.dependencies || {}), ...(p.devDependencies || {}) };
 }
 
+function projectLockfile(text) {
+  if (!text.startsWith("---\n")) return text;
+  const docs = text.split(/\n---\n/).map((part, i) => (i === 0 ? part.replace(/^---\n/, "") : part));
+  return docs[docs.length - 1];
+}
+
 function parseImporters(text) {
-  const start = text.indexOf("\nimporters:\n");
-  const end = text.indexOf("\npackages:\n");
+  const project = projectLockfile(text);
+  const start = project.indexOf("\nimporters:\n");
+  const end = project.indexOf("\npackages:\n");
   if (start < 0 || end < 0) throw new Error("lockfile missing importers/packages");
-  const block = text.slice(start + "\nimporters:\n".length, end);
+  const block = project.slice(start + "\nimporters:\n".length, end);
   const lines = block.split("\n");
   const out = {};
   let current = null;

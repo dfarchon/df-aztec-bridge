@@ -30,18 +30,12 @@
 Anything starting with `VITE_` is compiled into the JavaScript everyone downloads.
 
 ```text
-GOOD                          BAD
-────                          ───
-VITE_BRIDGE_PUBLIC_URL        VITE_MAINNET_AZTEC_NODE_URL=
-VITE_ENABLE_BROWSER_CLAIM       https://lb.drpc.live/.../<API_KEY>
-Public RPC:
-  https://aztec-mainnet.drpc.org
-
-Keyed RPC URLs do not belong in `VITE_*`.
-Vite would bake the key into the client.
+VITE_BRIDGE_PUBLIC_URL
+VITE_ENABLE_BROWSER_CLAIM
+VITE_MAINNET_AZTEC_NODE_URL=https://lb.drpc.live/aztec-mainnet/<API_KEY>
 ```
 
-The build **refuses** keyed `lb.drpc.live/...` values in `VITE_MAINNET_AZTEC_NODE_URL` (`vite.config.ts`).
+A keyed `https://lb.drpc.live/aztec-mainnet/...` value in `VITE_MAINNET_AZTEC_NODE_URL` is accepted. Vite bakes that URL into the client, so the path key is visible to anyone who loads the page.
 
 ## 2) Content Security Policy (CSP)
 

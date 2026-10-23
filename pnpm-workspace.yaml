@@ -2,14 +2,14 @@ packages:
   - "apps/*"
   - "packages/*"
 
-# pnpm v11+ config (was package.json#pnpm + all of .npmrc)
+# pnpm v12 config (was package.json#pnpm + all of .npmrc).
+# confirmModulesPurge is pnpm 11 only; pnpm 12 rejects it.
 registry: https://registry.npmjs.org/
 saveExact: true
 autoInstallPeers: true
 preferFrozenLockfile: true
 lockfile: true
 shamefullyHoist: false
-confirmModulesPurge: false
 strictDepBuilds: true
 strictStorePkgContentCheck: true
 verifyDepsBeforeRun: error
@@ -30,7 +30,7 @@ minimumReleaseAge: 1440
 minimumReleaseAgeStrict: false
 # Fail when running pnpm ≠ packageManager pin (Corepack).
 pmOnFail: error
-# Pin explicitly — pnpm 11 verifyDepsBeforeRun fails if this flips vs node_modules state.
+# Pin explicitly — verifyDepsBeforeRun fails if this flips vs node_modules state.
 enableGlobalVirtualStore: false
 
 # Force patched transitive versions (audit high+ cleared). Keep majors compatible with @aztec/*.
