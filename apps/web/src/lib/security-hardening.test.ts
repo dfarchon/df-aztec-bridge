@@ -26,6 +26,9 @@ describe("csp", () => {
     expect(csp).toContain("wss://*.walletconnect.com");
     expect(csp).not.toContain("https://*.drpc.org");
     expect(csp).not.toContain("https://*.publicnode.com");
+    expect(csp).not.toContain("fonts.googleapis.com");
+    expect(csp).not.toContain("fonts.gstatic.com");
+    expect(csp).toContain("font-src 'self' data:");
   });
 
   it("allows Aztec CRS hosts required for browser proving", () => {

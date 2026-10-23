@@ -19,6 +19,7 @@ import {
   getVaultProfile,
   isVaultUnlocked,
   vaultExportAllJson,
+  vaultImportEncryptedBackup,
   vaultListDocs,
 } from "../../lib/vault.ts";
 
@@ -228,6 +229,23 @@ export function VaultPage() {
         "vault";
       downloadJsonFile(`df-bridge-vault-${addr}-${Date.now()}.json`, all);
       setPane("overview");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onImportBackup = async (file: File) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const parsed: unknown = JSON.parse(await file.text());
+      const count = await vaultImportEncryptedBackup(parsed);
+      await refresh();
+      setError(null);
+      setPane("overview");
+      if (count === 0) setError("Backup file had no documents.");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -481,12 +499,25 @@ export function VaultPage() {
           <div className="df-pxe-format-pane">
             <p className="wallet-manager-pane-title">Download a backup</p>
             <p className="hint">
-              The backup file includes your encrypted vault contents in plain JSON — account keys,
-              unfinished claim credentials, and settings. Store it offline and keep it private.
+              The file is vault ciphertext. Account keys are not readable in it. Restore it here
+              with the same vault password, and keep the file offline.
             </p>
             <button type="button" disabled={busy} onClick={() => void onExport()}>
-              {busy ? "Working…" : "Download backup JSON"}
+              {busy ? "Working…" : "Download encrypted backup"}
             </button>
+            <label className="hint">
+              Restore an encrypted backup
+              <input
+                type="file"
+                accept="application/json,.json"
+                disabled={busy}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (file) void onImportBackup(file);
+                }}
+              />
+            </label>
             <button type="button" className="ghost" onClick={backToOverview}>
               Cancel
             </button>

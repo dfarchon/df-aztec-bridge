@@ -32,7 +32,7 @@ Network / L1 backend selectors live in the **wallet manager** drawer (locked to 
 
 ## Privacy / localization
 
-- No Google Fonts / third-party analytics (avoids IP + locale leakage to CDNs)
+- No third-party analytics. Fira Sans is self-hosted under `apps/web/public/fonts/` (SIL OFL), so the page does not call a Google Fonts CDN.
 - `privacyFetch`: omit credentials, `no-referrer`, force `Accept-Language: en`, strip client-IP headers
 - UI timestamps use ISO-8601 (not `toLocaleString`)
 - Logs redact hex secrets and IP literals
