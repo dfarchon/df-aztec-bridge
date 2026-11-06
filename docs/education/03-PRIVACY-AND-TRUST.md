@@ -63,6 +63,6 @@ From [NETWORK_INTEGRITY.md](../NETWORK_INTEGRITY.md) and `privacy.ts`:
 
 - “Private bridge” in the sense of hiding that you deposited Fee Juice on L1.
 - Safety if you unlock the vault on a shared / infected PC.
-- DevGate alone protecting a public Netlify URL (it is only a soft gate; use Netlify visitor password).
+- A preview deploy that has no `DEV_GATE_PASSWORD` in the Netlify UI (the edge function then returns 503). Production is a separate host and is not behind that password.
 
 Next: [04 — Vault and keys](./04-VAULT-AND-KEYS.md).

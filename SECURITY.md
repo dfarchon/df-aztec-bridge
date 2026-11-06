@@ -28,10 +28,12 @@ If secrets were ever committed, **deleting the files does not revoke them**. Rot
 | Control | Status |
 |---------|--------|
 | Browser claim (Netlify) | `VITE_ENABLE_BROWSER_CLAIM=true`; remote claim API bases are rejected |
-| CSP | Explicit allowlist (`csp.ts` ≡ `netlify.toml`); no bare `https:`/`wss:`; no `*.drpc.*` / `*.publicnode.com`. WC/Reown wildcards remain (required) |
-| RPC overrides | Localhost or `OFFICIAL_HTTPS_HOST_ALLOWLIST` only |
-| Vault | Meta AES-GCM at rest; idle 15m / tab-hidden 5m auto-lock |
-| DevGate | Client defense-in-depth; **Netlify visitor password required** on preview hosts |
+| CSP | Explicit allowlist (`csp.ts` ≡ `netlify.toml`); no bare `https:`/`wss:`; no `lb.drpc.live` in production or dev; no `*.drpc.*` / `*.publicnode.com`. WC/Reown wildcards remain (required) |
+| RPC overrides | Localhost or an exact `PINNED_PUBLIC_RPC_URLS` entry (no path, query, or userinfo). `lb.drpc.live` is rejected |
+| Vault | Meta AES-GCM at rest; PBKDF2-SHA-256 × 600,000 on create and on the next unlock of an older vault; idle 15m / tab-hidden 5m auto-lock also clears in-memory claim and account secrets. A passkey with WebAuthn PRF wraps the CEK so the password alone cannot decrypt. A passkey without PRF stays password-only |
+| Plaintext leftovers | Boot deletes pre-vault `localStorage` account / claim blobs without reading them into the UI. Recovery is the downloaded claim JSON |
+| Fee recipient | Pinned to `0x33D5928E1c66E831Eb250D1250bf2CfF9eACa370`. A different `VITE_BRIDGE_FEE_RECIPIENT` fails the build |
+| Preview gate | Netlify edge function on `/*` for branch and deploy-preview hosts. Password is `DEV_GATE_PASSWORD` (HttpOnly HMAC cookie, 12+ characters). Missing password fails closed with 503 before the bundle. Production host is not gated. Netlify visitor password remains an optional extra CDN lock |
 
 This kit must not be used with production funds until Critical and High findings from the security review are remediated, C-01 rotation is confirmed, and controls are independently re-tested.
 
@@ -40,7 +42,7 @@ This kit must not be used with production funds until Critical and High findings
 - Always `pnpm install --frozen-lockfile` (CI, Netlify, local).
 - Pin Node in root `package.json#engines.node` (exact `x.y.z`); pin pnpm via Corepack `packageManager` **sha512**. Direct deps are exact versions in each `package.json`; bytes are pinned in `pnpm-lock.yaml`.
 - Lifecycle scripts only via `allowBuilds` in `pnpm-workspace.yaml`; see [docs/PNPM_HARDENING.md](docs/PNPM_HARDENING.md).
-- Audit overrides in `pnpm-workspace.yaml#overrides` force patched transitive versions (`hono`, `@hono/node-server`, `undici`, `ws`, `axios`, … plus Vite toolchain `postcss@8.5.23`, `nanoid@3.3.18`).
+- Audit overrides in `pnpm-workspace.yaml#overrides` force patched transitive versions (`hono`, `@hono/node-server`, `undici`, `ws`, `axios`, `zod@<4.6.6` → `4.6.7`, `qs@6.16.1`, `fast-copy@4.3.1`, `glob@14.0.4`, … plus Vite toolchain `postcss@8.5.23`, `nanoid@3.3.18`, `browserslist@4.29.5`, `source-map-js@1.2.2`). Direct `vite` is `6.4.5`.
 - CI / local gate: `pnpm audit --prod --audit-level=high` (the job must fail on high; do not set `continue-on-error`). Root script: `pnpm audit` → `--prod`.
 - Run `pnpm check:pnpm` after changing `engines.node`, `packageManager`, `pnpm-workspace.yaml`, the lockfile, or install docs.
 
@@ -48,13 +50,16 @@ This kit must not be used with production funds until Critical and High findings
 
 | Scope | Result |
 |-------|--------|
-| `pnpm audit --prod --audit-level=high` | **1 high** residual: `zod@<4.6.6` via viem → abitype and WalletConnect (`zod@3.22.4`, `zod@3.25.76`). Aztec's `zod@4.4.3` is overridden to `4.6.7`. No patched Zod 3 release exists, and `abitype@1.0.6` does not accept Zod 4, so those paths stay on Zod 3. |
-| `pnpm audit` (includes dev) | **Not clean.** Same Zod 3 high, plus dev-only highs in `vite@<=6.4.3`, `browserslist@<=4.28.6`, and `source-map-js@<1.2.2`. Those dev pins were not part of the Aztec 6 bump. |
+| `pnpm audit --prod --audit-level=high` | **No high.** `zod@<4.6.6` is overridden to `4.6.7`. `qs@6.16.1`, `fast-copy@4.3.1`, and `glob@14.0.4` clear the previous production moderates. |
+| `pnpm audit` (includes dev) | **No high.** Production tree is clean. Dev-only remainder: 4 moderate (`vitest` / `@vitest/mocker`, `pbkdf2` under `vite-plugin-node-polyfills`) and 1 low (`elliptic`, no patched release). |
 
-**Cleared this pass (dev/build chain):**
+**Cleared this pass (production tree):**
 
-- High [GHSA-2v37-7h3g-55p8](https://github.com/advisories/GHSA-2v37-7h3g-55p8) `nanoid` → override `3.3.18`
-- Moderate [GHSA-fxqj-rqcc-2cmp](https://github.com/advisories/GHSA-fxqj-rqcc-2cmp) / CVE-2026-69153 `postcss` → override `8.5.23`
+- Moderate `qs` ([GHSA-x5fp-wj9c-mxmx](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx), [GHSA-4mjr-xmp4-gh2g](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g), [GHSA-6pq8-jhm2-2vcw](https://github.com/advisories/GHSA-6pq8-jhm2-2vcw)) → override `6.16.1`
+- Moderate `fast-copy` ([GHSA-jggr-w7fw-pc2j](https://github.com/advisories/GHSA-jggr-w7fw-pc2j)) → override `4.3.1`
+- Moderate `glob` / nested `minimatch` ([GHSA-3g3m-2fjr-6pw4](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4), [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249)) → override `glob@14.0.4`
+
+Earlier this review: `nanoid@3.3.18`, `postcss@8.5.23`, `zod@4.6.7`, `vite@6.4.5`.
 
 Re-check after dependency bumps: `pnpm audit --prod` and `pnpm audit`.
 

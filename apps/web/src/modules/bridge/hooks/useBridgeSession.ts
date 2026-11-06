@@ -239,14 +239,25 @@ export function useBridgeSession() {
         setL2Secret("");
         setL2Salt("0");
         setL2SigningKey("");
+        setShowL2Secret(false);
+        setCredentials(null);
+        setRecoverySessions([]);
+        setSelectedRecoveryHash(null);
+        setRecoveryPromptOpen(false);
+        setImportedAccounts([]);
+        setImportedIndex(0);
+        setImportName(null);
+        setShowBridgeResult(false);
         closeWalletPanel();
         if (reason === "idle" || reason === "tab-hidden") {
           setVaultTimeoutNotice(VAULT_TIMEOUT_NOTICE);
         }
+      } else if (!wasUnlocked && nowUnlocked) {
+        void refreshSessions();
       }
       wasUnlocked = nowUnlocked;
     });
-  }, [setVaultPxeAccount, closeWalletPanel]);
+  }, [setVaultPxeAccount, closeWalletPanel, refreshSessions]);
 
   useEffect(() => {
     let cancelled = false;

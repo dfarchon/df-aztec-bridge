@@ -4,7 +4,7 @@
 
 | Role | Chain | Env / constant | Purpose |
 |------|-------|----------------|---------|
-| **L1 protocol fee (5%)** | Ethereum | `BRIDGE_FEE_RECIPIENT` / `VITE_BRIDGE_FEE_RECIPIENT` | Anonymous Trezor treasury — skim on every bridge |
+| **L1 protocol fee (5%)** | Ethereum | Pinned `0x33D5928E1c66E831Eb250D1250bf2CfF9eACa370` | Anonymous Trezor treasury — skim on every bridge |
 | **DF Sponsored FPC** | Aztec L2 | `VITE_SPONSORED_FPC_ADDRESS` (default canonical) | Fee Juice *recipient* when funding DF sponsor mode |
 
 Canonical Sponsored FPC (salt-derived, matches DF Aztec / `@aztec-labs/constants`):
@@ -18,14 +18,14 @@ In the web UI use **Fund DF Sponsored FPC** to set the L2 recipient to that addr
 Every bridge skims **5%** (`BRIDGE_FEE_BPS = 500`) of the gross Fee Juice / AZTEC amount:
 
 - **Net (95%)** → Aztec Fee Juice portal deposit for the L2 recipient (user account **or** Sponsored FPC)
-- **Fee (5%)** → `BRIDGE_FEE_RECIPIENT` / `VITE_BRIDGE_FEE_RECIPIENT` (your anonymous Trezor on Ethereum)
+- **Fee (5%)** → the pinned treasury `0x33D5928E1c66E831Eb250D1250bf2CfF9eACa370`. The web build rejects any other `VITE_BRIDGE_FEE_RECIPIENT`.
 
 **Mainnet extra:** a native **ETH service fee** (~1 L1 tx gas, or `VITE_BRIDGE_ETH_FEE_WEI`) goes to the **same** fee recipient. Wallets that support EIP-5792 `wallet_sendCalls` batch it with the AZTEC fee + approve + deposit into **one** confirm; otherwise the app falls back to sequential confirms.
 
 Portal path (preferred batch): ETH transfer + ERC-20 fee `transfer` + `approve` + `depositToAztecPublic(net)`.  
 GoBridge path: optional `msg.value` ETH fee is forwarded inside `bridge` / `mintAndBridge`; AZTEC fee is enforced onchain (`feeRecipient` immutable).
 
-Set both L1 env vars to the **same** checksummed address before Netlify build / `pnpm deploy-l1-bridge`.
+The web app only accepts that treasury address. `pnpm deploy-l1-bridge` must use the same address.
 
 ## Aztec-side collector (next)
 

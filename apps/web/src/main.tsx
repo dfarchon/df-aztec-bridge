@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { hardenClientSurface } from "./lib/client-hardening.ts";
+import { AsciiField } from "./theme/AsciiField.tsx";
 import "./styles.css";
 
 // Production: mute console + resist trivial inject helpers (before app boot).
@@ -23,6 +24,15 @@ function setSplashHint(text: string) {
 }
 
 document.getElementById("boot-reload")?.addEventListener("click", () => window.location.reload());
+
+const bootField = document.getElementById("boot-field");
+if (bootField) {
+  createRoot(bootField).render(
+    <StrictMode>
+      <AsciiField />
+    </StrictMode>,
+  );
+}
 
 function dismissBootSplash() {
   const el = document.getElementById("boot-splash");
@@ -114,7 +124,16 @@ async function warmupPxeIfEnabled() {
 
 async function boot() {
   const { assertNoLocalizationSideChannels } = await import("./lib/privacy.ts");
+  const { discardLegacyPlaintextSecrets } = await import("./lib/vault.ts");
   assertNoLocalizationSideChannels();
+  if (discardLegacyPlaintextSecrets() > 0) {
+    const { pushAppError } = await import("./lib/app-error-toast.ts");
+    pushAppError({
+      title: "Removed old browser storage",
+      detail:
+        "Unencrypted recovery data from this browser was deleted. Import your claim JSON if a claim is still open, then unlock the vault.",
+    });
+  }
 
   if (import.meta.env.PROD && typeof window !== "undefined" && window.location.protocol === "http:") {
     // Defense-in-depth: production DApp should only run on HTTPS (Netlify enforces this too).
@@ -127,32 +146,6 @@ async function boot() {
     createRoot(document.getElementById("root")!).render(
       <StrictMode>
         <MaintenancePage />
-      </StrictMode>,
-    );
-    dismissBootSplash();
-    return;
-  }
-
-  const { isDevGateRequired, hasDevGateUnlock } = await import("./lib/dev-gate.ts");
-  if (isDevGateRequired() && !hasDevGateUnlock()) {
-    setSplashHint("Dev preview gate…");
-    const { DevGatePage } = await import("./components/ui/DevGatePage.tsx");
-    const root = createRoot(document.getElementById("root")!);
-    const continueBoot = () => {
-      void (async () => {
-        setSplashHint("Loading app bundle…");
-        const { App } = await import("./app/App.tsx");
-        await warmupPxeIfEnabled();
-        root.render(
-          <StrictMode>
-            <App />
-          </StrictMode>,
-        );
-      })().catch(showBootFailure);
-    };
-    root.render(
-      <StrictMode>
-        <DevGatePage onUnlocked={continueBoot} />
       </StrictMode>,
     );
     dismissBootSplash();

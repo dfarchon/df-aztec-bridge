@@ -8,6 +8,7 @@ import {
   aztecScanTxEffectUrl,
   isLocalExplorerOrigin,
   isOfficialHttpsUrl,
+  l1AddressUrl,
   l1ExplorerLinkLabel,
   l1TxUrl,
   resolveAztecScanOrigin,
@@ -32,7 +33,7 @@ describe("official-links", () => {
     expect(isOfficialHttpsUrl("https://docs.aztec.network/networks")).toBe(true);
     expect(isOfficialHttpsUrl("https://aztecscan.xyz/")).toBe(true);
     expect(isOfficialHttpsUrl("https://aztec-mainnet.drpc.org")).toBe(true);
-    expect(isOfficialHttpsUrl("https://lb.drpc.live/aztec-mainnet/x")).toBe(true);
+    expect(isOfficialHttpsUrl("https://lb.drpc.live/aztec-mainnet/x")).toBe(false);
     expect(isOfficialHttpsUrl("http://aztecscan.xyz/")).toBe(false);
     expect(isOfficialHttpsUrl("https://evil.example/")).toBe(false);
   });
@@ -55,6 +56,15 @@ describe("official-links", () => {
   it("builds HTTPS L1 explorer tx links", () => {
     expect(l1TxUrl("https://etherscan.io", "0xdead")).toBe("https://etherscan.io/tx/0xdead");
     expect(l1TxUrl("http://etherscan.io", "0xdead")).toBeNull();
+    const portal = "0x534361be805CA30Bdb6404eC5E6cDAFFB3E9f3b3";
+    expect(l1AddressUrl("https://etherscan.io", portal)).toBe(
+      `https://etherscan.io/address/${portal}`,
+    );
+    expect(l1AddressUrl("https://sepolia.etherscan.io", portal)).toBe(
+      `https://sepolia.etherscan.io/address/${portal}`,
+    );
+    expect(l1AddressUrl("http://etherscan.io", portal)).toBeNull();
+    expect(l1AddressUrl("https://etherscan.io", "0xshort")).toBeNull();
     expect(l1ExplorerLinkLabel("https://etherscan.io")).toBe("Etherscan");
     expect(l1ExplorerLinkLabel("https://sepolia.etherscan.io")).toBe("Sepolia Etherscan");
     expect(OFFICIAL_DOCS_NETWORKS).toContain("docs.aztec.network");

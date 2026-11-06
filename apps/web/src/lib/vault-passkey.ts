@@ -136,11 +136,24 @@ function mapWebAuthnError(err: unknown, action: "create" | "get"): PasskeyError 
  * Register a passkey for this vault profile.
  * Prefers on-device biometrics; falls back to cross-platform (phone / security key).
  */
+export type RegisteredVaultPasskey = {
+  meta: VaultPasskeyMeta;
+  prfSecret: Uint8Array;
+};
+
+function prfFirst(cred: PublicKeyCredential): ArrayBuffer | null {
+  const ext = cred.getClientExtensionResults() as {
+    prf?: { results?: { first?: ArrayBuffer } };
+  };
+  const first = ext.prf?.results?.first;
+  return first && first.byteLength > 0 ? first : null;
+}
+
 export async function registerVaultPasskey(opts: {
   aztecAddress: string;
   /** Prefer Face ID / fingerprint / Windows Hello when available. */
   preferPlatform?: boolean;
-}): Promise<VaultPasskeyMeta> {
+}): Promise<RegisteredVaultPasskey> {
   if (!isWebAuthnAvailable()) {
     throw new PasskeyError("Passkeys are not available in this browser.");
   }
@@ -170,6 +183,7 @@ export async function registerVaultPasskey(opts: {
       requireResidentKey: false,
       ...(preferPlatform ? { authenticatorAttachment: "platform" as const } : {}),
     },
+    extensions: { prf: {} } as AuthenticationExtensionsClientInputs,
   };
 
   let cred: Credential | null = null;
@@ -202,29 +216,46 @@ export async function registerVaultPasskey(opts: {
   const transports =
     typeof response.getTransports === "function" ? response.getTransports() : undefined;
 
-  return {
+  const prfSaltBytes = crypto.getRandomValues(new Uint8Array(32));
+  const meta: VaultPasskeyMeta = {
     credentialId: b64Encode(pk.rawId),
     rpId: rpId(),
     createdAt: Date.now(),
     transports: transports?.length ? [...transports] : undefined,
+    prfSalt: b64Encode(prfSaltBytes),
   };
+  const read = await evalVaultPasskeyPrf(meta, { required: true });
+  if (!read) {
+    throw new PasskeyError(
+      "This passkey cannot wrap the vault key. Use a device that supports the passkey PRF extension.",
+    );
+  }
+  return { meta, prfSecret: read.prfSecret };
 }
 
-/** Prove possession of the registered passkey (second factor). */
-export async function assertVaultPasskey(passkey: VaultPasskeyMeta): Promise<void> {
+/**
+ * User-verify the passkey and read the PRF output for the stored salt.
+ * `required: false` still asks for the passkey, and returns null when the
+ * authenticator has no PRF result (legacy presence-only passkeys).
+ */
+export async function evalVaultPasskeyPrf(
+  passkey: VaultPasskeyMeta,
+  opts?: { required?: boolean },
+): Promise<{ prfSecret: Uint8Array; prfSalt: string } | null> {
   if (!isWebAuthnAvailable()) {
     throw new PasskeyError("Passkeys are not available in this browser.");
   }
   if (!passkey.credentialId) {
     throw new PasskeyError("Vault passkey metadata is missing credentialId.");
   }
-
   const mismatch = describePasskeyHostMismatch(passkey);
-  if (mismatch) {
-    throw new PasskeyError(mismatch, "host_mismatch");
-  }
+  if (mismatch) throw new PasskeyError(mismatch, "host_mismatch");
 
-  const challenge = crypto.getRandomValues(new Uint8Array(32));
+  const required = opts?.required === true;
+  const saltBytes = passkey.prfSalt
+    ? b64Decode(passkey.prfSalt)
+    : crypto.getRandomValues(new Uint8Array(32));
+  const prfSalt = passkey.prfSalt ?? b64Encode(saltBytes);
   const allow: PublicKeyCredentialDescriptor = {
     type: "public-key",
     id: b64Decode(passkey.credentialId),
@@ -235,11 +266,14 @@ export async function assertVaultPasskey(passkey: VaultPasskeyMeta): Promise<voi
   try {
     cred = await navigator.credentials.get({
       publicKey: {
-        challenge,
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
         rpId: passkey.rpId || rpId(),
         allowCredentials: [allow],
         userVerification: "required",
         timeout: 120_000,
+        extensions: {
+          prf: { eval: { first: saltBytes } },
+        } as AuthenticationExtensionsClientInputs,
       },
     });
   } catch (err) {
@@ -254,4 +288,17 @@ export async function assertVaultPasskey(passkey: VaultPasskeyMeta): Promise<voi
   if (gotId !== passkey.credentialId) {
     throw new PasskeyError("Passkey credential did not match this vault.", "missing_on_device");
   }
+  const first = prfFirst(pk);
+  if (!first) {
+    if (!required) return null;
+    throw new PasskeyError(
+      "This passkey cannot wrap the vault key. Use a device that supports the passkey PRF extension.",
+    );
+  }
+  return { prfSecret: new Uint8Array(first), prfSalt };
+}
+
+/** Prove possession of the registered passkey. */
+export async function assertVaultPasskey(passkey: VaultPasskeyMeta): Promise<void> {
+  await evalVaultPasskeyPrf(passkey, { required: false });
 }

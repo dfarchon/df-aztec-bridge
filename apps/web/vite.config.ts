@@ -6,7 +6,8 @@ import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildDevCsp } from "./src/lib/csp.ts";
-import { DEV_GATE_PUBLISHED_EXAMPLE_HASH } from "./src/lib/dev-gate.ts";
+import { assertPinnedFeeRecipient } from "./src/lib/fee-recipient.ts";
+import { assertSafeConfiguredRpcUrl, isSafeConfiguredRpcUrl } from "./src/lib/official-links.ts";
 
 const webDir = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(webDir, "../..");
@@ -134,6 +135,35 @@ function aztecSqliteWasmPlugin(): Plugin {
 
   return {
     name: "aztec-sqlite-wasm",
+    transform(code, id) {
+      const file = id.split("?")[0] ?? id;
+      // The async OPFS and opfs-wl VFS installers spawn a worker that fails under Vite
+      // and only console.errors. The kv store uses an in-memory DB or the SAH pool.
+      if (file.includes("sqlite3mc-wasm") && file.endsWith("/sqlite3.mjs") && !code.includes("df-bridge:skip-unused-opfs")) {
+        return {
+          code:
+            "/* df-bridge:skip-unused-opfs */\n" +
+            "globalThis.sqlite3ApiConfig ??= {};\n" +
+            "globalThis.sqlite3ApiConfig.disable ??= {};\n" +
+            "globalThis.sqlite3ApiConfig.disable.vfs ??= {};\n" +
+            "globalThis.sqlite3ApiConfig.disable.vfs.opfs = true;\n" +
+            'globalThis.sqlite3ApiConfig.disable.vfs["opfs-wl"] = true;\n' +
+            code,
+          map: null,
+        };
+      }
+      // Wallet and node streams attach a few more than the events default of 10 during boot.
+      if (file.endsWith("/events/events.js") && code.includes("var defaultMaxListeners = 10;")) {
+        return {
+          code: code.replace(
+            "var defaultMaxListeners = 10;",
+            "var defaultMaxListeners = 32; /* df-bridge:max-listeners */",
+          ),
+          map: null,
+        };
+      }
+      return undefined;
+    },
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         serveSqliteAsset(req.url, res, next);
@@ -162,16 +192,10 @@ export default defineConfig(({ mode }) => {
   const bbBrowser = resolveAztecBbBrowser();
   const pinoBrowser = resolvePinoBrowser();
   const apiAuthToken = env.API_AUTH_TOKEN?.trim() ?? "";
-  const gateHash = env.VITE_DEV_GATE_PASSWORD_HASH?.trim().toLowerCase() ?? "";
-  if (env.VITE_DEV_GATE === "true") {
-    if (!/^[0-9a-f]{64}$/.test(gateHash) || gateHash === DEV_GATE_PUBLISHED_EXAMPLE_HASH) {
-      throw new Error(
-        "VITE_DEV_GATE=true requires a unique VITE_DEV_GATE_PASSWORD_HASH (64 hex). The published example hash is blocked.",
-      );
-    }
-  }
-  const devMainnetNode =
+  const rawDevMainnetNode =
     mode === "development" ? (env.MAINNET_AZTEC_NODE_URL?.trim() ?? "") : "";
+  const devMainnetNode =
+    rawDevMainnetNode && isSafeConfiguredRpcUrl(rawDevMainnetNode) ? rawDevMainnetNode : "";
   if (!browserClaim && !apiAuthToken) {
     throw new Error(
       "VITE_ENABLE_BROWSER_CLAIM=false requires API_AUTH_TOKEN (≥32) so the /api proxy can authenticate /v1/claim.",
@@ -185,6 +209,19 @@ export default defineConfig(({ mode }) => {
       "VITE_ENABLE_BROWSER_CLAIM=false requires API_ENABLE_CLAIM=true on the local API (loopback only). Prefer browser claim for Netlify.",
     );
   }
+  assertPinnedFeeRecipient(env.VITE_BRIDGE_FEE_RECIPIENT);
+  for (const key of [
+    "VITE_MAINNET_AZTEC_NODE_URL",
+    "VITE_MAINNET_L1_RPC_URL",
+    "VITE_TESTNET_AZTEC_NODE_URL",
+    "VITE_TESTNET_L1_RPC_URL",
+    "VITE_LOCAL_AZTEC_NODE_URL",
+    "VITE_LOCAL_L1_RPC_URL",
+  ]) {
+    const value = env[key]?.trim();
+    if (value) assertSafeConfiguredRpcUrl(value, key);
+  }
+
   const viteApiBase = env.VITE_API_BASE?.trim() || "/api";
   if (
     viteApiBase !== "/api" &&
@@ -201,6 +238,9 @@ export default defineConfig(({ mode }) => {
     envDir: rootDir,
     define: {
       "import.meta.env.DEV_MAINNET_AZTEC_NODE_URL": JSON.stringify(devMainnetNode),
+      // Drop leftover preview-gate env. Vite inlines every VITE_ name it loads.
+      "import.meta.env.VITE_DEV_GATE": "undefined",
+      "import.meta.env.VITE_DEV_GATE_PASSWORD_HASH": "undefined",
     },
     assetsInclude: ["**/*.wasm"],
     plugins: [

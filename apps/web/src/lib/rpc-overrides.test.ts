@@ -4,14 +4,20 @@ import { hasRpcOverrides, isAllowedRpcOverrideUrl, validateRpcOverrides } from "
 describe("rpc-overrides allowlist", () => {
   it("allows official and loopback only", () => {
     expect(isAllowedRpcOverrideUrl("https://aztec-mainnet.drpc.org")).toBe(true);
-    expect(isAllowedRpcOverrideUrl("https://lb.drpc.live/aztec-mainnet/x")).toBe(true);
+    expect(isAllowedRpcOverrideUrl("https://aztec-mainnet.drpc.org/")).toBe(true);
+    expect(isAllowedRpcOverrideUrl("https://lb.drpc.live/aztec-mainnet/x")).toBe(false);
+    expect(isAllowedRpcOverrideUrl("https://aztec-mainnet.drpc.org/keyed")).toBe(false);
+    expect(isAllowedRpcOverrideUrl("https://aztecscan.xyz")).toBe(false);
     expect(isAllowedRpcOverrideUrl("http://127.0.0.1:8080")).toBe(true);
     expect(isAllowedRpcOverrideUrl("https://evil.drpc.org")).toBe(false);
     expect(isAllowedRpcOverrideUrl("https://attacker.example")).toBe(false);
   });
 
   it("validateRpcOverrides rejects unlisted hosts", () => {
-    expect(validateRpcOverrides({ aztecNodeUrl: "https://evil.drpc.org" })).toMatch(/allowlist/i);
+    expect(validateRpcOverrides({ aztecNodeUrl: "https://evil.drpc.org" })).toMatch(/pinned|blocked/i);
+    expect(validateRpcOverrides({ aztecNodeUrl: "https://lb.drpc.live/aztec-mainnet/x" })).toMatch(
+      /pinned|blocked/i,
+    );
     expect(validateRpcOverrides({ aztecNodeUrl: "https://aztec-mainnet.drpc.org" })).toBeNull();
   });
 

@@ -1,5 +1,6 @@
 import type { Hex } from "viem";
 import type { L1Addresses, L1BridgeBackend } from "@df-bridge/browser-sdk";
+import { isSafeConfiguredRpcUrl } from "../lib/official-links.ts";
 
 export interface WebNetworkConfig {
   id: string;
@@ -20,7 +21,7 @@ export interface WebNetworkConfig {
  * Static network presets for the web app (no API required for bridge).
  * L1 Fee Juice / Portal addresses are protocol contracts and rarely change.
  * Override URLs via VITE_*_AZTEC_NODE_URL / VITE_*_L1_RPC_URL at build time if needed.
- * Local `pnpm dev` also reads MAINNET_AZTEC_NODE_URL (keyed dRPC) as the mainnet default.
+ * Local `pnpm dev` uses the same pinned public RPC. A keyed node URL is not injected.
  */
 const NETWORKS_BASE: Record<string, WebNetworkConfig> = {
   testnet: {
@@ -43,7 +44,7 @@ const NETWORKS_BASE: Record<string, WebNetworkConfig> = {
   mainnet: {
     id: "mainnet",
     name: "Aztec Alpha (Mainnet)",
-    // Public endpoint in source. Keyed lb.drpc.live URLs: MAINNET_AZTEC_NODE_URL in .env (pnpm dev only).
+    // Public endpoint in source. Keyed node URLs are not compiled into the client.
     aztecNodeUrl: "https://aztec-mainnet.drpc.org",
     l1RpcUrl: "https://ethereum-rpc.publicnode.com",
     l1ChainId: 1,
@@ -79,8 +80,19 @@ const NETWORKS_BASE: Record<string, WebNetworkConfig> = {
 };
 
 function envOverride(key: string): string | undefined {
-  const v = (import.meta.env as Record<string, string | undefined>)[key]?.trim();
-  return v || undefined;
+  // Static reads only. Indexing the env object makes Vite inline every VITE_ variable.
+  const table: Record<string, string | undefined> = {
+    VITE_MAINNET_AZTEC_NODE_URL: import.meta.env.VITE_MAINNET_AZTEC_NODE_URL,
+    VITE_MAINNET_L1_RPC_URL: import.meta.env.VITE_MAINNET_L1_RPC_URL,
+    VITE_TESTNET_AZTEC_NODE_URL: import.meta.env.VITE_TESTNET_AZTEC_NODE_URL,
+    VITE_TESTNET_L1_RPC_URL: import.meta.env.VITE_TESTNET_L1_RPC_URL,
+    VITE_LOCAL_AZTEC_NODE_URL: import.meta.env.VITE_LOCAL_AZTEC_NODE_URL,
+    VITE_LOCAL_L1_RPC_URL: import.meta.env.VITE_LOCAL_L1_RPC_URL,
+    DEV_MAINNET_AZTEC_NODE_URL: import.meta.env.DEV_MAINNET_AZTEC_NODE_URL,
+  };
+  const v = table[key]?.trim();
+  if (!v) return undefined;
+  return isSafeConfiguredRpcUrl(v) ? v : undefined;
 }
 
 /** Apply optional build-time URL overrides from VITE_* env. */

@@ -57,14 +57,22 @@ overrides:
   follow-redirects: "1.16.2"
   # 6.28.1 is inside GHSA-xjj6-f33q-929c / GHSA-2m5v-pch6-74hx / GHSA-qrxm-fqhp-jwvm (<6.29.1).
   undici: "6.29.1"
-  # Aztec 6 resolves zod 4.4.3, which is inside GHSA-mrhx-c7xc-m3w5 (<4.6.6). Leave zod 3 for viem.
-  "zod@4.4.3": "4.6.7"
+  # GHSA-mrhx-c7xc-m3w5 (<4.6.6). abitype 1.2 peers accept Zod 4, so Zod 3 copies move up too.
+  "zod@<4.6.6": "4.6.7"
   "@opentelemetry/propagator-jaeger": "2.10.0"
   "@opentelemetry/core": "2.10.0"
   uuid: "11.1.1"
-  # Vite toolchain (dev/build — Aug 2026 advisories; not in --prod)
+  # Vite toolchain (dev/build). vite@6.4.5 is the direct pin (GHSA range was <=6.4.3).
   postcss: "8.5.23"
   nanoid: "3.3.18"
+  browserslist: "4.29.5"
+  source-map-js: "1.2.2"
+  # qs GHSA-x5fp-wj9c-mxmx / GHSA-4mjr-xmp4-gh2g / GHSA-6pq8-jhm2-2vcw. Patched at 6.16.1.
+  qs: "6.16.1"
+  # fast-copy GHSA-jggr-w7fw-pc2j (<4.1.0). Stay on 4.x.
+  fast-copy: "4.3.1"
+  # glob GHSA-3g3m-2fjr-6pw4 (<=14.0.1). 14.0.4 pulls minimatch 11, which clears the nested advisory.
+  glob: "14.0.4"
 
 # Only these packages may run install/build lifecycle scripts.
 allowBuilds:
@@ -79,3 +87,7 @@ minimumReleaseAgeExclude:
   - ws@8.21.3
   - "@hono/node-server@2.1.0"
   - nanoid@3.3.18
+  # Audit pins younger than minimumReleaseAge: glob 14.0.4 and the minimatch 11 it pulls.
+  - "@isaacs/nonrecursive-glob-match@1.1.0"
+  - glob@14.0.4
+  - minimatch@11.0.5

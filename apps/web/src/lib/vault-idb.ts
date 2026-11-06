@@ -25,6 +25,8 @@ export type VaultBackend = {
   deleteDoc(address: string, docId: string): Promise<void>;
   listDocIds(address: string): Promise<string[]>;
   deleteProfile(address: string): Promise<void>;
+  /** Write meta and that address's docs in one transaction. Replaces the doc set. */
+  commitProfile(meta: VaultProfileMeta, docs: Record<string, VaultEnvelope>): Promise<void>;
 };
 
 type EncMetaBlob = {
@@ -281,6 +283,29 @@ export function createIdbVaultBackend(): VaultBackend {
         db.close();
       }
     },
+
+    async commitProfile(meta, docs) {
+      const db = await openDb();
+      try {
+        const key = await getOrCreateDeviceKey(db);
+        const blob = await encryptMeta(key, meta);
+        const prefix = `${meta.aztecAddress.trim().toLowerCase()}:`;
+        const keep = new Set(Object.keys(docs).map((id) => docKey(meta.aztecAddress, id)));
+        const tx = db.transaction([META_STORE, DOCS_STORE], "readwrite");
+        tx.objectStore(META_STORE).put(blob, metaKey(meta.aztecAddress));
+        const keys = await idbReq(tx.objectStore(DOCS_STORE).getAllKeys());
+        for (const k of keys) {
+          const name = String(k);
+          if (name.startsWith(prefix) && !keep.has(name)) tx.objectStore(DOCS_STORE).delete(k);
+        }
+        for (const [id, env] of Object.entries(docs)) {
+          tx.objectStore(DOCS_STORE).put(env, docKey(meta.aztecAddress, id));
+        }
+        await txDone(tx);
+      } finally {
+        db.close();
+      }
+    },
   };
 }
 
@@ -318,6 +343,16 @@ export function createMemoryVaultBackend(): VaultBackend {
       const prefix = `${address.trim().toLowerCase()}:`;
       for (const k of [...docs.keys()]) {
         if (k.startsWith(prefix)) docs.delete(k);
+      }
+    },
+    async commitProfile(nextMeta, nextDocs) {
+      meta.set(metaKey(nextMeta.aztecAddress), nextMeta);
+      const prefix = `${nextMeta.aztecAddress.trim().toLowerCase()}:`;
+      for (const k of [...docs.keys()]) {
+        if (k.startsWith(prefix)) docs.delete(k);
+      }
+      for (const [id, env] of Object.entries(nextDocs)) {
+        docs.set(docKey(nextMeta.aztecAddress, id), env);
       }
     },
   };

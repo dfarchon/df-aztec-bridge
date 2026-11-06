@@ -21,7 +21,6 @@ export const CSP_CONNECT_HOSTS = [
   "https://crs.aztec-cdn.foundation",
   "https://crs.aztec-labs.com",
   "https://aztec-mainnet.drpc.org",
-  "https://lb.drpc.live",
   "https://ethereum-rpc.publicnode.com",
   "https://ethereum-sepolia-rpc.publicnode.com",
   "https://etherscan.io",

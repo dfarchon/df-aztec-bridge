@@ -3,6 +3,7 @@ import type { WebNetworkConfig } from "../../config/networks.ts";
 import {
   OFFICIAL_DOCS_NETWORKS,
   OFFICIAL_DOCS_FEE_JUICE,
+  l1AddressUrl,
   resolveAztecScanOrigin,
 } from "../../lib/official-links.ts";
 import {
@@ -10,10 +11,53 @@ import {
   type NetworkVerifyResult,
 } from "../../lib/network-verify.ts";
 
-function integrityFacts(result: NetworkVerifyResult): Array<{
+/** Hostname only. A keyed RPC path must not appear in the hover. */
+function rpcHost(url: string): string | undefined {
+  try {
+    const host = new URL(url).host;
+    return host || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+type IntegrityTip = {
+  text?: string;
+  links?: Array<{ text: string; href?: string }>;
+};
+
+/** Bridge contract in use. Node disagreement adds a second address. No label. */
+function feeJuiceContractTip(
+  result: NetworkVerifyResult,
+  network: WebNetworkConfig,
+): IntegrityTip | undefined {
+  const app = network.l1Addresses.feeJuicePortal?.trim();
+  const node = result.node?.feeJuicePortal?.trim();
+  const addresses = [app, node].filter((address): address is string => {
+    if (!address) return false;
+    return /^0x[0-9a-fA-F]{40}$/.test(address);
+  });
+  const unique = addresses.filter(
+    (address, index) =>
+      addresses.findIndex((other) => other.toLowerCase() === address.toLowerCase()) === index,
+  );
+  if (!unique.length) return undefined;
+  return {
+    links: unique.map((address) => ({
+      text: address,
+      href: l1AddressUrl(network.l1ExplorerUrl, address) ?? undefined,
+    })),
+  };
+}
+
+function integrityFacts(
+  result: NetworkVerifyResult,
+  network: WebNetworkConfig,
+): Array<{
   label: string;
   value: string;
   bad: boolean;
+  tip?: IntegrityTip;
 }> {
   const versionBad = result.versionMatch === false || !result.node;
   const versionValue =
@@ -37,15 +81,22 @@ function integrityFacts(result: NetworkVerifyResult): Array<{
 
   const feeValue =
     result.addressMatch === null ? "Not checked" : result.addressMatch ? "Official" : "Don't match";
+  const host = rpcHost(network.aztecNodeUrl);
 
   return [
     { label: "App & node", value: versionValue, bad: versionBad },
     { label: "Latest block", value: blockValue, bad: blockBad },
-    { label: "Fee Juice", value: feeValue, bad: result.addressMatch === false },
+    {
+      label: "Fee Juice",
+      value: feeValue,
+      bad: result.addressMatch === false,
+      tip: feeJuiceContractTip(result, network),
+    },
     {
       label: "Connection",
       value: result.officialRpcHost ? "Official host" : "Custom host",
       bad: false,
+      tip: host ? { text: host } : undefined,
     },
   ];
 }
@@ -76,7 +127,10 @@ export function NetworkIntegrityPanel(props: {
     return () => window.clearInterval(id);
   }, [run]);
 
-  const facts = useMemo(() => (result ? integrityFacts(result) : []), [result]);
+  const facts = useMemo(
+    () => (result && network ? integrityFacts(result, network) : []),
+    [result, network],
+  );
 
   if (!network || network.id === "local") return null;
 
@@ -111,9 +165,34 @@ export function NetworkIntegrityPanel(props: {
           </p>
           <dl className="integrity-facts" role="status">
             {facts.map((fact) => (
-              <div key={fact.label}>
+              <div
+                key={fact.label}
+                className={fact.tip ? "has-tip" : undefined}
+                tabIndex={fact.tip ? 0 : undefined}
+              >
                 <dt>{fact.label}</dt>
-                <dd className={fact.bad ? "is-bad" : undefined}>{fact.value}</dd>
+                <dd className={fact.bad ? "is-bad" : undefined}>
+                  {fact.value}
+                  {fact.tip ? (
+                    <span className="integrity-tip" role="tooltip">
+                      {fact.tip.text}
+                      {fact.tip.links?.map((link) =>
+                        link.href ? (
+                          <a
+                            key={link.href}
+                            href={link.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            {link.text}
+                          </a>
+                        ) : (
+                          <span key={link.text}>{link.text}</span>
+                        ),
+                      )}
+                    </span>
+                  ) : null}
+                </dd>
               </div>
             ))}
           </dl>

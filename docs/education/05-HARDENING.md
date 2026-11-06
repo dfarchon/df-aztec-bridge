@@ -32,10 +32,10 @@ Anything starting with `VITE_` is compiled into the JavaScript everyone download
 ```text
 VITE_BRIDGE_PUBLIC_URL
 VITE_ENABLE_BROWSER_CLAIM
-VITE_MAINNET_AZTEC_NODE_URL=https://lb.drpc.live/aztec-mainnet/<API_KEY>
+VITE_MAINNET_AZTEC_NODE_URL=https://aztec-mainnet.drpc.org
 ```
 
-A keyed `https://lb.drpc.live/aztec-mainnet/...` value in `VITE_MAINNET_AZTEC_NODE_URL` is accepted. Vite bakes that URL into the client, so the path key is visible to anyone who loads the page.
+A keyed node URL is rejected for every `VITE_*` RPC variable. `MAINNET_AZTEC_NODE_URL` is injected into local `pnpm dev` only when it is a pinned public or loopback URL, so a path key never reaches the browser.
 
 ## 2) Content Security Policy (CSP)
 
@@ -54,12 +54,14 @@ CRS hosts (`crs.aztec-cdn.foundation`, `crs.aztec-labs.com`) are required for br
 ## 3) DevGate vs real access control
 
 ```text
-DevGate (client hash check)
-   = speed bump on /dev hosts
-   ≠ security boundary
+Netlify edge function (netlify/edge-functions/preview-gate.js)
+   = lock for branch deploys and deploy previews
+   = password is DEV_GATE_PASSWORD in the Netlify UI (not a VITE_ variable)
+   = missing or short password fails closed (503) before the app bundle
+   = production host and localhost are not gated
 
 Netlify visitor password
-   = real gate for closed previews
+   = optional extra CDN lock the repo cannot turn on
 ```
 
 ## 4) pnpm / supply chain
@@ -74,7 +76,7 @@ Never bare `pnpm i` / `npm install` in this repo. Details: [PNPM_HARDENING.md](.
 
 ## 5) RPC overrides
 
-Users may override node URLs only if they are **localhost** or on the **official HTTPS allowlist**. Random HTTPS hosts are rejected (stops “helpful” malicious RPC phishing).
+Users may override node URLs only with **localhost** or an **exact public RPC** (no path, query, or `lb.drpc.live`). A path on that host can select someone else's node.
 
 ## 6) Production funds gate
 

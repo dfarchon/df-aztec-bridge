@@ -1,13 +1,16 @@
 import { parseEthFeeWeiOverride } from "@df-bridge/browser-sdk";
 import { assertSafeClaimApiBase } from "../../lib/api-base.ts";
+import { assertPinnedFeeRecipient } from "../../lib/fee-recipient.ts";
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
 assertSafeClaimApiBase(API_BASE);
 
 export const WC_PROJECT_ID = (import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as string | undefined)?.trim() ?? "";
 
-/** Anonymous Trezor / treasury — 5% AZTEC + mainnet ETH service fee. */
-export const BRIDGE_FEE_RECIPIENT = (import.meta.env.VITE_BRIDGE_FEE_RECIPIENT as string | undefined)?.trim() ?? "";
+/** Pinned treasury — 5% AZTEC + mainnet ETH service fee. Env may only repeat this address. */
+export const BRIDGE_FEE_RECIPIENT = assertPinnedFeeRecipient(
+  import.meta.env.VITE_BRIDGE_FEE_RECIPIENT as string | undefined,
+);
 
 /** Optional fixed mainnet ETH service fee (wei). Empty = estimate from gas × ~1 L1 tx. */
 export const BRIDGE_ETH_FEE_WEI_OVERRIDE = parseEthFeeWeiOverride(

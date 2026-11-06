@@ -11,7 +11,7 @@ This dapp stores sensitive docs in **IndexedDB**, encrypted with a key derived f
 ┌──────────────────────────────────────────────────────────────┐
 │                    Your password (memory)                     │
 └────────────────────────────┬─────────────────────────────────┘
-                             │ PBKDF2-SHA-256 (~210k iterations)
+                             │ PBKDF2-SHA-256 (600k iterations, new vaults)
                              ▼
                       ┌─────────────┐
                       │     CEK     │  Content Encryption Key
@@ -35,8 +35,8 @@ Profile meta (salt, verifier, passkey id)
 |------|----------------|
 | **CEK** | The key that encrypts your saved wallets / bridge sessions. Exists only in memory while unlocked. |
 | **Verifier** | Check that the password is correct without storing the password. |
-| **Passkey** | Optional second factor (WebAuthn / biometrics) after password. |
-| **Idle lock** | After **15 min** idle or **5 min** with the tab hidden → CEK wiped → vault locked. |
+| **Passkey** | Optional WebAuthn check. When the authenticator supports the PRF extension, a random CEK is wrapped by the password and that passkey output together. The password alone cannot decrypt that vault. Older passkeys that cannot return a PRF stay password-only and are upgraded to 600k iterations on the next unlock. |
+| **Idle lock** | After **15 min** idle or **5 min** with the tab hidden → CEK wiped, and in-memory claim / account secrets cleared. |
 
 ## What is stored when unlocked
 
@@ -60,7 +60,7 @@ Open app
    │
    └─ Profile exists ──► Enter password
                             │
-                            ├─ Passkey required? ──► OS biometric / phone
+                            ├─ Passkey wraps the key? ──► OS biometric / phone (PRF)
                             │
                             └─ CEK in memory ──► menus / bridge / recover work
 ```

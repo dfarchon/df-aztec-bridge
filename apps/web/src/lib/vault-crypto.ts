@@ -1,11 +1,13 @@
 /**
  * Password vault crypto — Web Crypto only (no npm deps).
- * CEK = PBKDF2(password, salt).
- * Verifier (v2): HMAC(password-derived key, purpose|aztecAddress) — unlock without
- * in-memory signingKey. Legacy v1: HMAC(password-derived key, signingKey).
+ * Password-only vaults: CEK = PBKDF2(password, salt).
+ * Passkey vaults: random CEK wrapped by HKDF(PBKDF2(password) || WebAuthn PRF).
+ * Verifier (v2): HMAC(password-derived key, purpose|aztecAddress).
+ * Legacy v1: HMAC(password-derived key, signingKey).
  */
 
-export const VAULT_KDF_ITERATIONS = 210_000;
+/** New vaults and the next unlock of an older vault. OWASP PBKDF2-HMAC-SHA256 floor is 600,000. */
+export const VAULT_KDF_ITERATIONS = 600_000;
 /** New vaults only. Existing shorter passwords still unlock. */
 export const VAULT_PASSWORD_MIN_LENGTH = 12;
 export const VAULT_SALT_BYTES = 16;
@@ -23,6 +25,15 @@ export type VaultPasskeyMeta = {
   rpId: string;
   createdAt: number;
   transports?: string[];
+  /** Salt passed to the WebAuthn PRF eval. Present once the passkey wraps the CEK. */
+  prfSalt?: string;
+};
+
+export type VaultCekWrap = {
+  v: 1;
+  iv: string;
+  ct: string;
+  kdf: "pbkdf2-prf-hkdf";
 };
 
 export type VaultVerifierKind = "password" | "signingKey";
@@ -38,6 +49,8 @@ export type VaultProfileMeta = {
   iterations: number;
   createdAt: number;
   passkey?: VaultPasskeyMeta;
+  /** Set when the CEK is random and wrapped. Password alone cannot decrypt. */
+  cekWrap?: VaultCekWrap;
 };
 
 function b64Encode(bytes: ArrayBuffer | Uint8Array): string {
@@ -214,4 +227,70 @@ export function decodeSalt(b64: string): Uint8Array {
 
 export function encodeSalt(salt: Uint8Array): string {
   return b64Encode(salt);
+}
+
+const WRAP_INFO = "df-bridge-vault-cek-wrap-v1";
+
+export async function derivePasswordBits(
+  password: string,
+  salt: Uint8Array,
+  iterations = VAULT_KDF_ITERATIONS,
+): Promise<Uint8Array> {
+  const base = await crypto.subtle.importKey("raw", textBytes(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
+    base,
+    256,
+  );
+  return new Uint8Array(bits);
+}
+
+export async function deriveWrapKey(
+  passwordBits: Uint8Array,
+  prfSecret: Uint8Array,
+  salt: Uint8Array,
+): Promise<CryptoKey> {
+  const ikm = new Uint8Array(passwordBits.length + prfSecret.length);
+  ikm.set(passwordBits, 0);
+  ikm.set(prfSecret, passwordBits.length);
+  const base = await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveKey"]);
+  ikm.fill(0);
+  return crypto.subtle.deriveKey(
+    { name: "HKDF", hash: "SHA-256", salt, info: textBytes(WRAP_INFO) },
+    base,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+}
+
+export function randomCekBytes(): Uint8Array {
+  return randomBytes(32);
+}
+
+export async function importCek(raw: Uint8Array, extractable: boolean): Promise<CryptoKey> {
+  return crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, extractable, ["encrypt", "decrypt"]);
+}
+
+export async function wrapCek(
+  wrapKey: CryptoKey,
+  cek: CryptoKey,
+): Promise<VaultCekWrap> {
+  const raw = new Uint8Array(await crypto.subtle.exportKey("raw", cek));
+  const iv = randomBytes(VAULT_IV_BYTES);
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, wrapKey, raw);
+  raw.fill(0);
+  return { v: 1, iv: b64Encode(iv), ct: b64Encode(ct), kdf: "pbkdf2-prf-hkdf" };
+}
+
+export async function unwrapCek(wrapKey: CryptoKey, wrap: VaultCekWrap): Promise<CryptoKey> {
+  if (!wrap || wrap.v !== 1 || wrap.kdf !== "pbkdf2-prf-hkdf" || !wrap.iv || !wrap.ct) {
+    throw new Error("Invalid vault key wrap.");
+  }
+  const raw = new Uint8Array(
+    await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64Decode(wrap.iv) }, wrapKey, b64Decode(wrap.ct)),
+  );
+  const key = await importCek(raw, false);
+  raw.fill(0);
+  return key;
 }

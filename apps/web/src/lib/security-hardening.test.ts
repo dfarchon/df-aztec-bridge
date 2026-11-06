@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { assertSafeClaimApiBase, isLoopbackApiBase } from "./api-base.ts";
-import { buildProductionCsp } from "./csp.ts";
-import {
-  DEV_GATE_PUBLISHED_EXAMPLE_HASH,
-  isDevGateHashUsable,
-} from "./dev-gate.ts";
+import { readFileSync } from "node:fs";
+import { buildDevCsp, buildProductionCsp } from "./csp.ts";
 
 describe("api-base", () => {
   it("allows /api and loopback only", () => {
@@ -36,11 +33,20 @@ describe("csp", () => {
     expect(csp).toContain("https://crs.aztec-cdn.foundation");
     expect(csp).toContain("https://crs.aztec-labs.com");
   });
+
+  it("keeps multi-tenant dRPC out of the production connect-src", () => {
+    expect(buildProductionCsp()).not.toContain("lb.drpc.live");
+    expect(buildDevCsp({ unsafeInlineScripts: false })).not.toContain("lb.drpc.live");
+  });
 });
 
-describe("dev-gate hash policy", () => {
-  it("rejects published example hash", () => {
-    expect(isDevGateHashUsable(DEV_GATE_PUBLISHED_EXAMPLE_HASH)).toBe(false);
-    expect(isDevGateHashUsable("a".repeat(64))).toBe(true);
+describe("preview gate is not a client secret", () => {
+  it("does not read a preview password hash into the app", () => {
+    const main = readFileSync(new URL("../main.tsx", import.meta.url), "utf8");
+    const gate = readFileSync(new URL("./dev-gate.ts", import.meta.url), "utf8");
+    expect(main + gate).not.toContain("VITE_DEV_GATE_PASSWORD_HASH");
+    const networks = readFileSync(new URL("../config/networks.ts", import.meta.url), "utf8");
+    expect(networks).not.toContain("import.meta.env as");
+    expect(networks).not.toContain("import.meta.env[");
   });
 });

@@ -2496,6 +2496,71 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
   color: var(--danger);
 }
 
+.integrity-facts > div.has-tip {
+  position: relative;
+  outline: none;
+}
+
+.integrity-facts > div.has-tip dd {
+  text-decoration: underline dotted;
+  text-decoration-color: var(--text-muted);
+  text-underline-offset: 0.16em;
+}
+
+.integrity-tip {
+  position: absolute;
+  right: 0;
+  left: auto;
+  bottom: calc(100% + 0.2rem);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+  width: max-content;
+  padding: 0.32rem 0.45rem;
+  border: 1px solid var(--accent);
+  background: var(--code-surface);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.integrity-tip a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
+}
+
+.integrity-tip::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 0.35rem;
+}
+
+.integrity-facts > div.has-tip:hover .integrity-tip,
+.integrity-facts > div.has-tip:focus-within .integrity-tip {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+html[data-theme="light"] .integrity-tip {
+  background: var(--paper);
+  color: var(--ink);
+  border-color: var(--accent-strong);
+}
+
 .integrity-links {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -4057,68 +4122,6 @@ html[data-theme="light"] .vault-passkey-opt-row input[type="checkbox"]:checked {
   margin-top: 0.5rem;
 }
 
-.dev-gate-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem 1rem;
-  box-sizing: border-box;
-}
-
-.dev-gate-card {
-  width: 100%;
-  max-width: 480px;
-  padding: 1.75rem 1.5rem;
-  border-radius: 12px;
-  border: 1px solid var(--border, #2a2a2a);
-  background: linear-gradient(180deg, #161a16 0%, #121212 100%);
-  text-align: left;
-}
-
-.dev-gate-card h1 {
-  margin: 0.35rem 0 0.65rem;
-  font-size: 1.35rem;
-}
-
-.dev-gate-lead {
-  margin: 0 0 1rem;
-  color: var(--dim, #999);
-  font-size: 0.9rem;
-}
-
-.dev-gate-version {
-  margin: 0 0 1.1rem;
-  padding: 0.75rem 0.85rem;
-  border-radius: 8px;
-  border: 1px solid var(--border, #2a2a2a);
-  background: #0e0e0e;
-}
-
-.dev-gate-version-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.45rem;
-}
-
-.dev-gate-form {
-  display: grid;
-  gap: 0.65rem;
-  margin-bottom: 0.75rem;
-}
-
-.dev-gate-form label {
-  display: grid;
-  gap: 0.35rem;
-}
-
-.dev-gate-form button.primary {
-  width: 100%;
-}
-
-
 /* Local AztecScan-shaped explorer (pnpm dev / local network) */
 .local-explorer h1 {
   margin: 0.15rem 0 0.35rem;
@@ -4499,7 +4502,6 @@ input[type="range"] {
 .theme-tip,
 .fee-juice-notice,
 .maintenance-card,
-.dev-gate-card,
 .aztec-block-estimate,
 .balance-shortfall,
 .progress-notice,
@@ -4530,7 +4532,6 @@ html[data-theme="light"] .wallet-manager-col,
 html[data-theme="light"] .sound-popover,
 html[data-theme="light"] .fee-juice-notice,
 html[data-theme="light"] .maintenance-card,
-html[data-theme="light"] .dev-gate-card,
 html[data-theme="light"] .modal,
 html[data-theme="light"] .wallet-float-panel,
 html[data-theme="light"] .theme-tip {
@@ -5264,10 +5265,13 @@ button:disabled,
   white-space: nowrap !important;
 }
 
-html[data-theme="light"] #boot-splash,
 html[data-theme="light"] body {
   background: #ffffff !important;
   color: #000000;
+}
+
+#boot-splash {
+  background: transparent !important;
 }
 
 html[data-theme="light"] #boot-splash .boot-splash-title {
