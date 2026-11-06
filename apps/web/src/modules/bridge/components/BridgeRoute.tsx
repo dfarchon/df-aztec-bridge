@@ -1,11 +1,12 @@
 import type { CSSProperties } from "react";
 import { formatEther } from "viem";
-import { BRIDGE_FEE_BPS, shouldChargeBridgeEthServiceFee } from "@df-bridge/browser-sdk";
+import { shouldChargeBridgeEthServiceFee } from "@df-bridge/browser-sdk";
 import { hasRpcOverrides } from "../../../lib/rpc-overrides.ts";
 import {
   amountFromSlider,
   amountPresets,
   AMOUNT_SLIDER_MAX,
+  formatBridgeReceiptHint,
   formatFjAmount,
   formatSliderAmount,
   isDraftAmountInput,
@@ -17,6 +18,7 @@ import {
 import { isSponsoredFpcAddress } from "../../../lib/sponsored-fpc.ts";
 import { shortHash } from "../../../lib/claim-recovery.ts";
 import { ActionHintButton } from "../../../components/ui/ActionHintButton.tsx";
+import { MarqueeHint } from "../../../components/ui/MarqueeHint.tsx";
 import type { BridgeSession } from "../hooks/useBridgeSession.ts";
 import type { BridgeFlows } from "../hooks/useBridgeFlows.ts";
 
@@ -70,7 +72,7 @@ requestBridge,
   const selectedPreset = amountPresetActions.find((row) => row.amountFj === amountFj.trim())?.percent ?? null;
   const feeHint =
     feeSplit && !amountCheck.error
-      ? `You receive ${formatFjAmount(feeSplit.net)} FJ · fee ${BRIDGE_FEE_BPS / 100}%${
+      ? `${formatBridgeReceiptHint(feeSplit.gross)}${
           ethServiceFeeWei != null && ethServiceFeeWei > 0n
             ? ` · ETH ${formatEther(ethServiceFeeWei)}`
             : networkMeta && shouldChargeBridgeEthServiceFee(networkMeta.l1ChainId)
@@ -101,11 +103,11 @@ requestBridge,
       ) : null}
 
       <section className="bridge-step">
-          <p className="wallet-manager-pane-title">From Ethereum</p>
           {wallet ? (
             <div className="bridge-accounts">
+              <div className="bridge-account-col">
+              <p className="wallet-manager-pane-title">From Ethereum:</p>
               <div className="bridge-account">
-                <strong className="wallet-manager-account-kicker">L1 account</strong>
                 <div className="wallet-manager-address">
                   <span className="wallet-manager-address-text mono">
                     {shortHash(wallet.address)}
@@ -145,8 +147,10 @@ requestBridge,
                   <p className="hint error balance-error">{balanceError}</p>
                 ) : null}
               </div>
+              </div>
+              <div className="bridge-account-col">
+              <p className="wallet-manager-pane-title">To Aztec:</p>
               <div className="bridge-account">
-                <strong className="wallet-manager-account-kicker">Aztec account</strong>
                 {recipient.trim() ? (
                   <div className="wallet-manager-address">
                     <span className="wallet-manager-address-text mono">
@@ -188,6 +192,7 @@ requestBridge,
                   <p className="hint error balance-error">{l2BalanceError}</p>
                 ) : null}
               </div>
+              </div>
             </div>
           ) : null}
 
@@ -213,7 +218,7 @@ requestBridge,
       </section>
 
       <section className="bridge-step">
-          <p className="wallet-manager-pane-title">Amount and claim</p>
+          <p className="wallet-manager-pane-title">Amount to claim on Aztec:</p>
           <div className="bridge-amount-card">
             <div className="amount-field">
               <div className="dex-pay-head">
@@ -277,13 +282,11 @@ requestBridge,
                   </div>
                 ) : null}
               </div>
-              <p
+              <MarqueeHint
                 id="bridge-amount-help"
                 className={amountInvalid ? "error" : "hint"}
-                title={amountHelp}
-              >
-                {amountHelp}
-              </p>
+                text={amountHelp}
+              />
             </div>
           </div>
 

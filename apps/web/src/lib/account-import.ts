@@ -30,6 +30,8 @@ export interface ImportedAztecAccount {
   pxeRegisteredAt?: number;
   /** ETH connector address that performed PXE registration (anti-injection bind). */
   boundEthAddress?: string;
+  /** External Aztec wallet. Nulo holds the keys; this app only stores the address. */
+  connector?: "nulo";
 }
 
 /** Canonical dfpunk single-account object. */
@@ -122,6 +124,51 @@ export function parseAccountUpload(raw: unknown): ImportedAztecAccount[] {
     "Unrecognized account JSON. Expected DF client dfpunk-account-*.json " +
       "{ address, secretKey, salt, signingKey, createdAt? }.",
   );
+}
+
+export function isNuloWalletName(name: string): boolean {
+  return /nulo/i.test(name);
+}
+
+/** Public Aztec address from a connected Nulo session. No signing key is stored. */
+export function accountFromNulo(address: string, boundEthAddress: string): ImportedAztecAccount {
+  return {
+    address,
+    secretKey: "",
+    salt: "0x0",
+    label: "Nulo",
+    fromDfClient: false,
+    pxeRegistered: true,
+    pxeRegisteredAt: Date.now(),
+    boundEthAddress: boundEthAddress.trim().toLowerCase(),
+    connector: "nulo",
+  };
+}
+
+/** Shape produced by the in-browser Aztec 6.0 Schnorr account. */
+export function accountFromV6Wallet(
+  created: {
+    address: string;
+    secretKey: string;
+    salt: string;
+    signingKey: string;
+    createdAt: number;
+    label?: string;
+  },
+  boundEthAddress: string,
+): ImportedAztecAccount {
+  return {
+    address: created.address,
+    secretKey: created.secretKey,
+    salt: created.salt,
+    signingKey: created.signingKey,
+    createdAt: created.createdAt,
+    label: created.label?.trim() || "Aztec 6.0 wallet",
+    fromDfClient: true,
+    pxeRegistered: true,
+    pxeRegisteredAt: created.createdAt,
+    boundEthAddress: boundEthAddress.trim().toLowerCase(),
+  };
 }
 
 /** Assert DF-client exports include signingKey (required for PXE reopen / claim). */

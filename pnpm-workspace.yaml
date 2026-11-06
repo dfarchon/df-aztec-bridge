@@ -46,14 +46,19 @@ overrides:
   "pino@10>slow-redact": "0.3.1"
   hono: "4.12.34"
   "@hono/node-server": "2.1.0"
-  systeminformation: "5.33.1"
+  # 5.33.1 is inside GHSA-3f7j-7jwc-fxfj (<5.33.16). Stay on 5.33.x.
+  systeminformation: "5.33.19"
   # 5.0.9 is inside GHSA-qhr7-859c-m2p7 (<5.0.11) and GHSA-6j4f-fj2g-mc7p (<5.0.10).
   brace-expansion: "5.0.12"
   ws: "8.21.3"
   # 1.19.0 is inside the axios 1.20.0 advisory set (ReDoS, prototype pollution, redirect SSRF).
   axios: "1.20.0"
-  # 6.28.0 is inside GHSA-rfgv-xxqx-mfg5 (<6.28.1). Stay on 6.28.x.
-  undici: "6.28.1"
+  # 1.16.0–1.16.1 are inside the follow-redirects header advisories. 1.16.2 is the patched release.
+  follow-redirects: "1.16.2"
+  # 6.28.1 is inside GHSA-xjj6-f33q-929c / GHSA-2m5v-pch6-74hx / GHSA-qrxm-fqhp-jwvm (<6.29.1).
+  undici: "6.29.1"
+  # Aztec 6 resolves zod 4.4.3, which is inside GHSA-mrhx-c7xc-m3w5 (<4.6.6). Leave zod 3 for viem.
+  "zod@4.4.3": "4.6.7"
   "@opentelemetry/propagator-jaeger": "2.10.0"
   "@opentelemetry/core": "2.10.0"
   uuid: "11.1.1"

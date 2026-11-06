@@ -1,5 +1,5 @@
 /**
- * @aztec/foundation imports `{ pino, symbols } from "pino"`.
+ * @aztec-labs/foundation imports `{ pino, symbols } from "pino"`.
  * pino's browser build is CJS (`module.exports`) and does not expose ESM named exports,
  * which breaks Vite's native ESM loader in the browser.
  */

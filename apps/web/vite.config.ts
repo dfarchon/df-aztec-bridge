@@ -41,14 +41,14 @@ function resolvePinoBrowser(): string {
 
 function resolveAztecBbBrowser(): string {
   const candidates = [
-    resolve(webDir, "node_modules/@aztec/bb.js/dest/browser/index.js"),
-    resolve(rootDir, "node_modules/@aztec/bb.js/dest/browser/index.js"),
-    resolve(rootDir, "packages/browser-sdk/node_modules/@aztec/bb.js/dest/browser/index.js"),
+    resolve(webDir, "node_modules/@aztec-foundation/bb.js/dest/browser/index.js"),
+    resolve(rootDir, "node_modules/@aztec-foundation/bb.js/dest/browser/index.js"),
+    resolve(rootDir, "packages/browser-sdk/node_modules/@aztec-foundation/bb.js/dest/browser/index.js"),
   ];
   const hit = candidates.find((p) => existsSync(p));
   if (!hit) {
     throw new Error(
-      `@aztec/bb.js browser build not found. Tried:\n${candidates.join("\n")}`,
+      `@aztec-foundation/bb.js browser build not found. Tried:\n${candidates.join("\n")}`,
     );
   }
   return hit;
@@ -56,9 +56,9 @@ function resolveAztecBbBrowser(): string {
 
 function resolveSqliteJswasmFile(fileName: string): string {
   const candidates = [
-    resolve(webDir, "node_modules/@aztec/sqlite3mc-wasm/vendor/jswasm", fileName),
-    resolve(rootDir, "node_modules/@aztec/sqlite3mc-wasm/vendor/jswasm", fileName),
-    resolve(rootDir, "packages/browser-sdk/node_modules/@aztec/sqlite3mc-wasm/vendor/jswasm", fileName),
+    resolve(webDir, "node_modules/@aztec-labs/sqlite3mc-wasm/vendor/jswasm", fileName),
+    resolve(rootDir, "node_modules/@aztec-labs/sqlite3mc-wasm/vendor/jswasm", fileName),
+    resolve(rootDir, "packages/browser-sdk/node_modules/@aztec-labs/sqlite3mc-wasm/vendor/jswasm", fileName),
   ];
   for (const p of candidates) {
     if (existsSync(p)) return p;
@@ -67,16 +67,16 @@ function resolveSqliteJswasmFile(fileName: string): string {
   // pnpm: dependency is nested under .pnpm, not hoisted to apps/web
   try {
     const fromWallets = createRequire(
-      resolve(rootDir, "node_modules/@aztec/wallets/package.json"),
+      resolve(rootDir, "node_modules/@aztec-labs/wallets/package.json"),
     );
-    return fromWallets.resolve(`@aztec/sqlite3mc-wasm/vendor/jswasm/${fileName}`);
+    return fromWallets.resolve(`@aztec-labs/sqlite3mc-wasm/vendor/jswasm/${fileName}`);
   } catch {
     // continue
   }
 
   try {
     const fromSdk = createRequire(resolve(rootDir, "packages/browser-sdk/package.json"));
-    return fromSdk.resolve(`@aztec/sqlite3mc-wasm/vendor/jswasm/${fileName}`);
+    return fromSdk.resolve(`@aztec-labs/sqlite3mc-wasm/vendor/jswasm/${fileName}`);
   } catch {
     // continue
   }
@@ -84,11 +84,11 @@ function resolveSqliteJswasmFile(fileName: string): string {
   const pnpmDir = resolve(rootDir, "node_modules/.pnpm");
   if (existsSync(pnpmDir)) {
     for (const dir of readdirSync(pnpmDir)) {
-      if (!dir.startsWith("@aztec+sqlite3mc-wasm@")) continue;
+      if (!dir.startsWith("@aztec-labs+sqlite3mc-wasm@")) continue;
       const p = resolve(
         pnpmDir,
         dir,
-        "node_modules/@aztec/sqlite3mc-wasm/vendor/jswasm",
+        "node_modules/@aztec-labs/sqlite3mc-wasm/vendor/jswasm",
         fileName,
       );
       if (existsSync(p)) return p;
@@ -96,7 +96,7 @@ function resolveSqliteJswasmFile(fileName: string): string {
   }
 
   throw new Error(
-    `${fileName} not found. Install deps so @aztec/sqlite3mc-wasm is available.`,
+    `${fileName} not found. Install deps so @aztec-labs/sqlite3mc-wasm is available.`,
   );
 }
 
@@ -221,7 +221,7 @@ export default defineConfig(({ mode }) => {
     resolve: {
       conditions: ["browser", "import", "module", "default"],
       alias: [
-        { find: "@aztec/bb.js", replacement: bbBrowser },
+        { find: "@aztec-foundation/bb.js", replacement: bbBrowser },
         { find: "pino-browser-entry", replacement: pinoBrowser },
         {
           find: /^pino$/,
@@ -234,7 +234,7 @@ export default defineConfig(({ mode }) => {
         // CJS packages the excluded Aztec graph imports as bare specifiers. Vite's raw
         // transform path serves CJS as-is, so the browser gets no named/default exports;
         // pre-bundling makes esbuild add the interop. `msgpackr` needs its no-eval build
-        // named explicitly because @aztec/kv-store reaches it via the `#msgpackr` alias.
+        // named explicitly because @aztec-labs/kv-store reaches it via the `#msgpackr` alias.
         "hash.js",
         "sha3",
         "assert",
@@ -252,51 +252,55 @@ export default defineConfig(({ mode }) => {
         "buffer",
         "pino-browser-entry",
       ],
-      // Every `@aztec/*` entry reachable at runtime must be listed here, subpaths
+      // Every `@aztec-labs/*` entry reachable at runtime must be listed here, subpaths
       // included — Vite matches exact specifiers, not package prefixes.
       //
       // Two reasons:
-      //  1. @aztec/wallets, @aztec/pxe and @aztec/kv-store create module workers via
+      //  1. @aztec-labs/wallets, @aztec-labs/pxe and @aztec-labs/kv-store create module workers via
       //     `new URL(..., import.meta.url)`. The optimizer rewrites those URLs into
       //     `.vite/deps`, where the worker entry does not exist.
-      //  2. Those same excluded packages re-import @aztec/foundation, @aztec/stdlib and
-      //     @aztec/aztec.js from source. Pre-bundling the subpaths we import directly
+      //  2. Those same excluded packages re-import @aztec-labs/foundation, @aztec-labs/stdlib and
+      //     @aztec-labs/aztec.js from source. Pre-bundling the subpaths we import directly
       //     would give the page a second copy of Fr/Fq/AztecAddress, and passing an
       //     instance across copies fails the `instanceof BaseField` check with
       //     "Type 'object' ... passed to BaseField ctor".
       exclude: [
-        "@aztec/bb.js",
-        "@aztec/wallets",
-        "@aztec/wallets/embedded",
-        "@aztec/pxe",
-        "@aztec/pxe/config",
-        "@aztec/pxe/server",
-        "@aztec/kv-store",
-        "@aztec/kv-store/sqlite-opfs",
-        "@aztec/sqlite3mc-wasm",
-        "@aztec/aztec.js",
-        "@aztec/aztec.js/addresses",
-        "@aztec/aztec.js/contracts",
-        "@aztec/aztec.js/crypto",
-        "@aztec/aztec.js/ethereum",
-        "@aztec/aztec.js/fee",
-        "@aztec/aztec.js/messaging",
-        "@aztec/aztec.js/node",
-        "@aztec/aztec.js/protocol",
-        "@aztec/aztec.js/wallet",
-        "@aztec/ethereum/chain",
-        "@aztec/ethereum/client",
-        "@aztec/foundation",
-        "@aztec/foundation/curves/bn254",
-        "@aztec/foundation/json-rpc/client",
-        "@aztec/foundation/log",
-        "@aztec/foundation/retry",
-        "@aztec/stdlib",
-        "@aztec/stdlib/aztec-address",
-        "@aztec/stdlib/interfaces/client",
-        "@aztec/stdlib/keys",
-        "@aztec/stdlib/messaging",
-        "@aztec/stdlib/tx",
+        "@aztec-foundation/bb.js",
+        "@aztec-labs/wallets",
+        "@aztec-labs/wallets/embedded",
+        "@aztec-labs/wallet-sdk",
+        "@aztec-labs/wallet-sdk/manager",
+        "@aztec-labs/wallet-sdk/crypto",
+        "@aztec-labs/pxe",
+        "@aztec-labs/pxe/config",
+        "@aztec-labs/pxe/server",
+        "@aztec-labs/kv-store",
+        "@aztec-labs/kv-store/sqlite-opfs",
+        "@aztec-labs/sqlite3mc-wasm",
+        "@aztec-labs/aztec.js",
+        "@aztec-labs/aztec.js/addresses",
+        "@aztec-labs/aztec.js/contracts",
+        "@aztec-labs/aztec.js/crypto",
+        "@aztec-labs/aztec.js/ethereum",
+        "@aztec-labs/aztec.js/fee",
+        "@aztec-labs/aztec.js/messaging",
+        "@aztec-labs/aztec.js/node",
+        "@aztec-labs/aztec.js/protocol",
+        "@aztec-labs/aztec.js/wallet",
+        "@aztec-labs/aztec.js/utils",
+        "@aztec-labs/ethereum/chain",
+        "@aztec-labs/ethereum/client",
+        "@aztec-labs/foundation",
+        "@aztec-labs/foundation/curves/bn254",
+        "@aztec-labs/foundation/json-rpc/client",
+        "@aztec-labs/foundation/log",
+        "@aztec-labs/foundation/retry",
+        "@aztec-labs/stdlib",
+        "@aztec-labs/stdlib/aztec-address",
+        "@aztec-labs/stdlib/interfaces/client",
+        "@aztec-labs/stdlib/keys",
+        "@aztec-labs/stdlib/messaging",
+        "@aztec-labs/stdlib/tx",
       ],
       esbuildOptions: {
         target: "esnext",
@@ -318,7 +322,11 @@ export default defineConfig(({ mode }) => {
           assetFileNames: "a/[hash][extname]",
           manualChunks(id) {
             if (!browserClaim) return;
-            if (id.includes("@aztec/") || id.includes("claim-browser")) {
+            if (
+              id.includes("@aztec-labs/") ||
+              id.includes("@aztec-foundation/") ||
+              id.includes("claim-browser")
+            ) {
               return "aztec-claim";
             }
           },

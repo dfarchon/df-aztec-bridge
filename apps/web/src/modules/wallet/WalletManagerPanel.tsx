@@ -2,7 +2,7 @@ import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ConnectedWallet } from "@df-bridge/browser-sdk";
 import type { ImportedAztecAccount } from "../../lib/account-import.ts";
-import { assertDfClientAccount } from "../../lib/account-import.ts";
+import { accountFromNulo, assertDfClientAccount } from "../../lib/account-import.ts";
 import { isBridgeReadyDfPxeAccount } from "../../lib/df-pxe-bridge-guard.ts";
 import {
   assertAztecReplaceBackupReady,
@@ -32,6 +32,7 @@ import {
   wipeUnlockedVaultProfile,
 } from "../../lib/vault.ts";
 import {
+  createV6PxeAccount,
   importDfPunkFileIntoPxe,
   registerDfPunkAccountIntoPxe,
 } from "../../lib/df-pxe-import.ts";
@@ -95,6 +96,16 @@ export function WalletManagerPanel(props: {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [importingPxe, setImportingPxe] = useState(false);
+  const [creatingPxe, setCreatingPxe] = useState(false);
+  const [connectingNulo, setConnectingNulo] = useState(false);
+  const [nuloAccount, setNuloAccount] = useState<ImportedAztecAccount | null>(null);
+  const [nuloPending, setNuloPending] = useState<{
+    walletName: string;
+    verification: string;
+    confirm: () => Promise<{ address: string }>;
+    cancel: () => void;
+  } | null>(null);
+  const appliedNulo = useRef<string | null>(null);
   const [unlockingVault, setUnlockingVault] = useState(false);
   const [gateHandoff, setGateHandoff] = useState(false);
   const noticeHost = useContext(ConnectNoticeHostContext);
@@ -277,6 +288,55 @@ export function WalletManagerPanel(props: {
     setStatus(`Backup downloaded — keep ${filename} secret.`);
   };
 
+  const storePxeAccount = async (
+    stored: ImportedAztecAccount,
+    existingAddress: string | null,
+    live: () => boolean,
+    historyKind: "account-imported" | "account-created",
+  ) => {
+    assertAztecReplaceBackupReady({
+      existingAddress,
+      incomingAddress: stored.address,
+      backupReady: replaceBackedUpRef.current,
+    });
+    await requireVaultAfterPxeImport(stored);
+    if (!live()) return;
+    const ok = await ensureUnlocked("secrets", stored);
+    if (!live()) return;
+    if (!ok) throw new Error("Vault password required after the Aztec account is ready.");
+    await saveAztecWallet(stored);
+    if (!live()) return;
+    if (
+      existingAddress &&
+      existingAddress.toLowerCase() !== stored.address.toLowerCase()
+    ) {
+      await deleteVaultProfile(existingAddress);
+    }
+    if (!live()) return;
+    await refreshVaultAvailability();
+    await refresh();
+    if (!live()) return;
+    replaceBackedUpRef.current = false;
+    setReplaceBackedUp(false);
+    setReplaceOpen(false);
+    onApplyAztecAccount(stored);
+    const replaced =
+      !!existingAddress &&
+      existingAddress.toLowerCase() !== stored.address.toLowerCase();
+    void recordHistory({
+      networkId,
+      kind: replaced ? "account-replaced" : historyKind,
+      recipient: stored.address,
+    });
+    const readyMsg = `Aztec 6.0 PXE ready for ${shortHash(stored.address)} (bound to ${shortHash(stored.boundEthAddress ?? ethWallet?.address ?? "")}). Bridge unlocked.`;
+    setStatus(readyMsg);
+    pushDappLog({
+      kind: "announce",
+      title: historyKind === "account-created" ? "Aztec 6.0 wallet ready" : "Aztec account imported",
+      detail: readyMsg,
+    });
+  };
+
   const importFromDfClientIntoPxe = async (file: File | null) => {
     if (!file) return;
     if (!sessionOk || !ethWallet) {
@@ -310,48 +370,7 @@ export function WalletManagerPanel(props: {
         },
       });
       if (!live()) return;
-      assertAztecReplaceBackupReady({
-        existingAddress,
-        incomingAddress: stored.address,
-        backupReady: replaceBackedUpRef.current,
-      });
-      await requireVaultAfterPxeImport(stored);
-      if (!live()) return;
-      const ok = await ensureUnlocked("secrets", stored);
-      if (!live()) return;
-      if (!ok) throw new Error("Vault password required after PXE import.");
-      await saveAztecWallet(stored);
-      if (!live()) return;
-      if (
-        existingAddress &&
-        existingAddress.toLowerCase() !== stored.address.toLowerCase()
-      ) {
-        await deleteVaultProfile(existingAddress);
-      }
-      if (!live()) return;
-      await refreshVaultAvailability();
-      await refresh();
-      if (!live()) return;
-      replaceBackedUpRef.current = false;
-      setReplaceBackedUp(false);
-      setReplaceOpen(false);
-      onApplyAztecAccount(stored);
-      void recordHistory({
-        networkId,
-        kind:
-          existingAddress &&
-          existingAddress.toLowerCase() !== stored.address.toLowerCase()
-            ? "account-replaced"
-            : "account-imported",
-        recipient: stored.address,
-      });
-      const readyMsg = `DF Punk PXE ready for ${shortHash(stored.address)} (bound to ${shortHash(stored.boundEthAddress ?? ethWallet.address)}). Bridge unlocked.`;
-      setStatus(readyMsg);
-      pushDappLog({
-        kind: "announce",
-        title: "DF Punk PXE session ready",
-        detail: readyMsg,
-      });
+      await storePxeAccount(stored, existingAddress, live, "account-imported");
     } catch (e: unknown) {
       if (!live()) return;
       const message = e instanceof Error ? e.message : String(e);
@@ -359,6 +378,57 @@ export function WalletManagerPanel(props: {
       logDappError(e, "Import DF Punk → PXE failed");
     } finally {
       if (live()) setImportingPxe(false);
+    }
+  };
+
+  const createV6Wallet = async () => {
+    if (!sessionOk || !ethWallet) {
+      setError("Connect a wallet first.");
+      return;
+    }
+    if (!browserClaimEnabled) {
+      setError("Account creation isn't available in this browser.");
+      return;
+    }
+    if (!aztecNodeUrl) {
+      setError("Select a network first.");
+      return;
+    }
+
+    const existingAddress =
+      aztecAccounts[0]?.address ?? (await getActiveAztecWallet());
+    const epoch = noticeEpoch.current;
+    const live = () => noticeEpoch.current === epoch;
+    setCreatingPxe(true);
+    setError(null);
+    setStatus("Creating an Aztec 6.0 wallet in this browser…");
+    let downloaded = false;
+    try {
+      const stored = await createV6PxeAccount({
+        ethWallet,
+        networkId,
+        aztecNodeUrl,
+        onProgress: (detail) => {
+          if (live()) setStatus(detail);
+        },
+      });
+      if (!live()) return;
+      backupAztecJson(stored);
+      downloaded = true;
+      if (!live()) return;
+      setStatus("Wallet file downloaded. Set a vault password to keep it in this browser.");
+      await storePxeAccount(stored, existingAddress, live, "account-created");
+    } catch (e: unknown) {
+      if (!live()) return;
+      const message = e instanceof Error ? e.message : String(e);
+      setError(
+        downloaded
+          ? `Wallet file downloaded. Saving it in this browser failed: ${message}`
+          : message,
+      );
+      logDappError(e, "Create Aztec 6.0 wallet failed");
+    } finally {
+      if (live()) setCreatingPxe(false);
     }
   };
 
@@ -430,9 +500,93 @@ export function WalletManagerPanel(props: {
     }
   };
 
+  const connectNulo = async () => {
+    if (!ethWallet || !isTrustedConnector(ethWallet)) {
+      setError("Connect an Ethereum wallet before Nulo.");
+      return;
+    }
+    if (!aztecNodeUrl) {
+      setError("Select a network first.");
+      return;
+    }
+    setConnectingNulo(true);
+    setError(null);
+    setStatus("Waiting for Nulo. Approve the connection in the extension.");
+    try {
+      const { beginNuloConnect } = await import("@df-bridge/browser-sdk/nulo");
+      const pending = await beginNuloConnect({ aztecNodeUrl });
+      setNuloPending(pending);
+      setStatus(`Confirm this matches ${pending.walletName}: ${pending.verification}`);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      setError(message);
+      setStatus(null);
+      logDappError(e, "Connect Nulo failed");
+    } finally {
+      setConnectingNulo(false);
+    }
+  };
+
+  const confirmNulo = async () => {
+    if (!nuloPending || !ethWallet) return;
+    setConnectingNulo(true);
+    setError(null);
+    try {
+      const { address } = await nuloPending.confirm();
+      const stored = accountFromNulo(address, ethWallet.address);
+      appliedNulo.current = stored.address.toLowerCase();
+      setNuloAccount(stored);
+      setNuloPending(null);
+      onApplyAztecAccount(stored);
+      setStatus(`Nulo connected. Bridge recipient is ${shortHash(stored.address)}.`);
+      pushDappLog({
+        kind: "announce",
+        title: "Nulo connected",
+        detail: `Aztec account ${shortHash(stored.address)} is ready to bridge.`,
+      });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      setError(message);
+      logDappError(e, "Confirm Nulo failed");
+    } finally {
+      setConnectingNulo(false);
+    }
+  };
+
+  const cancelNulo = async () => {
+    nuloPending?.cancel();
+    setNuloPending(null);
+    setStatus(null);
+    const { disconnectNulo } = await import("@df-bridge/browser-sdk/nulo");
+    await disconnectNulo();
+    appliedNulo.current = null;
+    setNuloAccount(null);
+    onClearAztecAccount?.();
+  };
+
+  useEffect(() => {
+    const eth = ethWallet?.address;
+    if (!eth) return;
+    let cancelled = false;
+    void import("@df-bridge/browser-sdk/nulo").then(({ getNuloAddress }) => {
+      if (cancelled) return;
+      const address = getNuloAddress();
+      if (!address) return;
+      const stored = accountFromNulo(address, eth);
+      setNuloAccount(stored);
+      if (appliedNulo.current === stored.address.toLowerCase()) return;
+      appliedNulo.current = stored.address.toLowerCase();
+      onApplyAztecAccount(stored);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [ethWallet?.address, onApplyAztecAccount]);
+
   const pendingGateHandoff =
     onConnectGate && (unlockingVault || (gateHandoff && !shellReady));
-  const blocked = busy || importingPxe || unlockingVault || pendingGateHandoff;
+  const blocked =
+    busy || importingPxe || creatingPxe || connectingNulo || unlockingVault || pendingGateHandoff;
   const showAztecPane = !!ethWallet && browserClaimEnabled;
   const l2ActionsDisabled = blocked || !sessionOk || sessionChecking;
 
@@ -444,7 +598,8 @@ export function WalletManagerPanel(props: {
     : secretsVisible
       ? (bridgeReadyAccounts[0] ?? null)
       : null;
-  const showUnlock = vaultAvailable && !currentAccount;
+  const showUnlock = vaultAvailable && !currentAccount && !nuloAccount;
+  const displayedAccount = nuloAccount ?? currentAccount;
 
   const startReplace = () => {
     if (!currentAccount) return;
@@ -619,10 +774,11 @@ export function WalletManagerPanel(props: {
               <div className="df-pxe-format-pane">
                 <p className="wallet-manager-pane-title">What file is this?</p>
                 <p className="hint df-pxe-import-steps">
-                  A JSON export named <span className="mono">dfpunk-account-*.json</span>.
+                  A JSON file named <span className="mono">dfpunk-account-*.json</span> from an Aztec 6.0 wallet.
+                  A file saved on Aztec 5.1 uses a different address and will not import.
                 </p>
                 <p className="hint df-pxe-import-steps">
-                  Get it from Dark Forest Aztec → Settings → Download account info. It looks like:
+                  Get it from Dark Forest Aztec → Settings → Download account info, or from Create 6.0 wallet in this app. It looks like:
                 </p>
                 <pre className="df-pxe-format-sample">{`{
   "address": "0x…",
@@ -651,7 +807,7 @@ export function WalletManagerPanel(props: {
                     Download a JSON backup first. The file uses the same{" "}
                     <span className="mono">dfpunk-account-*.json</span> fields as Dark Forest.
                   </li>
-                  <li>After the backup downloads, choose the new account JSON.</li>
+                  <li>After the backup downloads, create a new 6.0 wallet or choose a 6.0 account JSON.</li>
                   <li>
                     Importing another address replaces this account and deletes its password vault
                     from this browser.
@@ -672,11 +828,19 @@ export function WalletManagerPanel(props: {
                 )}
                 <button
                   type="button"
+                  className="df-pxe-import-btn"
+                  disabled={l2ActionsDisabled || !replaceBackedUp}
+                  onClick={() => void createV6Wallet()}
+                >
+                  {creatingPxe ? "Creating…" : "Create 6.0 wallet"}
+                </button>
+                <button
+                  type="button"
                   className="ghost"
                   disabled={l2ActionsDisabled || !replaceBackedUp}
                   onClick={() => dfImportInputRef.current?.click()}
                 >
-                  {importingPxe ? "Importing…" : "Choose new JSON"}
+                  {importingPxe ? "Importing…" : "Import 6.0 account"}
                 </button>
                 <button
                   type="button"
@@ -726,52 +890,105 @@ export function WalletManagerPanel(props: {
               aria-hidden={formatOpen || replaceOpen || removeConfirm}
             >
             <p className="wallet-manager-pane-title">Aztec L2</p>
-            {currentAccount ? (
+            {nuloPending ? (
+              <div className="df-pxe-format-pane">
+                <p className="hint">
+                  These must match the check shown in {nuloPending.walletName}.
+                </p>
+                <p className="mono">{nuloPending.verification}</p>
+                <button
+                  type="button"
+                  className="df-pxe-import-btn"
+                  disabled={connectingNulo}
+                  onClick={() => void confirmNulo()}
+                >
+                  {connectingNulo ? "Connecting…" : "They match"}
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={connectingNulo}
+                  onClick={() => void cancelNulo()}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : displayedAccount ? (
               <>
                 <ul className="wallet-manager-list">
                   <li
                     className={
-                      activeAztec?.toLowerCase() === currentAccount.address.toLowerCase()
+                      activeAztec?.toLowerCase() === displayedAccount.address.toLowerCase()
                         ? "active"
                         : undefined
                     }
                   >
                     <div className="wallet-manager-pick">
                       <span className="wallet-manager-account-kicker">
-                        DF Aztec Account
+                        {displayedAccount.connector === "nulo"
+                          ? "Nulo wallet"
+                          : displayedAccount.label === "Aztec 6.0 wallet"
+                            ? "Aztec 6.0 wallet"
+                            : "DF Aztec Account"}
                       </span>
+                      {displayedAccount.connector === "nulo" ? (
+                        <p className="hint">
+                          Connected. Nulo keeps the keys. This browser only uses the address.
+                        </p>
+                      ) : null}
                       <dl className="wallet-manager-account-meta">
                         <div>
                           <dt>Aztec address</dt>
-                          <dd className="mono">{shortHash(currentAccount.address)}</dd>
+                          <dd className="mono">{shortHash(displayedAccount.address)}</dd>
                         </div>
                         <div>
                           <dt>Bridge</dt>
-                          <dd>Ready</dd>
+                          <dd>{displayedAccount.connector === "nulo" ? "Connected" : "Ready"}</dd>
                         </div>
                       </dl>
                     </div>
                     <div className="wallet-manager-account-actions">
-                      <button
-                        type="button"
-                        className="ghost"
-                        disabled={l2ActionsDisabled}
-                        onClick={startReplace}
-                      >
-                        Replace account
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost"
-                        disabled={l2ActionsDisabled}
-                        onClick={() => {
-                          setFormatOpen(false);
-                          setReplaceOpen(false);
-                          setRemoveConfirm(true);
-                        }}
-                      >
-                        Remove
-                      </button>
+                      {displayedAccount.connector === "nulo" ? (
+                        <button
+                          type="button"
+                          className="ghost"
+                          disabled={l2ActionsDisabled}
+                          onClick={() => void cancelNulo()}
+                        >
+                          Disconnect Nulo
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            className="ghost"
+                            disabled={l2ActionsDisabled || !!nuloPending}
+                            onClick={() => void connectNulo()}
+                          >
+                            {connectingNulo ? "Waiting for Nulo…" : "Connect Nulo"}
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost"
+                            disabled={l2ActionsDisabled}
+                            onClick={startReplace}
+                          >
+                            Replace account
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost"
+                            disabled={l2ActionsDisabled}
+                            onClick={() => {
+                              setFormatOpen(false);
+                              setReplaceOpen(false);
+                              setRemoveConfirm(true);
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </>
+                      )}
                     </div>
                   </li>
                 </ul>
@@ -779,49 +996,78 @@ export function WalletManagerPanel(props: {
             ) : (
               <div className="df-pxe-import">
                 <p className="hint df-pxe-import-steps">
-                  The account you bridge to is the one you already use in{" "}
+                  Create an Aztec 6.0 account in this browser, import a 6.0 account file, or connect Nulo.
+                  A connected Nulo wallet is shown here. This browser keeps one saved account.
+                </p>
+                <p className="hint df-pxe-import-steps">
+                  A file from{" "}
                   <a
                     href={dfpunkPlayUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
                     Dark Forest Aztec
-                  </a>
-                  .
-                </p>
-                <p className="hint df-pxe-import-steps">
-                  This browser keeps one Aztec account. In the game, open Settings and choose
-                  Download account info, then import that file here.
+                  </a>{" "}
+                  works after that game is on 6.0. A 5.1 account file will not import.
                 </p>
                 {sessionOk || sessionChecking ? (
                   showUnlock ? (
                     <p className="hint">
-                      {vaultTimeoutNotice ?? "Unlock the saved Aztec account to continue."}
+                      {vaultTimeoutNotice ??
+                        "Unlock the saved Aztec account, or connect Nulo. Nulo keeps its own keys."}
                     </p>
                   ) : (
-                    <p className="hint">Ready to import.</p>
+                    <p className="hint">Ready to create, import, or connect Nulo.</p>
                   )
                 ) : sessionReason ? (
                   <p className="error">{sessionReason}</p>
                 ) : null}
                 {showUnlock ? (
-                  <button
-                    type="button"
-                    className={`df-pxe-import-btn${ethWallet && sessionOk && !l2ActionsDisabled ? " cta-pulse" : ""}`}
-                    disabled={l2ActionsDisabled}
-                    onClick={() => void unlockPxeFromIndexedDb()}
-                  >
-                    {unlockingVault || pendingGateHandoff ? "Unlocking…" : "Unlock"}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className={`df-pxe-import-btn${ethWallet && sessionOk && !l2ActionsDisabled ? " cta-pulse" : ""}`}
+                      disabled={l2ActionsDisabled}
+                      onClick={() => void unlockPxeFromIndexedDb()}
+                    >
+                      {unlockingVault || pendingGateHandoff ? "Unlocking…" : "Unlock"}
+                    </button>
+                    <button
+                      type="button"
+                      className="df-pxe-import-btn"
+                      disabled={l2ActionsDisabled}
+                      onClick={() => void connectNulo()}
+                    >
+                      {connectingNulo ? "Waiting for Nulo…" : "Connect Nulo"}
+                    </button>
+                  </>
                 ) : (
-                  <button
-                    type="button"
-                    className="df-pxe-import-btn"
-                    disabled={l2ActionsDisabled}
-                    onClick={() => dfImportInputRef.current?.click()}
-                  >
-                    {importingPxe ? "Importing…" : "Import account"}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className={`df-pxe-import-btn${ethWallet && sessionOk && !l2ActionsDisabled ? " cta-pulse" : ""}`}
+                      disabled={l2ActionsDisabled}
+                      onClick={() => void createV6Wallet()}
+                    >
+                      {creatingPxe ? "Creating…" : "Create 6.0 wallet"}
+                    </button>
+                    <button
+                      type="button"
+                      className="df-pxe-import-btn"
+                      disabled={l2ActionsDisabled}
+                      onClick={() => dfImportInputRef.current?.click()}
+                    >
+                      {importingPxe ? "Importing…" : "Import 6.0 account"}
+                    </button>
+                    <button
+                      type="button"
+                      className="df-pxe-import-btn"
+                      disabled={l2ActionsDisabled || !!nuloPending}
+                      onClick={() => void connectNulo()}
+                    >
+                      {connectingNulo ? "Waiting for Nulo…" : "Connect Nulo"}
+                    </button>
+                  </>
                 )}
                 <button
                   type="button"

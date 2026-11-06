@@ -25,6 +25,28 @@ export function computeBridgeFee(grossAmount: bigint, feeBps = BRIDGE_FEE_BPS): 
   return { gross: grossAmount, fee, net };
 }
 
+/**
+ * Fee Juice a claim transaction has been spending on Aztec 6.0.
+ * The network charges this from the deposit. It is not a second app fee, and it moves with gas.
+ */
+export const ESTIMATED_CLAIM_FEE_WEI = 1_650_000_000_000_000_000n;
+
+export function predictBridgeReceipt(
+  grossAmount: bigint,
+  claimFeeWei = ESTIMATED_CLAIM_FEE_WEI,
+): {
+  gross: bigint;
+  protocolFee: bigint;
+  deposited: bigint;
+  claimFee: bigint;
+  receive: bigint;
+} {
+  const { gross, fee, net } = computeBridgeFee(grossAmount);
+  const claimFee = claimFeeWei > 0n ? claimFeeWei : 0n;
+  const receive = net > claimFee ? net - claimFee : 0n;
+  return { gross, protocolFee: fee, deposited: net, claimFee, receive };
+}
+
 export function isValidFeeRecipient(address: string | undefined | null): address is `0x${string}` {
   return typeof address === "string" && /^0x[0-9a-fA-F]{40}$/.test(address);
 }

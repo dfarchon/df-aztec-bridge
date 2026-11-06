@@ -307,6 +307,51 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
         if (!networkMeta?.aztecNodeUrl) {
           throw new Error("Network meta missing aztecNodeUrl for browser claim.");
         }
+        if (dfPxeAccount?.connector === "nulo") {
+          const { claimWithNulo } = await import("@df-bridge/browser-sdk/nulo");
+          setClaimJobId("browser");
+          setClaimStatus("running");
+          setL2TxHash(null);
+          setBridgePhase("Asking Nulo to claim…");
+          setProgress(startProgress("claim", "status"));
+          const { l2TxHash: hash } = await claimWithNulo({
+            aztecNodeUrl: networkMeta.aztecNodeUrl,
+            credentials: creds,
+            onProgress: (phase, detail) => {
+              setClaimStatus(phase);
+              setBridgePhase(detail ?? null);
+              setProgress((prev) =>
+                advanceProgress(prev, { track: "claim", stepKey: claimPhaseStep(phase) }),
+              );
+            },
+            onTxSent: (l2Hash) => {
+              setL2TxHash(l2Hash);
+              void recordHistory({
+                networkId,
+                kind: "claim-submitted",
+                amount: creds.claimAmount,
+                recipient: creds.recipient,
+                l1TxHash: l1Hash,
+                l2TxHash: l2Hash,
+              });
+            },
+          });
+          if (!hash) {
+            await removeSession(networkId, l1Hash);
+            await refreshSessions();
+            setClaimStatus("succeeded");
+            setBridgePhase("Claim message already consumed. Nothing to do.");
+            setProgress((prev) => finishProgress(prev, "succeeded"));
+            return;
+          }
+          setClaimStatus("succeeded");
+          setL2TxHash(hash);
+          setBridgePhase(`L2 tx ${hash}`);
+          setProgress((prev) => finishProgress(prev, "succeeded"));
+          await removeSession(networkId, l1Hash);
+          await refreshSessions();
+          return;
+        }
         const { loadBrowserClaim } = await import("@df-bridge/browser-sdk/claim-lazy");
         const { waitAndClaimInBrowser, getClaimMessageStatus } = await loadBrowserClaim();
 
@@ -532,7 +577,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
       });
       await refreshSessions();
     },
-    [networkId, networkMeta, refreshSessions, refreshBalancesAfterAction],
+    [networkId, networkMeta, refreshSessions, refreshBalancesAfterAction, dfPxeAccount],
   );
 
   const onBridge = useCallback(async () => {
@@ -545,7 +590,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
       setError(e instanceof Error ? e.message : String(e));
       return;
     }
-    if (autoClaim && !l2Secret.trim()) {
+    if (autoClaim && !l2Secret.trim() && dfPxeAccount?.connector !== "nulo") {
       setError("Auto-claim is on — enter the Aztec L2 secret for that recipient account.");
       return;
     }
@@ -934,7 +979,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
   const onResumeClaim = useCallback(
     async (session: BridgeSessionEntry) => {
       if (!session.credentials) return;
-      if (!l2Secret.trim()) {
+      if (!l2Secret.trim() && dfPxeAccount?.connector !== "nulo") {
         setError("Enter the Aztec L2 secret to claim.");
         return;
       }
@@ -987,7 +1032,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
       setError("Claim credentials are missing. Open Recover to finish the claim.");
       return;
     }
-    if (!l2Secret.trim()) {
+    if (!l2Secret.trim() && dfPxeAccount?.connector !== "nulo") {
       setError("Enter the Aztec L2 secret to claim.");
       return;
     }

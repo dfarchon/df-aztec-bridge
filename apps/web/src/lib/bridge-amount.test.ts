@@ -5,6 +5,7 @@ import {
   amountFromSlider,
   amountPresets,
   AMOUNT_SLIDER_MAX,
+  formatBridgeReceiptHint,
   formatSliderAmount,
   bridgeShortfall,
   isDraftAmountInput,
@@ -17,6 +18,14 @@ import {
 } from "./bridge-amount.ts";
 
 const fj = (value: string) => parseUnits(value, 18);
+
+describe("formatBridgeReceiptHint", () => {
+  it("predicts the balance left from the minimum bridge", () => {
+    expect(formatBridgeReceiptHint(MIN_BRIDGE_WEI)).toBe(
+      "About 1.2 FJ in the Aztec account. The 5% fee is 0.15 FJ. The claim spends about 1.65 FJ.",
+    );
+  });
+});
 
 describe("parseBridgeAmount", () => {
   it("accepts the minimum and anything above it", () => {

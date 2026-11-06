@@ -1,21 +1,21 @@
 /**
  * Browser L2 claim (EmbeddedWallet + PXE). Heavy — load via dynamic import only.
  */
-import { createAztecNodeClient, waitForTx } from "@aztec/aztec.js/node";
-import { NO_WAIT } from "@aztec/aztec.js/contracts";
-import { FeeJuicePaymentMethodWithClaim } from "@aztec/aztec.js/fee";
-import { isL1ToL2MessageReady } from "@aztec/aztec.js/messaging";
-import { ProtocolContractAddress } from "@aztec/aztec.js/protocol";
-import type { Wallet } from "@aztec/aztec.js/wallet";
-import { Fr, Fq } from "@aztec/foundation/curves/bn254";
-import { defaultFetch } from "@aztec/foundation/json-rpc/client";
-import { openTmpStore } from "@aztec/kv-store/sqlite-opfs";
-import { getPXEConfig } from "@aztec/pxe/config";
-import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import { deriveMasterMessageSigningSecretKey } from "@aztec/stdlib/keys";
-import { getNonNullifiedL1ToL2MessageWitness } from "@aztec/stdlib/messaging";
-import { TxHash, TxStatus } from "@aztec/stdlib/tx";
-import { EmbeddedWallet } from "@aztec/wallets/embedded";
+import { createAztecNodeClient, waitForTx } from "@aztec-labs/aztec.js/node";
+import { NO_WAIT } from "@aztec-labs/aztec.js/contracts";
+import { FeeJuicePaymentMethodWithClaim } from "@aztec-labs/aztec.js/fee";
+import { isL1ToL2MessageReady } from "@aztec-labs/aztec.js/messaging";
+import { ProtocolContractAddress } from "@aztec-labs/aztec.js/protocol";
+import type { Wallet } from "@aztec-labs/aztec.js/wallet";
+import { Fr, Fq } from "@aztec-labs/foundation/curves/bn254";
+import { defaultFetch } from "@aztec-labs/foundation/json-rpc/client";
+import { openTmpStore } from "@aztec-labs/kv-store/sqlite-opfs";
+import { getPXEConfig } from "@aztec-labs/pxe/config";
+import { AztecAddress } from "@aztec-labs/stdlib/aztec-address";
+import { deriveMasterMessageSigningSecretKey } from "@aztec-labs/stdlib/keys";
+import { getNonNullifiedL1ToL2MessageWitness } from "@aztec-labs/stdlib/messaging";
+import { TxHash, TxStatus } from "@aztec-labs/stdlib/tx";
+import { EmbeddedWallet } from "@aztec-labs/wallets/embedded";
 
 import {
   assertL2ClaimReceiptOk,
@@ -83,14 +83,14 @@ function createBrowserNode(url: string, apiKey?: string) {
       : extraHeaders;
     return defaultFetch(host, payload, headers, noRetry);
   };
-  return createAztecNodeClient(url, undefined, fetchFn);
+  return createAztecNodeClient(url, { fetch: fetchFn });
 }
 
 function logRegister(step: string, detail: Record<string, unknown>) {
   console.info(`[claim][register] ${step}`, detail);
 }
 
-/** Same registration as publishedRound1: Aztec 5.1 initializerless Schnorr account. */
+/** Initializerless Schnorr account on Aztec Tierra 6.0.0. */
 async function registerAccount(
   wallet: EmbeddedWallet,
   secret: Fr,
@@ -101,7 +101,7 @@ async function registerAccount(
   const expectedAddress = expected?.toString() ?? null;
   const signingKey = resolveSigningKey(secret, signingKeyHex);
   logRegister("1-start", {
-    sdk: "5.1.0",
+    sdk: "6.0.0",
     create: "initializerless",
     expected: expectedAddress,
     signingKeyFromFile: Boolean(signingKeyHex?.trim()),
@@ -117,7 +117,7 @@ async function registerAccount(
   logRegister("2-created", { derived, expected: expectedAddress, match });
   if (!match) {
     throw new Error(
-      `Aztec 5.1 initializerless account is ${derived}, claim recipient is ${expectedAddress}.`,
+      `This file is not an Aztec 6.0 wallet. The file address is ${expectedAddress}. These keys derive ${derived} on 6.0. Create a new 6.0 wallet, or import a file saved from 6.0.`,
     );
   }
   logRegister("3-ok", { address: derived });
@@ -301,7 +301,7 @@ export async function getAztecFeeJuiceBalance(params: {
   apiKey?: string;
   aztecAddress: string;
 }): Promise<bigint> {
-  const { getFeeJuiceBalance } = await import("@aztec/aztec.js/utils");
+  const { getFeeJuiceBalance } = await import("@aztec-labs/aztec.js/utils");
   const node = createBrowserNode(params.aztecNodeUrl, params.apiKey);
   const owner = AztecAddress.fromStringUnsafe(params.aztecAddress.trim());
   return getFeeJuiceBalance(owner, node);
@@ -346,9 +346,9 @@ export async function waitAndClaimInBrowser(params: {
    */
   signingKey?: string;
   /**
-   * When the 5.2 Schnorr address does not match the backup, also try the
+   * When a backup address was created under an older account style, also try the
    * initializerless account and a signing key derived from the secret.
-   * Still runs inside the 5.2 wallet. Stops at the first address match.
+   * Runs inside the 6.0 wallet. Stops at the first address match.
    */
   legacyAccountStyles?: boolean;
   timeoutMs?: number;
@@ -412,6 +412,82 @@ export async function waitAndClaimInBrowser(params: {
   const { l2TxHash } = await sendClaimThenWait({
     send: async () => {
       const { txHash } = await sendClaimTx(wallet, manager.address, params.credentials);
+      return { txHash: txHash.toString() };
+    },
+    onTxSent: (hash) => {
+      params.onTxSent?.(hash);
+      progress("l2-sent", `L2 claim submitted. ${hash}`);
+    },
+    wait: async (hash) => {
+      progress("l2-claim", "Waiting for L2 claim confirmation…");
+      await waitForL2ClaimTx({
+        aztecNodeUrl: params.aztecNodeUrl,
+        apiKey: params.apiKey,
+        l2TxHash: hash,
+        timeoutSeconds: Math.ceil((params.timeoutMs ?? 30 * 60_000) / 1000),
+      });
+    },
+  });
+  progress("done", `L2 tx ${l2TxHash}`);
+  return { l2TxHash };
+}
+
+/**
+ * Claim through an already-connected external Aztec wallet (Nulo).
+ * The wallet holds the account keys and proves the transaction itself.
+ */
+export async function claimUsingExternalWallet(params: {
+  wallet: Wallet;
+  from: AztecAddress;
+  aztecNodeUrl: string;
+  apiKey?: string;
+  credentials: ClaimCredentials;
+  timeoutMs?: number;
+  onProgress?: (phase: BrowserClaimProgress, detail?: string) => void;
+  onTxSent?: (l2TxHash: string) => void;
+}): Promise<{ l2TxHash: string }> {
+  const progress = params.onProgress ?? (() => {});
+  if (params.from.toString().toLowerCase() !== params.credentials.recipient.toLowerCase()) {
+    throw new Error("The connected Aztec wallet does not match this claim recipient.");
+  }
+
+  const messageStatus = await getClaimMessageStatus({
+    aztecNodeUrl: params.aztecNodeUrl,
+    apiKey: params.apiKey,
+    credentials: params.credentials,
+  });
+  if (messageStatus === "consumed") {
+    progress("done", "Claim message already consumed. Nothing to do.");
+    return { l2TxHash: "" };
+  }
+
+  const node = createBrowserNode(params.aztecNodeUrl, params.apiKey);
+  if (messageStatus === "l2-sync-pending") {
+    progress(
+      "l2-wait",
+      "Waiting for L1→L2 message (Aztec may take several minutes after the L1 tx)…",
+    );
+    await waitForMessage(
+      node,
+      Fr.fromHexString(params.credentials.messageHash),
+      params.timeoutMs ?? 30 * 60_000,
+    );
+  }
+
+  const afterWait = await getClaimMessageStatus({
+    aztecNodeUrl: params.aztecNodeUrl,
+    apiKey: params.apiKey,
+    credentials: params.credentials,
+  });
+  if (afterWait === "consumed") {
+    progress("done", "Claim message already consumed. Nothing to do.");
+    return { l2TxHash: "" };
+  }
+
+  progress("l2-claim", "Asking the connected Aztec wallet to prove and submit the claim…");
+  const { l2TxHash } = await sendClaimThenWait({
+    send: async () => {
+      const { txHash } = await sendClaimTx(params.wallet, params.from, params.credentials);
       return { txHash: txHash.toString() };
     },
     onTxSent: (hash) => {

@@ -26,7 +26,7 @@ const NETWORKS_BASE: Record<string, WebNetworkConfig> = {
   testnet: {
     id: "testnet",
     name: "Aztec Testnet (Sepolia)",
-    aztecNodeUrl: "https://v5.testnet.rpc.aztec-labs.com",
+    aztecNodeUrl: "https://aztec-testnet.drpc.org",
     l1RpcUrl: "https://ethereum-sepolia-rpc.publicnode.com",
     l1ChainId: 11155111,
     bridgeTiming: "poll",
@@ -35,7 +35,7 @@ const NETWORKS_BASE: Record<string, WebNetworkConfig> = {
     aztecExplorerUrl: "https://testnet.aztecscan.xyz",
     l1Addresses: {
       l1ChainId: 11155111,
-      feeJuicePortal: "0xb4a9f8eadc8ca944729d61e59a9f491faff237a3" as Hex,
+      feeJuicePortal: "0xE59aCBA462a0324B1d619a7A1b219419f156f505" as Hex,
       feeJuice: "0x762c132040fda6183066fa3b14d985ee55aa3c18" as Hex,
       feeAssetHandler: "0x5602c39a6e9c5ace589f64f754927bcda4f4bfc9" as Hex,
     },
@@ -53,7 +53,7 @@ const NETWORKS_BASE: Record<string, WebNetworkConfig> = {
     aztecExplorerUrl: "https://aztecscan.xyz",
     l1Addresses: {
       l1ChainId: 1,
-      feeJuicePortal: "0xaf73dd51d1eb8a079bb097f39c832cdd00ac691c" as Hex,
+      feeJuicePortal: "0x534361be805CA30Bdb6404eC5E6cDAFFB3E9f3b3" as Hex,
       feeJuice: "0xa27ec0006e59f245217ff08cd52a7e8b169e62d2" as Hex,
       feeAssetHandler: null,
     },

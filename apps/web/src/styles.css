@@ -948,6 +948,13 @@ main.app-main:has(.vault-layout) {
   align-items: start;
 }
 
+.bridge-account-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
 .bridge-account {
   display: flex;
   flex-direction: column;
@@ -1193,6 +1200,86 @@ input.bridge-amount-input:focus-visible {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.bridge-amount-card #bridge-amount-help.marquee-hint {
+  text-overflow: clip;
+}
+
+.marquee-hint-viewport {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  white-space: nowrap;
+}
+
+.marquee-hint.is-overflow .marquee-hint-viewport {
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 0.45rem,
+    #000 calc(100% - 0.45rem),
+    transparent 100%
+  );
+}
+
+.marquee-hint-measure {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.marquee-hint-wave {
+  display: inline-flex;
+  width: max-content;
+}
+
+.marquee-hint.is-overflow .marquee-hint-wave {
+  animation: marquee-hint-read var(--marquee-hint-duration, 28s) linear infinite;
+}
+
+.marquee-hint.is-overflow:hover .marquee-hint-wave,
+.marquee-hint.is-overflow:focus-within .marquee-hint-wave {
+  animation-play-state: paused;
+}
+
+.marquee-hint-segment {
+  flex: 0 0 auto;
+  padding-right: 3rem;
+}
+
+.marquee-hint:not(.is-overflow) .marquee-hint-segment {
+  padding-right: 0;
+}
+
+@keyframes marquee-hint-read {
+  0%,
+  12% {
+    transform: translate3d(0, 0, 0);
+  }
+  88%,
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-hint.is-overflow .marquee-hint-wave {
+    animation: none;
+  }
+
+  .bridge-amount-card #bridge-amount-help.marquee-hint,
+  .marquee-hint.is-overflow .marquee-hint-viewport {
+    overflow: visible;
+    white-space: normal;
+    mask-image: none;
+  }
+
+  .marquee-hint.is-overflow .marquee-hint-segment[aria-hidden="true"] {
+    display: none;
+  }
 }
 
 .bridge-autoclaim {
@@ -2541,7 +2628,14 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
 }
 
 .connect-gate.is-wallets:not(.is-split) .connect-gate-stack {
-  width: min(calc(24rem + 2.7rem), 100%);
+  width: min(24rem, 100%);
+}
+
+.connect-gate.is-wallets:not(.is-split) .connect-gate-card {
+  padding: 0;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .connect-gate.is-split .connect-gate-stack {
@@ -3608,13 +3702,6 @@ body:has(.app-frame.session-locked) {
   box-shadow: 0 0 0 1px var(--ok-glow);
 }
 
-.connect-gate-title {
-  margin: 0.35rem 0 0.55rem;
-  font-size: 1.35rem;
-  font-weight: 550;
-  letter-spacing: -0.02em;
-}
-
 .connect-gate-lead {
   margin: 0 0 1.1rem;
   line-height: 1.45;
@@ -4509,7 +4596,6 @@ h1,
 h2,
 h3,
 .app-topbar-title,
-.connect-gate-title,
 .brand-title {
   color: var(--text-heading) !important;
   font-family: var(--font);
@@ -4518,7 +4604,6 @@ h3,
   letter-spacing: 0;
 }
 
-.connect-gate-title,
 .brand-title {
   font-size: 1.375rem !important;
   line-height: 1.3 !important;

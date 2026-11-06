@@ -164,7 +164,7 @@ export function useBridgeSession() {
   const [l2Secret, setL2Secret] = useState("");
   const [l2Salt, setL2Salt] = useState("");
   const [l2SigningKey, setL2SigningKey] = useState("");
-  /** Try initializerless and secret-derived signing keys when the 5.2 address misses the backup. */
+  /** Try initializerless and secret-derived signing keys when an older address misses the backup. */
   const [legacyAccountStyles, setLegacyAccountStyles] = useState(true);
   const [showL2Secret, setShowL2Secret] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -294,9 +294,16 @@ export function useBridgeSession() {
       }
       setVaultTimeoutNotice(null);
       setRecipient(account.address);
-      setL2Secret(account.secretKey);
-      setL2Salt(account.salt);
-      setL2SigningKey(account.signingKey ?? "");
+      setL2Secret(account.connector === "nulo" ? "" : account.secretKey);
+      setL2Salt(account.connector === "nulo" ? "" : account.salt);
+      setL2SigningKey(account.connector === "nulo" ? "" : (account.signingKey ?? ""));
+      if (account.connector === "nulo" && isBridgeReadyDfPxeAccount(account, wallet?.address)) {
+        setDfPxeAccount(account);
+        setVaultPxeAccount(account);
+        setAutoClaim(true);
+        setError(null);
+        return;
+      }
       if (isBridgeReadyDfPxeAccount(account, wallet?.address)) {
         setDfPxeAccount(account);
         setVaultPxeAccount(account);

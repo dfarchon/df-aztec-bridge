@@ -18,6 +18,7 @@ export type HistoryKind =
   | "claim-failed"
   | "claim-removed"
   | "account-imported"
+  | "account-created"
   | "account-replaced"
   | "account-removed";
 
@@ -53,6 +54,7 @@ const KINDS = new Set<HistoryKind>([
   "claim-failed",
   "claim-removed",
   "account-imported",
+  "account-created",
   "account-replaced",
   "account-removed",
 ]);
@@ -85,6 +87,8 @@ export function historyTitle(kind: HistoryKind, amount?: string): string {
       return fj ? `${fj} FJ claim removed` : "Claim removed";
     case "account-imported":
       return "Account imported";
+    case "account-created":
+      return "Aztec 6.0 wallet created";
     case "account-replaced":
       return "Account replaced";
     case "account-removed":

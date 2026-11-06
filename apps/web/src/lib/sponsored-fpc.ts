@@ -1,6 +1,6 @@
 /**
  * DF Aztec / protocol Sponsored FPC (Fee Payment Contract).
- * Canonical salt-derived instance (same as @aztec/constants SPONSORED_FPC_SALT).
+ * Canonical salt-derived instance (same as @aztec-labs/constants SPONSORED_FPC_SALT).
  * Bridge Fee Juice *to this L2 address* to fund sponsored txs in DF Aztec.
  * This is NOT the L1 `BRIDGE_FEE_RECIPIENT` (5% Trezor treasury).
  */

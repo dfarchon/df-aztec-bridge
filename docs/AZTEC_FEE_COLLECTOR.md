@@ -7,7 +7,7 @@
 | **L1 protocol fee (5%)** | Ethereum | `BRIDGE_FEE_RECIPIENT` / `VITE_BRIDGE_FEE_RECIPIENT` | Anonymous Trezor treasury — skim on every bridge |
 | **DF Sponsored FPC** | Aztec L2 | `VITE_SPONSORED_FPC_ADDRESS` (default canonical) | Fee Juice *recipient* when funding DF sponsor mode |
 
-Canonical Sponsored FPC (salt-derived, matches DF Aztec / `@aztec/constants`):
+Canonical Sponsored FPC (salt-derived, matches DF Aztec / `@aztec-labs/constants`):
 
 `0x1441491b59934ec64f8c98f17c91f23c01ca2a45dbb35caf123146ec76f9970c`
 

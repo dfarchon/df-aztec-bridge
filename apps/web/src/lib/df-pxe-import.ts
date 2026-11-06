@@ -5,6 +5,7 @@
 
 import type { ConnectedWallet } from "@df-bridge/browser-sdk";
 import {
+  accountFromV6Wallet,
   assertDfClientAccount,
   readAccountFile,
   type ImportedAztecAccount,
@@ -71,6 +72,42 @@ export async function registerDfPunkAccountIntoPxe(opts: {
     boundEthAddress: live.wallet.address.toLowerCase(),
     label: primary.label ?? "DF / dfpunk account",
   };
+}
+
+/** Create an initializerless Schnorr account on the connected Aztec 6.0 node and register it in PXE. */
+export async function createV6PxeAccount(opts: {
+  ethWallet: ConnectedWallet;
+  networkId: string;
+  aztecNodeUrl: string;
+  onProgress?: DfPxeImportProgress;
+}): Promise<ImportedAztecAccount> {
+  const live = await tryValidateConnectedWalletSession(opts.ethWallet);
+  if (!live.ok) throw new Error(live.reason);
+
+  const { loadBrowserClaim } = await import("@df-bridge/browser-sdk/claim-lazy");
+  const { createQuickDfpunkAccount, warmupBrowserClaim } = await loadBrowserClaim();
+
+  await warmupBrowserClaim({
+    networkId: opts.networkId,
+    aztecNodeUrl: opts.aztecNodeUrl,
+    onProgress: (detail) => {
+      opts.onProgress?.(detail);
+      pushDappLog({ kind: "info", title: "PXE", detail, ttlMs: 6_000 });
+    },
+  });
+
+  const created = await createQuickDfpunkAccount({
+    networkId: opts.networkId,
+    aztecNodeUrl: opts.aztecNodeUrl,
+    label: "Aztec 6.0 wallet",
+    onProgress: (_phase, detail) => {
+      if (!detail) return;
+      opts.onProgress?.(detail);
+      pushDappLog({ kind: "info", title: "Aztec 6.0 wallet", detail, ttlMs: 6_000 });
+    },
+  });
+
+  return accountFromV6Wallet(created, live.wallet.address);
 }
 
 export async function importDfPunkFileIntoPxe(opts: {

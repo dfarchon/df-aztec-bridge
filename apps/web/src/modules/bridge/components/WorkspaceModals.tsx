@@ -3,7 +3,7 @@ import { BRIDGE_FEE_BPS } from "@df-bridge/browser-sdk";
 import { getNetwork } from "../../../config/networks.ts";
 import { hasRpcOverrides } from "../../../lib/rpc-overrides.ts";
 import { phaseLabel } from "../../../lib/claim-recovery.ts";
-import { formatFjAmount } from "../../../lib/bridge-amount.ts";
+import { formatBridgeReceiptHint, formatFjAmount } from "../../../lib/bridge-amount.ts";
 import { useNetwork } from "../../../providers/NetworkProvider.tsx";
 import { ROUTES } from "../../../app/routes.ts";
 import {
@@ -101,6 +101,9 @@ requestBridge,
                 transaction is submitted. After L1 confirmation, the complete credentials
                 JSON will download automatically.
               </p>
+              {feeSplit && !amountCheck.error ? (
+                <p className="hint">{formatBridgeReceiptHint(feeSplit.gross)}</p>
+              ) : null}
               {ethServiceFeeWei != null && ethServiceFeeWei > 0n ? (
                 <p className="hint">
                   Mainnet wallet confirm batches ETH service fee {formatEther(ethServiceFeeWei)} ETH

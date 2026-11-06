@@ -11,6 +11,11 @@ export function isBridgeReadyDfPxeAccount(
   ethAddress: string | null | undefined,
 ): account is ImportedAztecAccount {
   if (!account || !ethAddress) return false;
+  if (account.connector === "nulo") {
+    if (!account.pxeRegistered || !account.boundEthAddress) return false;
+    if (account.boundEthAddress.toLowerCase() !== ethAddress.toLowerCase()) return false;
+    return /^0x[0-9a-fA-F]{64}$/i.test(account.address);
+  }
   if (!account.fromDfClient || !account.pxeRegistered) return false;
   if (!account.signingKey?.trim()) return false;
   if (!account.boundEthAddress) return false;
@@ -29,7 +34,7 @@ export function assertBridgeReadyDfPxeAccount(
 ): ImportedAztecAccount {
   if (!isBridgeReadyDfPxeAccount(account, ethAddress)) {
     throw new Error(
-      "Bridge requires a DF Punk account imported into PXE while your MetaMask / WalletConnect session is active. Reconnect the wallet and use “Import from DF client → PXE”.",
+      "Bridge requires an Aztec 6.0 account in PXE while your wallet session is active. Create a 6.0 wallet or import a 6.0 account file.",
     );
   }
   return account;

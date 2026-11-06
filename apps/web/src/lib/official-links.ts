@@ -19,7 +19,7 @@ export const OFFICIAL_HTTPS_HOST_ALLOWLIST = new Set([
   "aztecscan.xyz",
   "testnet.aztecscan.xyz",
   "devnet.aztecscan.xyz",
-  "v5.testnet.rpc.aztec-labs.com",
+  "aztec-testnet.drpc.org",
   "aztec-mainnet.drpc.org",
   "lb.drpc.live",
   "ethereum-rpc.publicnode.com",
@@ -156,7 +156,7 @@ export function l1TokenUrl(explorerOrigin: string | undefined, token: string): s
 /** Secondary official RPC used only for tip double-check (never for secrets). */
 export const OFFICIAL_TIP_CHECK_RPC: Record<string, string> = {
   mainnet: "https://aztec-mainnet.drpc.org",
-  testnet: "https://v5.testnet.rpc.aztec-labs.com",
+  testnet: "https://aztec-testnet.drpc.org",
 };
 
 /**

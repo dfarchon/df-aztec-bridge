@@ -291,7 +291,7 @@ vaultTimeoutNotice,
     !amountCheck.error &&
     !shortfall &&
     !!BRIDGE_FEE_RECIPIENT &&
-    (!autoClaim || !!l2Secret.trim());
+    (!autoClaim || !!l2Secret.trim() || dfPxeAccount?.connector === "nulo");
   const bridgeButtonLabel = !wallet
     ? "Connect wallet first"
     : !ethSessionOk
@@ -304,7 +304,7 @@ vaultTimeoutNotice,
             ? amountCheck.error
             : !BRIDGE_FEE_RECIPIENT
               ? "Bridge fee recipient not configured"
-              : autoClaim && !l2Secret.trim()
+              : autoClaim && !l2Secret.trim() && dfPxeAccount?.connector !== "nulo"
                 ? "Enter DF Punk L2 secret for auto-claim"
                 : autoClaim
                   ? "Bridge and claim"
@@ -329,7 +329,7 @@ vaultTimeoutNotice,
       setError(`Insufficient ${feeBalance?.symbol ?? "AZTEC"} balance.`);
       return;
     }
-    if (autoClaim && !l2Secret.trim()) {
+    if (autoClaim && !l2Secret.trim() && dfPxeAccount?.connector !== "nulo") {
       setError("Auto-claim is on — DF Punk account secret missing.");
       return;
     }

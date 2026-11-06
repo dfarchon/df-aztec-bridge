@@ -34,12 +34,7 @@ export function ConnectSessionGate(props: {
     >
       <ConnectNoticeHostContext.Provider value={noticeHost}>
         <div className="connect-gate-stack">
-          <div className="connect-gate-card">
-            {split ? null : (
-              <h1 className="connect-gate-title">Connect a wallet</h1>
-            )}
-            {props.walletPanel}
-          </div>
+          <div className="connect-gate-card">{props.walletPanel}</div>
           <div ref={setNoticeHost} className="connect-gate-notices" />
         </div>
       </ConnectNoticeHostContext.Provider>

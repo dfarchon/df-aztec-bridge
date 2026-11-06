@@ -41,16 +41,15 @@ This kit must not be used with production funds until Critical and High findings
 - Pin Node in root `package.json#engines.node` (exact `x.y.z`); pin pnpm via Corepack `packageManager` **sha512**. Direct deps are exact versions in each `package.json`; bytes are pinned in `pnpm-lock.yaml`.
 - Lifecycle scripts only via `allowBuilds` in `pnpm-workspace.yaml`; see [docs/PNPM_HARDENING.md](docs/PNPM_HARDENING.md).
 - Audit overrides in `pnpm-workspace.yaml#overrides` force patched transitive versions (`hono`, `@hono/node-server`, `undici`, `ws`, `axios`, … plus Vite toolchain `postcss@8.5.23`, `nanoid@3.3.18`).
-- CI / local gate: `pnpm audit --prod --audit-level=high` (must stay clean). Root script: `pnpm audit` → `--prod`.
+- CI / local gate: `pnpm audit --prod --audit-level=high` (the job must fail on high; do not set `continue-on-error`). Root script: `pnpm audit` → `--prod`.
 - Run `pnpm check:pnpm` after changing `engines.node`, `packageManager`, `pnpm-workspace.yaml`, the lockfile, or install docs.
 
-### Audit status (2026-08-08)
+### Audit status (2026-11-06)
 
 | Scope | Result |
 |-------|--------|
-| `pnpm audit --prod` | **No known vulnerabilities** |
-| `pnpm audit --prod --audit-level=high` | **Clean** |
-| `pnpm audit` (includes dev) | **1 low** residual: `elliptic@≤6.6.1` via `vite-plugin-node-polyfills` → `crypto-browserify` ([GHSA-848j-6mx2-7j84](https://github.com/advisories/GHSA-848j-6mx2-7j84)). Advisory lists patch `≥6.6.2`, but **6.6.2 is not on npm yet** — accepted until published; then add an override. |
+| `pnpm audit --prod --audit-level=high` | **1 high** residual: `zod@<4.6.6` via viem → abitype and WalletConnect (`zod@3.22.4`, `zod@3.25.76`). Aztec's `zod@4.4.3` is overridden to `4.6.7`. No patched Zod 3 release exists, and `abitype@1.0.6` does not accept Zod 4, so those paths stay on Zod 3. |
+| `pnpm audit` (includes dev) | **Not clean.** Same Zod 3 high, plus dev-only highs in `vite@<=6.4.3`, `browserslist@<=4.28.6`, and `source-map-js@<1.2.2`. Those dev pins were not part of the Aztec 6 bump. |
 
 **Cleared this pass (dev/build chain):**
 
