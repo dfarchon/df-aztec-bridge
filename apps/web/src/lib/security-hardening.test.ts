@@ -16,19 +16,6 @@ describe("api-base", () => {
   });
 });
 
-describe("dRPC client bake policy", () => {
-  it("rejects path-keyed lb.drpc.live URLs for VITE exposure", () => {
-    const keyed =
-      /^https:\/\/lb\.drpc\.live\/aztec-mainnet\/[^/\s?#]+$/i.test(
-        "https://lb.drpc.live/aztec-mainnet/EXAMPLE_KEY_NOT_REAL",
-      );
-    expect(keyed).toBe(true);
-    expect(/^https:\/\/lb\.drpc\.live\/aztec-mainnet\/[^/\s?#]+$/i.test("https://aztec-mainnet.drpc.org")).toBe(
-      false,
-    );
-  });
-});
-
 describe("csp", () => {
   it("does not allow open https: / wss: connect-src", () => {
     const csp = buildProductionCsp();

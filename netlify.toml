@@ -9,13 +9,16 @@
 #
 # After changing VITE_*: Deploys → Trigger deploy → Clear cache and deploy site.
 
-# Node comes from package.json#engines.node. pnpm comes from package.json#packageManager via Corepack.
+# Netlify does not read package.json#engines.node. NODE_VERSION below must match it
+# (scripts/check-pnpm-hardening.sh enforces that). pnpm comes from package.json#packageManager via Corepack.
+# Do not set NODE_VERSION or PNPM_VERSION in the Netlify UI; a UI value overrides this file.
 [build]
   command = '''corepack enable && corepack prepare "$(node -p "require('./package.json').packageManager")" --activate && pnpm install --frozen-lockfile && pnpm --filter @df-bridge/browser-sdk build && pnpm --filter @df-bridge/web build'''
   publish = "apps/web/dist"
 
 # Shared by production / deploy-preview / branch deploys / Netlify CLI builds.
 [build.environment]
+  NODE_VERSION = "24.22.1"
   VITE_ENABLE_BROWSER_CLAIM = "true"
   # Activity toasts stay hidden unless this is exactly "true".
   VITE_ENABLE_DAPP_LOG = "false"

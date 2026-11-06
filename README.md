@@ -44,10 +44,10 @@ Network addresses the page uses live in `apps/web/src/config/networks.ts`. GoBri
 
 ## Run it locally
 
-Node is the exact version in `package.json#engines.node` (`24.19.0`). pnpm is the Corepack pin in `package.json#packageManager`. Dependencies are exact versions in each `package.json`, resolved by `pnpm-lock.yaml`.
+Node is the exact version in `package.json#engines.node` (`24.22.1`). pnpm is the Corepack pin in `package.json#packageManager`. Dependencies are exact versions in each `package.json`, resolved by `pnpm-lock.yaml`.
 
 ```bash
-nvm install 24.19.0 && nvm use 24.19.0
+nvm install 24.22.1 && nvm use 24.22.1
 corepack enable
 corepack prepare "$(node -p "require('./package.json').packageManager")" --activate
 pnpm install --frozen-lockfile

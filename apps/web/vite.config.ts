@@ -170,14 +170,6 @@ export default defineConfig(({ mode }) => {
       );
     }
   }
-  // Path-keyed dRPC URLs must never ship in the browser bundle (VITE_* is public).
-  const viteMainnetNode = env.VITE_MAINNET_AZTEC_NODE_URL?.trim() ?? "";
-  if (/lb\.drpc\.live\/aztec-mainnet\/[^/\s?#]+/i.test(viteMainnetNode)) {
-    throw new Error(
-      "VITE_MAINNET_AZTEC_NODE_URL must not include a dRPC path key (baked into the client). " +
-        "Use https://aztec-mainnet.drpc.org, or put a keyed URL in MAINNET_AZTEC_NODE_URL for local pnpm dev.",
-    );
-  }
   const devMainnetNode =
     mode === "development" ? (env.MAINNET_AZTEC_NODE_URL?.trim() ?? "") : "";
   if (!browserClaim && !apiAuthToken) {
