@@ -130,6 +130,7 @@ export function VaultUnlockModal(props: {
           <span>Password</span>
           <input
             type="password"
+            autoFocus={mode === "unlock"}
             autoComplete={mode === "setup" ? "new-password" : "current-password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}

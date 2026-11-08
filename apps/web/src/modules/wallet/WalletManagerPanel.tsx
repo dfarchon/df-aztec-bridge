@@ -804,6 +804,7 @@ export function WalletManagerPanel(props: {
   const blocked =
     busy || importingPxe || creatingPxe || unlockingVault || pendingGateHandoff || rebaseChecking;
   const showAztecPane = !!ethWallet && browserClaimEnabled;
+  const hideGateEthereum = onConnectGate && !!ethWallet && showAztecPane;
   const l2ActionsDisabled = blocked || !sessionOk || sessionChecking;
 
   const bridgeReadyAccounts = aztecAccounts.filter((a) =>
@@ -869,7 +870,14 @@ export function WalletManagerPanel(props: {
           </div>
         ) : null}
         {error ? (
-          <div className="wallet-manager-notice is-error" role="alert">
+          <div
+            className="wallet-manager-notice is-error"
+            role="alert"
+            onClick={(event) => {
+              if ((event.target as Element).closest("button, a")) return;
+              setError(null);
+            }}
+          >
             <p>{error}</p>
             <button
               type="button"
@@ -899,9 +907,17 @@ export function WalletManagerPanel(props: {
         </p>
       ) : null}
 
+      {hideGateEthereum && expectedL1ChainId != null && ethWallet.chainId !== expectedL1ChainId ? (
+        <p className="error">Switch your wallet to {expectedL1Name ?? "the correct network"}.</p>
+      ) : null}
+      {hideGateEthereum && !sessionChecking && !sessionOk && sessionReason ? (
+        <p className="error">{sessionReason}</p>
+      ) : null}
+
       <div
-        className={`wallet-manager-grid${showAztecPane ? "" : " wallet-manager-grid-solo"}`}
+        className={`wallet-manager-grid${!showAztecPane || hideGateEthereum ? " wallet-manager-grid-solo" : ""}`}
       >
+        {!hideGateEthereum ? (
         <div className={`wallet-manager-col${ethWallet ? "" : " is-connect"}`}>
           {ethWallet ? (
             <p className="wallet-manager-pane-title">Ethereum L1</p>
@@ -957,7 +973,7 @@ export function WalletManagerPanel(props: {
                   {sessionReason ?? "Reconnect wallet to continue."}
                 </p>
               )}
-              <div className="wallet-manager-actions">
+              {!onConnectGate ? <div className="wallet-manager-actions">
                 <button
                   type="button"
                   className="ghost"
@@ -978,7 +994,7 @@ export function WalletManagerPanel(props: {
                 >
                   Disconnect
                 </button>
-              </div>
+              </div> : null}
             </>
           ) : (
             <button type="button" data-boot-connect-wallet disabled={blocked} onClick={onConnectEth}>
@@ -986,9 +1002,10 @@ export function WalletManagerPanel(props: {
             </button>
           )}
         </div>
+        ) : null}
 
         {showAztecPane ? (
-          <div className="wallet-manager-col">
+          <div className="wallet-manager-col" data-boot-wallet-step>
             {formatOpen ? (
               <div className="df-pxe-format-pane">
                 <p className="wallet-manager-pane-title">What file is this?</p>
@@ -1308,7 +1325,7 @@ export function WalletManagerPanel(props: {
                   ) : (
                     <p className="hint">Ready to import or create a DF Aztec account.</p>
                   )
-                ) : sessionReason ? (
+                ) : sessionReason && !hideGateEthereum ? (
                   <p className="error">{sessionReason}</p>
                 ) : null}
                 {showUnlock ? (

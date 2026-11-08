@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-booting>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -44,6 +44,11 @@
       #boot-splash.boot-splash-leave {
         opacity: 0;
         pointer-events: none;
+      }
+
+      html[data-booting] [data-boot-connect-wallet],
+      html[data-booting] [data-boot-wallet-step] {
+        visibility: hidden;
       }
 
       .boot-splash-inner {

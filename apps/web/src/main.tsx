@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { hardenClientSurface } from "./lib/client-hardening.ts";
 import { AsciiField } from "./theme/AsciiField.tsx";
+import type { ConnectedWallet } from "@df-bridge/browser-sdk";
 import "./styles.css";
 
 // Production: mute console + resist trivial inject helpers (before app boot).
@@ -67,7 +68,7 @@ if (bootField) {
   );
 }
 
-function dismissBootSplash() {
+function dismissBootSplash(targetKind: "connect" | "wallet-step" | "none" = "none") {
   window.clearInterval(splashProgressTimer);
   updateSplashProgress(100);
   const el = document.getElementById("boot-splash");
@@ -75,9 +76,12 @@ function dismissBootSplash() {
   el.setAttribute("aria-busy", "false");
   window.setTimeout(() => {
     const card = el.querySelector<HTMLElement>(".boot-splash-inner");
-    const target = document.querySelector<HTMLElement>("[data-boot-connect-wallet]");
+    const target = targetKind === "none" ? null : document.querySelector<HTMLElement>(
+      targetKind === "wallet-step" ? "[data-boot-wallet-step]" : "[data-boot-connect-wallet]",
+    );
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (!card || !target || reducedMotion) {
+      document.documentElement.removeAttribute("data-booting");
       el.classList.add("boot-splash-leave");
       window.setTimeout(() => el.remove(), reducedMotion ? 0 : 280);
       return;
@@ -86,6 +90,7 @@ function dismissBootSplash() {
     const from = card.getBoundingClientRect();
     const to = target.getBoundingClientRect();
     if (!from.width || !from.height || !to.width || !to.height) {
+      document.documentElement.removeAttribute("data-booting");
       el.classList.add("boot-splash-leave");
       window.setTimeout(() => el.remove(), 280);
       return;
@@ -111,7 +116,7 @@ function dismissBootSplash() {
       });
     }
     const label = document.createElement("span");
-    label.textContent = target.textContent?.trim() || "Connect wallet";
+    label.textContent = targetKind === "wallet-step" ? "Aztec account" : "Connect wallet";
     Object.assign(label.style, {
       position: "absolute",
       inset: "0",
@@ -144,9 +149,36 @@ function dismissBootSplash() {
     );
     void animation.finished.catch(() => {}).finally(() => {
       target.style.opacity = previousOpacity;
-      el.remove();
+      document.documentElement.removeAttribute("data-booting");
+      if (targetKind === "wallet-step") {
+        target.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, easing: "ease-out" });
+        void card.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, fill: "forwards" })
+          .finished.catch(() => {}).finally(() => el.remove());
+      } else {
+        el.remove();
+      }
     });
   }, 300);
+}
+
+async function restoreWalletBeforeLaunch(): Promise<ConnectedWallet | null> {
+  try {
+    const [{ discoverWallets }, { DEFAULT_NETWORK_ID, getNetwork }, reconnect] = await Promise.all([
+      import("@df-bridge/browser-sdk"),
+      import("./config/networks.ts"),
+      import("./lib/wallet-reconnect.ts"),
+    ]);
+    const remembered = reconnect.getRememberedConnector();
+    if (remembered === reconnect.DISCONNECTED_CONNECTOR || remembered === "walletconnect") return null;
+    // Allow late EIP-6963 announcements before deciding whether a wallet is unambiguous.
+    await new Promise((resolve) => window.setTimeout(resolve, 400));
+    const wallets = await discoverWallets(200);
+    const wallet = await reconnect.findAuthorizedWallet(wallets, remembered, getNetwork(DEFAULT_NETWORK_ID).l1ChainId);
+    if (wallet?.rdns) reconnect.rememberConnector(wallet.rdns);
+    return wallet;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -266,15 +298,15 @@ async function boot() {
   setSplashHint("Loading app bundle…");
   setProgressStage(10, 25, 0.04);
   const { App } = await import("./app/App.tsx");
-  await warmupPxeIfEnabled();
+  const [, initialWallet] = await Promise.all([warmupPxeIfEnabled(), restoreWalletBeforeLaunch()]);
 
   setProgressStage(97, 99, 0.1);
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
-      <App />
+      <App initialWallet={initialWallet} />
     </StrictMode>,
   );
-  dismissBootSplash();
+  dismissBootSplash(initialWallet ? "wallet-step" : "connect");
 }
 
 void boot().catch(showBootFailure);

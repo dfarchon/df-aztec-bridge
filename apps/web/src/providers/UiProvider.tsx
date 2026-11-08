@@ -41,6 +41,7 @@ export function UiProvider(props: { children: ReactNode }) {
   const [walletPanelOpen, setWalletPanelOpen] = useState(false);
   const [centerWalletsOpen, setCenterWalletsOpen] = useState(false);
   const [shellReady, setShellReady] = useState(false);
+  const closeWalletPanel = useCallback(() => setWalletPanelOpen(false), []);
 
   const setSidebarCollapsed = useCallback((v: boolean) => {
     setSidebarCollapsedState(v);
@@ -73,7 +74,7 @@ export function UiProvider(props: { children: ReactNode }) {
         setCenterWalletsOpen(false);
         setWalletPanelOpen(true);
       },
-      closeWalletPanel: () => setWalletPanelOpen(false),
+      closeWalletPanel,
       toggleWalletPanel: () => setWalletPanelOpen((o) => !o),
       centerWalletsOpen,
       openCenterWallets: () => {
@@ -84,7 +85,7 @@ export function UiProvider(props: { children: ReactNode }) {
       shellReady,
       setShellReady,
     }),
-    [sidebarCollapsed, setSidebarCollapsed, toggleSidebar, walletPanelOpen, centerWalletsOpen, shellReady],
+    [sidebarCollapsed, setSidebarCollapsed, toggleSidebar, walletPanelOpen, closeWalletPanel, centerWalletsOpen, shellReady],
   );
 
   return <UiContext.Provider value={value}>{props.children}</UiContext.Provider>;

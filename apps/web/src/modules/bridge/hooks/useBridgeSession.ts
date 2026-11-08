@@ -95,6 +95,7 @@ import { ROUTES } from "../../../app/routes.ts";
 import { useNetwork } from "../../../providers/NetworkProvider.tsx";
 import { getVaultLockReason, isVaultUnlocked, subscribeVault } from "../../../lib/vault.ts";
 import { VAULT_TIMEOUT_NOTICE } from "../../../lib/vault-idle-lock.ts";
+import { DISCONNECTED_CONNECTOR, rememberConnector } from "../../../lib/wallet-reconnect.ts";
 import { useVault } from "../../../providers/VaultProvider.tsx";
 import { useUi } from "../../../providers/UiProvider.tsx";
 import { assertSafeClaimApiBase } from "../../../lib/api-base.ts";
@@ -110,7 +111,7 @@ import {
 import { loadInitialSession, loadInitialSessions, storageErrorMessage } from "../tools.ts";
 
 /** Wallet, PXE import, balances, and browser session state for the bridge shell. */
-export function useBridgeSession() {
+export function useBridgeSession(initialWallet: ConnectedWallet | null = null) {
   const path = usePath();
   const navigate = useNavigate();
   const networkApi = useNetwork();
@@ -150,7 +151,7 @@ export function useBridgeSession() {
   const [connectingWallet, setConnectingWallet] = useState(false);
   const [walletConnectError, setWalletConnectError] = useState<string | null>(null);
   const [wcUri, setWcUri] = useState<string | null>(null);
-  const [wallet, setWallet] = useState<ConnectedWallet | null>(null);
+  const [wallet, setWallet] = useState<ConnectedWallet | null>(initialWallet);
   const [ethSessionOk, setEthSessionOk] = useState(false);
   const [dfPxeAccount, setDfPxeAccount] = useState<ImportedAztecAccount | null>(null);
   const [gateImportingPxe, setGateImportingPxe] = useState(false);
@@ -809,6 +810,7 @@ export function useBridgeSession() {
           } catch (switchErr: unknown) {
             // Connected but wrong network — still usable after user switches manually
             setWallet(connected);
+            rememberConnector(detail.info.rdns);
             setPickerOpen(false);
             const msg = isWalletUserRejection(switchErr)
               ? `Connected to ${detail.info.name}, but network switch was cancelled. Switch to chain ${networkMeta.l1ChainId} in the wallet, then bridge.`
@@ -820,6 +822,7 @@ export function useBridgeSession() {
           }
         }
         setWallet(connected);
+        rememberConnector(detail.info.rdns);
         setPickerOpen(false);
         setWalletConnectError(null);
         pushDappLog({
@@ -884,6 +887,7 @@ export function useBridgeSession() {
           await switchWalletChain(connected.provider, networkMeta.l1ChainId);
         } catch (switchErr: unknown) {
           setWallet(connected);
+          rememberConnector("walletconnect");
           setWcUri(null);
           setPickerOpen(false);
           const msg = isWalletUserRejection(switchErr)
@@ -895,6 +899,7 @@ export function useBridgeSession() {
         }
       }
       setWallet(connected);
+      rememberConnector("walletconnect");
       setWcUri(null);
       setPickerOpen(false);
       setWalletConnectError(null);
@@ -949,6 +954,7 @@ export function useBridgeSession() {
   }, []);
 
   const onDisconnect = useCallback(async () => {
+    rememberConnector(DISCONNECTED_CONNECTOR);
     setBusy(true);
     setError(null);
     try {
