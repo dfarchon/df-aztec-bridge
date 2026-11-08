@@ -1,4 +1,5 @@
 import type { EIP1193Provider, Hex } from "viem";
+import { toUiSafeProvider } from "./provider.ts";
 import {
   discoverWallets,
   type EIP6963ProviderDetail,
@@ -76,6 +77,7 @@ export async function connectWithProvider(
   provider: EIP1193Provider,
   meta?: { rdns?: string; name?: string },
 ): Promise<ConnectedWallet> {
+  provider = toUiSafeProvider(provider);
   const label = meta?.name ?? "Wallet";
 
   // Probe first — MetaMask sometimes leaves eth_requestAccounts hanging forever
