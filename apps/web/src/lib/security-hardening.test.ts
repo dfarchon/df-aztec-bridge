@@ -34,9 +34,10 @@ describe("csp", () => {
     expect(csp).toContain("https://crs.aztec-labs.com");
   });
 
-  it("keeps multi-tenant dRPC out of the production connect-src", () => {
-    expect(buildProductionCsp()).not.toContain("lb.drpc.live");
-    expect(buildDevCsp({ unsafeInlineScripts: false })).not.toContain("lb.drpc.live");
+  it("allows only the dRPC Aztec Mainnet path in connect-src", () => {
+    expect(buildProductionCsp()).toContain("https://lb.drpc.live/aztec-mainnet/");
+    expect(buildDevCsp({ unsafeInlineScripts: false })).toContain("https://lb.drpc.live/aztec-mainnet/");
+    expect(buildProductionCsp()).not.toMatch(/https:\/\/lb\.drpc\.live(?:\s|;)/);
   });
 });
 

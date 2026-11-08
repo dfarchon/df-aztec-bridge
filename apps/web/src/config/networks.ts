@@ -21,7 +21,7 @@ export interface WebNetworkConfig {
  * Static network presets for the web app (no API required for bridge).
  * L1 Fee Juice / Portal addresses are protocol contracts and rarely change.
  * Override URLs via VITE_*_AZTEC_NODE_URL / VITE_*_L1_RPC_URL at build time if needed.
- * Local `pnpm dev` uses the same pinned public RPC. A keyed node URL is not injected.
+ * Local `pnpm dev` also accepts MAINNET_AZTEC_NODE_URL. URLs are visible to the browser.
  */
 const NETWORKS_BASE: Record<string, WebNetworkConfig> = {
   testnet: {

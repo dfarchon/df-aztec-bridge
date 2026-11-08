@@ -3,11 +3,10 @@
  * Empty / missing fields fall back to baked-in network defaults.
  * L1 RPC is always the network preset (not user-overridable).
  *
- * Overrides must be an exact pinned public RPC (no path or query) or loopback.
- * `lb.drpc.live/<path>` is rejected: that host is multi-tenant.
+ * Overrides may also use a keyed dRPC Aztec Mainnet endpoint.
  */
 
-import { isLoopbackRpcUrl, isPinnedPublicRpcUrl } from "./official-links.ts";
+import { isDrpcAztecMainnetUrl, isLoopbackRpcUrl, isPinnedPublicRpcUrl } from "./official-links.ts";
 import { isVaultUnlocked, vaultGetJson, vaultSetJson, VaultLockedError } from "./vault.ts";
 
 export type RpcOverrides = {
@@ -53,9 +52,9 @@ export function isRpcUrlSchemeAllowed(url: string, { allowHttpLocal = true } = {
   }
 }
 
-/** Pinned public HTTPS RPC, or local http(s) loopback. No path keys. */
+/** Pinned public RPC, dRPC Aztec Mainnet, or local http(s) loopback. */
 export function isAllowedRpcOverrideUrl(url: string): boolean {
-  return isPinnedPublicRpcUrl(url) || isLoopbackRpcUrl(url);
+  return isPinnedPublicRpcUrl(url) || isDrpcAztecMainnetUrl(url) || isLoopbackRpcUrl(url);
 }
 
 export function validateRpcOverrides(overrides: RpcOverrides): string | null {
@@ -68,7 +67,7 @@ export function validateRpcOverrides(overrides: RpcOverrides): string | null {
       return `${label} must use https:// (or http:// only for localhost).`;
     }
     if (!isAllowedRpcOverrideUrl(value)) {
-      return `${label} must be a pinned public RPC with no path, or localhost. Multi-tenant hosts (lb.drpc.live) and arbitrary paths are blocked.`;
+      return `${label} must be a pinned public RPC, a dRPC Aztec Mainnet URL, or localhost.`;
     }
   }
   return null;
@@ -106,4 +105,4 @@ export function hasRpcOverrides(overrides: RpcOverrides): boolean {
 }
 
 export const RPC_OVERRIDE_WARNING =
-  "Custom RPC URLs must be localhost or an exact public endpoint with no path. Prefer baked-in defaults; a different node can observe metadata.";
+  "Custom RPC URLs must be localhost, a pinned public endpoint, or a dRPC Aztec Mainnet URL. A different node can observe metadata.";

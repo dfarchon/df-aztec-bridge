@@ -39,4 +39,4 @@ Network / L1 backend selectors live in the **wallet manager** drawer (locked to 
 
 ## Official allowlist
 
-See `apps/web/src/lib/official-links.ts` (`PINNED_PUBLIC_RPC_URLS`). Custom RPC overrides must be localhost or one of those exact URLs. Paths, query strings, and `lb.drpc.live` are rejected.
+See `apps/web/src/lib/official-links.ts` (`PINNED_PUBLIC_RPC_URLS`). Custom RPC overrides may also use `https://lb.drpc.live/aztec-mainnet/<key>`. Other paths, query strings, and unlisted hosts are rejected.

@@ -126,7 +126,7 @@ export function NetworkProvider(props: { children: ReactNode }) {
           kind: "tx",
           title: "RPC overrides saved",
           detail: next.aztecNodeUrl
-            ? `Aztec: ${next.aztecNodeUrl}`
+            ? "Aztec RPC updated."
             : "Cleared — using network default.",
           ttlMs: 10_000,
         });

@@ -31,8 +31,8 @@ export const OFFICIAL_HTTPS_HOST_ALLOWLIST = new Set([
 
 /**
  * Public RPC endpoints the UI may select. Hostname alone is not enough:
- * `lb.drpc.live/<path>` is a multi-tenant gateway, so a path can point at
- * someone else's node. No path, query, userinfo, or `lb.drpc.live`.
+ * These pinned endpoints do not accept a path, query, or userinfo.
+ * The separately validated dRPC Mainnet endpoint is also supported.
  */
 export const PINNED_PUBLIC_RPC_URLS = new Set([
   "https://aztec-mainnet.drpc.org",
@@ -67,16 +67,27 @@ export function isLoopbackRpcUrl(url: string): boolean {
   return host === "localhost" || host === "127.0.0.1" || host === "::1";
 }
 
-/** Build-time and runtime RPC config: pinned public HTTPS, or loopback. */
+/** dRPC's keyed Aztec Mainnet endpoint. The path selects the network and account. */
+export function isDrpcAztecMainnetUrl(url: string): boolean {
+  try {
+    const u = new URL(url.trim());
+    return u.protocol === "https:" && u.host === "lb.drpc.live" &&
+      !u.username && !u.password && !u.search && !u.hash &&
+      /^\/aztec-mainnet\/[A-Za-z0-9_-]+$/.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
+
+/** Build-time and runtime RPC config: pinned public HTTPS, dRPC Mainnet, or loopback. */
 export function isSafeConfiguredRpcUrl(url: string): boolean {
-  return isPinnedPublicRpcUrl(url) || isLoopbackRpcUrl(url);
+  return isPinnedPublicRpcUrl(url) || isDrpcAztecMainnetUrl(url) || isLoopbackRpcUrl(url);
 }
 
 export function assertSafeConfiguredRpcUrl(url: string, label: string): void {
   if (!isSafeConfiguredRpcUrl(url)) {
     throw new Error(
-      `${label} must be a pinned public https RPC with no path, or http(s) loopback. ` +
-        "Keyed lb.drpc.live URLs are rejected in VITE_* (they would ship in the JS bundle).",
+      `${label} must be a pinned public RPC, a dRPC Aztec Mainnet URL, or http(s) loopback.`,
     );
   }
 }

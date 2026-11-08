@@ -12,7 +12,7 @@ Never commit:
 - `account.json` / `account*.json` exports and `claim-*.json`
 - `.env` files (templates `.env.example` and `.env.netlify.example` are the only env files in git)
 - Netlify CLI link state under `.netlify/` (site id)
-- Keyed dRPC path URLs in `VITE_*` (Vite bakes them into the browser). Public default: `https://aztec-mainnet.drpc.org`.
+- Keyed dRPC path URLs in source control. A `VITE_*` URL is baked into the browser bundle and visible to visitors; the public default is `https://aztec-mainnet.drpc.org`.
 
 If secrets were ever committed, **deleting the files does not revoke them**. Rotate accounts / provider keys, move assets from a clean machine, and treat the old keys as burned.
 
@@ -28,8 +28,8 @@ If secrets were ever committed, **deleting the files does not revoke them**. Rot
 | Control | Status |
 |---------|--------|
 | Browser claim (Netlify) | `VITE_ENABLE_BROWSER_CLAIM=true`; remote claim API bases are rejected |
-| CSP | Explicit allowlist (`csp.ts` ≡ `netlify.toml`); no bare `https:`/`wss:`; no `lb.drpc.live` in production or dev; no `*.drpc.*` / `*.publicnode.com`. WC/Reown wildcards remain (required) |
-| RPC overrides | Localhost or an exact `PINNED_PUBLIC_RPC_URLS` entry (no path, query, or userinfo). `lb.drpc.live` is rejected |
+| CSP | Explicit allowlist (`csp.ts` ≡ `netlify.toml`); no bare `https:`/`wss:`; `lb.drpc.live/aztec-mainnet/` is allowed; no `*.drpc.*` / `*.publicnode.com`. WC/Reown wildcards remain (required) |
+| RPC overrides | Localhost, an exact `PINNED_PUBLIC_RPC_URLS` entry, or a keyed `lb.drpc.live/aztec-mainnet/` URL. Query strings and userinfo are rejected |
 | Vault | Meta AES-GCM at rest; PBKDF2-SHA-256 × 600,000 on create and on the next unlock of an older vault; idle 15m / tab-hidden 5m auto-lock also clears in-memory claim and account secrets. A passkey with WebAuthn PRF wraps the CEK so the password alone cannot decrypt. A passkey without PRF stays password-only |
 | Plaintext leftovers | Boot deletes pre-vault `localStorage` account / claim blobs without reading them into the UI. Recovery is the downloaded claim JSON |
 | Fee recipient | Pinned to `0x33D5928E1c66E831Eb250D1250bf2CfF9eACa370`. A different `VITE_BRIDGE_FEE_RECIPIENT` fails the build |
