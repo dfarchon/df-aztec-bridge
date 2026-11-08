@@ -4,7 +4,7 @@ A browser dapp that moves **Fee Juice** from Ethereum to an Aztec account so pri
 
 You connect a wallet, unlock a local vault, sign the L1 deposit, and claim on Aztec **in the same tab**. The page never asks for an Ethereum private key. Proving stays on your machine.
 
-**Live app:** [https://aztec-dfarchon-kit.netlify.app/](https://aztec-dfarchon-kit.netlify.app/)
+**Live app:** [https://aztec-dfarchon-kit-v6.netlify.app/](https://aztec-dfarchon-kit-v6.netlify.app/)
 
 Longer walkthroughs: [docs/education/](docs/education/README.md).
 
