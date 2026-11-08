@@ -19,7 +19,7 @@ export const SPONSORED_FPC_ADDRESS = assertPinnedSponsoredFpc(
 
 export const BRIDGE_PUBLIC_URL =
   (import.meta.env.VITE_BRIDGE_PUBLIC_URL as string | undefined)?.trim() ||
-  "https://aztec-dfarchon-kit.netlify.app/";
+  "https://aztec-dfarchon-kit-v6.netlify.app/";
 
 export const DFPUNK_PLAY_URL =
   (import.meta.env.VITE_DFPUNK_PLAY_URL as string | undefined)?.trim() ||

@@ -78,7 +78,7 @@ describe("vault passkey meta", () => {
       signingKey: SIGNING,
       passkey: {
         credentialId: btoa("old-cred"),
-        rpId: "aztec-dfarchon-kit.netlify.app",
+        rpId: "aztec-dfarchon-kit-v6.netlify.app",
         createdAt: 1,
       },
     });
@@ -123,7 +123,7 @@ describe("passkey host mismatch copy", () => {
     // Without a browser hostname, mismatch vs stored host is null or a string.
     const msg = describePasskeyHostMismatch({
       credentialId: "x",
-      rpId: "aztec-dfarchon-kit.netlify.app",
+      rpId: "aztec-dfarchon-kit-v6.netlify.app",
       createdAt: 1,
     });
     expect(msg === null || /registered for/i.test(msg)).toBe(true);

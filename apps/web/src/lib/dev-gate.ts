@@ -7,13 +7,13 @@
 export const DEV_GATE_SESSION_KEY = "df-bridge:dev-gate:ok";
 
 /** Production site. Branch deploys and deploy previews use a different host. */
-export const PRODUCTION_KIT_HOST = "aztec-dfarchon-kit.netlify.app";
+export const PRODUCTION_KIT_HOST = "aztec-dfarchon-kit-v6.netlify.app";
 
 /** Canonical Netlify branch-deploy host for branch `dev`. */
-export const DEV_BRANCH_HOST = "dev--aztec-dfarchon-kit.netlify.app";
+export const DEV_BRANCH_HOST = "dev--aztec-dfarchon-kit-v6.netlify.app";
 
 /** Optional prettier alias if configured in Netlify Domain management. */
-export const DEV_ALIAS_HOST = "dev.aztec-dfarchon-kit.netlify.app";
+export const DEV_ALIAS_HOST = "dev.aztec-dfarchon-kit-v6.netlify.app";
 
 export function isDevGateHost(hostname: string = typeof window !== "undefined" ? window.location.hostname : ""): boolean {
   const h = hostname.trim().toLowerCase();
@@ -21,7 +21,7 @@ export function isDevGateHost(hostname: string = typeof window !== "undefined" ?
   if (h === DEV_BRANCH_HOST || h === DEV_ALIAS_HOST) return true;
   // deploy-preview-N--site and <branch>--site
   if (h.endsWith(`--${PRODUCTION_KIT_HOST}`)) return true;
-  // dev.aztec-dfarchon-kit.netlify.app and other site subdomains
+  // dev.aztec-dfarchon-kit-v6.netlify.app and other site subdomains
   if (h.endsWith(`.${PRODUCTION_KIT_HOST}`)) return true;
   return false;
 }

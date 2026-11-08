@@ -9,17 +9,17 @@ import {
   verifyPreviewCookie,
 } from "../../../../netlify/edge-functions/preview-gate-logic.js";
 
-const HOST = "deploy-preview-12--aztec-dfarchon-kit.netlify.app";
+const HOST = "deploy-preview-12--aztec-dfarchon-kit-v6.netlify.app";
 const PASS = "preview-password";
 
 describe("preview edge gate", () => {
   it("gates preview hosts and leaves production and localhost open", () => {
-    expect(isPreviewGateHost("aztec-dfarchon-kit.netlify.app")).toBe(false);
+    expect(isPreviewGateHost("aztec-dfarchon-kit-v6.netlify.app")).toBe(false);
     expect(isPreviewGateHost("localhost")).toBe(false);
     expect(isPreviewGateHost("127.0.0.1")).toBe(false);
     expect(isPreviewGateHost(HOST)).toBe(true);
-    expect(isPreviewGateHost("dev--aztec-dfarchon-kit.netlify.app")).toBe(true);
-    expect(isPreviewGateHost("dev.aztec-dfarchon-kit.netlify.app")).toBe(true);
+    expect(isPreviewGateHost("dev--aztec-dfarchon-kit-v6.netlify.app")).toBe(true);
+    expect(isPreviewGateHost("dev.aztec-dfarchon-kit-v6.netlify.app")).toBe(true);
     expect(isPreviewGateHost("evil.netlify.app")).toBe(false);
   });
 

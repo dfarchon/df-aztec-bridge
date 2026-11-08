@@ -5,18 +5,18 @@ describe("isDevGateHost", () => {
   it("matches canonical branch and alias hosts", () => {
     expect(isDevGateHost(DEV_BRANCH_HOST)).toBe(true);
     expect(isDevGateHost(DEV_ALIAS_HOST)).toBe(true);
-    expect(isDevGateHost("DEV--Aztec-Dfarchon-Kit.netlify.app")).toBe(true);
+    expect(isDevGateHost("DEV--Aztec-Dfarchon-Kit-v6.netlify.app")).toBe(true);
   });
 
   it("rejects production kit host", () => {
-    expect(isDevGateHost("aztec-dfarchon-kit.netlify.app")).toBe(false);
+    expect(isDevGateHost("aztec-dfarchon-kit-v6.netlify.app")).toBe(false);
     expect(isDevGateHost("localhost")).toBe(false);
   });
 
   it("gates deploy previews and other branch hosts", () => {
-    expect(isDevGateHost("deploy-preview-12--aztec-dfarchon-kit.netlify.app")).toBe(true);
-    expect(isDevGateHost("feature--aztec-dfarchon-kit.netlify.app")).toBe(true);
-    expect(isDevGateHost("9stx6-dev--aztec-dfarchon-kit.netlify.app")).toBe(true);
+    expect(isDevGateHost("deploy-preview-12--aztec-dfarchon-kit-v6.netlify.app")).toBe(true);
+    expect(isDevGateHost("feature--aztec-dfarchon-kit-v6.netlify.app")).toBe(true);
+    expect(isDevGateHost("9stx6-dev--aztec-dfarchon-kit-v6.netlify.app")).toBe(true);
   });
 });
 

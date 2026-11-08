@@ -3,7 +3,7 @@
  * The password never goes into the client bundle. Netlify injects DEV_GATE_PASSWORD at the edge.
  */
 
-export const PRODUCTION_KIT_HOST = "aztec-dfarchon-kit.netlify.app";
+export const PRODUCTION_KIT_HOST = "aztec-dfarchon-kit-v6.netlify.app";
 export const PREVIEW_COOKIE = "df_preview_gate";
 export const PREVIEW_COOKIE_TTL_MS = 12 * 60 * 60 * 1000;
 /** Failed POST attempts per client IP before 429 (soft; edge isolate memory). */
