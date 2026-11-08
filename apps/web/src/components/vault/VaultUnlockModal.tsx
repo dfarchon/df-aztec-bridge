@@ -78,11 +78,18 @@ export function VaultUnlockModal(props: {
 
   return (
     <div className="modal-backdrop vault-modal-backdrop" role="presentation">
-      <div
+      <form
         className="modal vault-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!canSubmit) return;
+          void onSubmit(password, {
+            registerPasskey: mode === "setup" ? registerPasskey && webAuthnOk : false,
+          });
+        }}
       >
         <div className="modal-header">
           <h2 id={titleId}>
@@ -176,6 +183,15 @@ export function VaultUnlockModal(props: {
         ) : null}
         {mismatch ? <p className="error small">Passwords do not match.</p> : null}
         {error ? <p className="error small">{error}</p> : null}
+        {busy ? (
+          <div className="vault-loading" role="status" aria-live="polite">
+            <span>{mode === "unlock" ? "Unlocking vault…" : "Creating vault…"}</span>
+            <div className="vault-loading-track" role="progressbar" aria-label={mode === "unlock" ? "Unlocking vault" : "Creating vault"}>
+              <div className="vault-loading-bar" />
+            </div>
+            {passkeyRequired ? <span>Approve the passkey prompt if it appears.</span> : null}
+          </div>
+        ) : null}
         {passkeyRecovery ? (
           <div className="vault-passkey-recovery">
             <p className="hint">
@@ -213,14 +229,9 @@ export function VaultUnlockModal(props: {
             </button>
           ) : null}
           <button
-            type="button"
+            type="submit"
             className="primary"
             disabled={!canSubmit}
-            onClick={() =>
-              void onSubmit(password, {
-                registerPasskey: mode === "setup" ? registerPasskey && webAuthnOk : false,
-              })
-            }
           >
             {busy
               ? "…"
@@ -233,7 +244,7 @@ export function VaultUnlockModal(props: {
                   : "Unlock"}
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

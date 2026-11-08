@@ -52,11 +52,17 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 1rem;
+        gap: 0.6rem;
         box-sizing: border-box;
-        width: max-content;
+        width: min(29rem, calc(100vw - 2rem));
         max-width: calc(100vw - 2rem);
-        padding: 1.5rem;
+        padding: 1rem 1.15rem;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 12px;
+        background: rgba(95, 95, 100, 0.28);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.32);
+        -webkit-backdrop-filter: blur(2px);
+        backdrop-filter: blur(2px);
         text-align: center;
       }
 
@@ -65,7 +71,7 @@
         flex-direction: column;
         align-items: center;
         gap: 0.35rem;
-        width: max-content;
+        width: 100%;
         max-width: 100%;
       }
 
@@ -74,11 +80,26 @@
       }
 
       .boot-spinner {
-        width: 2rem;
-        height: 2px;
-        background: #ffb7c5;
-        opacity: 0.85;
-        animation: boot-pulse 2s ease-in-out infinite;
+        display: flex;
+        align-items: center;
+        width: 100%;
+        gap: 0.5rem;
+        color: #ffd2dd;
+        font: 600 0.875rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: clamp(0.625rem, 2.6vw, 0.875rem);
+        white-space: nowrap;
+        text-shadow: 0 1px 3px #000;
+      }
+
+      .boot-progress-characters {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        justify-content: space-between;
+      }
+
+      @media (max-width: 480px) {
+        .boot-spinner { font-size: clamp(0.45rem, 2vw, 0.7rem); }
       }
 
       .boot-splash-title {
@@ -92,7 +113,7 @@
       .boot-splash-note {
         margin: 0;
         flex: 0 0 auto;
-        white-space: nowrap;
+        overflow-wrap: anywhere;
         font: 400 0.875rem/1.45 "Fira Sans", system-ui, sans-serif;
         color: #f4eef2;
         text-shadow: 0 0 12px #000, 0 1px 2px #000;
@@ -125,18 +146,6 @@
           pointer;
       }
 
-      @keyframes boot-pulse {
-        50% {
-          opacity: 0.45;
-        }
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        .boot-spinner {
-          animation: none;
-        }
-      }
-
       html[data-theme="light"],
       html[data-theme="light"] body {
         background: #ffffff;
@@ -146,6 +155,11 @@
       html[data-theme="light"] #boot-splash {
         background: transparent;
         color: #000000;
+      }
+
+      html[data-theme="light"] .boot-splash-inner {
+        background: rgba(225, 225, 230, 0.4);
+        border-color: rgba(60, 60, 65, 0.22);
       }
 
       html[data-theme="light"] .boot-splash-title,
@@ -161,7 +175,8 @@
       }
 
       html[data-theme="light"] .boot-spinner {
-        background: #e78398;
+        color: #762c45;
+        text-shadow: 0 1px 3px #fff;
       }
 
       html[data-theme="light"] .boot-reload-btn {
@@ -175,7 +190,7 @@
     <div id="boot-field"></div>
     <div id="boot-splash" aria-live="polite" aria-busy="true">
       <div class="boot-splash-inner">
-        <div class="boot-spinner" aria-hidden="true"></div>
+        <div class="boot-spinner" role="progressbar" aria-label="Estimated loading progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="3"><span class="boot-progress-characters" aria-hidden="true"><span>[</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>-</span><span>]</span></span><span class="boot-progress-label" aria-hidden="true">~3%</span></div>
         <p class="boot-splash-title">DF Aztec Bridge</p>
         <div class="boot-splash-copy">
           <p class="boot-splash-hint">Loading app… first visit may take a moment.</p>

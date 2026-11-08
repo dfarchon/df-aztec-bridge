@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState, type DragEvent } from "react";
 import { createPortal } from "react-dom";
 import type { ConnectedWallet } from "@df-bridge/browser-sdk";
 import type { ImportedAztecAccount } from "../../lib/account-import.ts";
@@ -43,6 +43,53 @@ import {
 } from "../../lib/df-pxe-import.ts";
 import { ConnectNoticeHostContext } from "../../components/ui/ConnectSessionGate.tsx";
 import { useUi } from "../../providers/UiProvider.tsx";
+
+function DfAccountDropZone({ disabled, importing, onChoose, onFiles }: {
+  disabled: boolean;
+  importing: boolean;
+  onChoose: () => void;
+  onFiles: (files: FileList) => void;
+}) {
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
+  const isFileDrag = (event: DragEvent) => Array.from(event.dataTransfer.types).includes("Files");
+  return (
+    <div
+      className={`df-account-drop-wrap${dragging && !disabled ? " is-dragging" : ""}${disabled ? " is-disabled" : ""}`}
+      onDragEnter={(event) => {
+        if (!isFileDrag(event)) return;
+        event.preventDefault();
+        dragDepth.current += 1;
+        if (!disabled) setDragging(true);
+      }}
+      onDragOver={(event) => {
+        if (!isFileDrag(event)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = disabled ? "none" : "copy";
+      }}
+      onDragLeave={(event) => {
+        if (!isFileDrag(event)) return;
+        event.preventDefault();
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (!dragDepth.current) setDragging(false);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        dragDepth.current = 0;
+        setDragging(false);
+        if (!disabled && event.dataTransfer.files.length) onFiles(event.dataTransfer.files);
+      }}
+    >
+      <button type="button" className="df-account-drop" disabled={disabled} onClick={onChoose}>
+        <span className="df-account-drop-icon" aria-hidden="true">↑</span>
+        <span className="df-account-drop-copy">
+          <strong>{importing ? "Importing…" : dragging ? "Drop your DF account file" : "Import DF account"}</strong>
+          <span>Drag and drop a JSON file here, or click to choose</span>
+        </span>
+      </button>
+    </div>
+  );
+}
 
 export function WalletManagerPanel(props: {
   networkId: string;
@@ -417,6 +464,14 @@ export function WalletManagerPanel(props: {
     } finally {
       if (live()) setImportingPxe(false);
     }
+  };
+
+  const importDroppedFiles = (files: FileList) => {
+    if (files.length !== 1) {
+      setError("Choose one DF account JSON file.");
+      return;
+    }
+    void importFromDfClientIntoPxe(files[0]);
   };
 
   const createV6Wallet = async () => {
@@ -926,7 +981,7 @@ export function WalletManagerPanel(props: {
               </div>
             </>
           ) : (
-            <button type="button" disabled={blocked} onClick={onConnectEth}>
+            <button type="button" data-boot-connect-wallet disabled={blocked} onClick={onConnectEth}>
               Connect wallet
             </button>
           )}
@@ -1006,14 +1061,12 @@ export function WalletManagerPanel(props: {
                 >
                   {creatingPxe ? "Creating…" : "Create DF account"}
                 </button>
-                <button
-                  type="button"
-                  className="ghost"
+                <DfAccountDropZone
                   disabled={l2ActionsDisabled || !replaceBackedUp}
-                  onClick={() => dfImportInputRef.current?.click()}
-                >
-                  {importingPxe ? "Importing…" : "Import DF account"}
-                </button>
+                  importing={importingPxe}
+                  onChoose={() => dfImportInputRef.current?.click()}
+                  onFiles={importDroppedFiles}
+                />
                 <button
                   type="button"
                   className="ghost"
@@ -1268,14 +1321,12 @@ export function WalletManagerPanel(props: {
                     {unlockingVault || pendingGateHandoff ? "Unlocking…" : "Unlock saved DF account"}
                   </button>
                 ) : null}
-                <button
-                  type="button"
-                  className={`df-pxe-import-btn${ethWallet && sessionOk && !l2ActionsDisabled && !showUnlock ? " cta-pulse" : ""}`}
+                <DfAccountDropZone
                   disabled={l2ActionsDisabled}
-                  onClick={() => dfImportInputRef.current?.click()}
-                >
-                  {importingPxe ? "Importing…" : "Import DF account"}
-                </button>
+                  importing={importingPxe}
+                  onChoose={() => dfImportInputRef.current?.click()}
+                  onFiles={importDroppedFiles}
+                />
                 <button
                   type="button"
                   className={`df-pxe-import-btn${ethWallet && sessionOk && !l2ActionsDisabled && !showUnlock ? " cta-pulse" : ""}`}
