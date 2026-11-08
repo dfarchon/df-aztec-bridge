@@ -9,6 +9,7 @@ import {
   formatSliderAmount,
   bridgeShortfall,
   isDraftAmountInput,
+  MAX_BRIDGE_WEI,
   MIN_BRIDGE_FJ,
   MIN_BRIDGE_WEI,
   parseAmountWeiLoose,
@@ -28,10 +29,16 @@ describe("formatBridgeReceiptHint", () => {
 });
 
 describe("parseBridgeAmount", () => {
-  it("accepts the minimum and anything above it", () => {
+  it("accepts amounts from the minimum through the maximum", () => {
     expect(parseBridgeAmount(String(MIN_BRIDGE_FJ))).toEqual({ wei: MIN_BRIDGE_WEI, error: null });
-    expect(parseBridgeAmount("1000").wei).toBe(fj("1000"));
+    expect(parseBridgeAmount("500").wei).toBe(MAX_BRIDGE_WEI);
     expect(parseBridgeAmount("  3.5  ").wei).toBe(fj("3.5"));
+  });
+
+  it("rejects amounts above 500 including the smallest fractional increment", () => {
+    for (const input of ["501", "1000", "500.000000000000000001"]) {
+      expect(parseBridgeAmount(input)).toEqual({ wei: null, error: "Maximum bridge amount is 500 FJ." });
+    }
   });
 
   it("rejects amounts below the minimum", () => {
@@ -72,6 +79,13 @@ describe("sanitizeAmountInput", () => {
     expect(sanitizeAmountInput("3.1.4")).toBe("3.14");
     expect(sanitizeAmountInput(".5")).toBe("0.5");
     expect(sanitizeAmountInput(`3.${"1".repeat(20)}`)).toBe(`3.${"1".repeat(18)}`);
+  });
+
+  it("limits typed and pasted values to 500 without breaking valid drafts", () => {
+    expect(sanitizeAmountInput("1000")).toBe("500");
+    expect(sanitizeAmountInput("500.000000000000000001")).toBe("500");
+    expect(sanitizeAmountInput("500.")).toBe("500.");
+    expect(sanitizeAmountInput("499.999999999999999999")).toBe("499.999999999999999999");
   });
 });
 
@@ -126,6 +140,10 @@ describe("amount presets and slider", () => {
       ["Max", false, "8"],
     ]);
     expect(amountPresets(fj("2")).every((row) => row.disabled)).toBe(true);
+  });
+
+  it("bases presets on the 500 limit when the wallet balance is larger", () => {
+    expect(amountPresets(fj("2000")).map((row) => row.amountFj)).toEqual(["125", "250", "375", "500"]);
   });
 
   it("floors slider amounts to 4 decimals without rounding up", () => {

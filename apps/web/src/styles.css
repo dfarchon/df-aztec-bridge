@@ -826,6 +826,13 @@ main.app-main:has(.vault-layout) {
   justify-content: safe center;
 }
 
+@media (min-height: 800px) {
+  .app-main-inner-bridge .bridge-workspace:has(.bridge-workspace-body) {
+    box-sizing: border-box;
+    padding-bottom: 160px;
+  }
+}
+
 .bridge-risk-body {
   display: flex;
   flex-direction: column;
@@ -943,9 +950,87 @@ main.app-main:has(.vault-layout) {
 
 .bridge-accounts {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 0.65rem 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.85rem;
   align-items: start;
+}
+
+.bridge-route-title {
+  margin: 0 0 0.35rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid var(--line);
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.bridge-amount-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.bridge-accounts .bridge-account {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem 0.75rem;
+}
+
+.bridge-accounts .bridge-account > .error,
+.bridge-accounts .bridge-account > .balance-error {
+  grid-column: 1 / -1;
+}
+
+.bridge-accounts .bridge-account-balance {
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.bridge-accounts .bridge-account-balance .balance-amount {
+  text-align: right;
+}
+
+.bridge-accounts .bridge-account .wallet-manager-address {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.bridge-destination-estimate {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-align: right;
+}
+
+.bridge-destination-estimate strong {
+  color: var(--text);
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.bridge-accounts .bridge-destination-balance {
+  grid-column: 1 / -1;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--line);
+}
+
+.bridge-destination-balance-label {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.bridge-amount-section .bridge-amount-input-wrap { order: 1; }
+.bridge-amount-section .dex-pay-meta { order: 3; }
+.bridge-amount-section .bridge-preset-limit { order: 3; margin: 0; font-size: 0.75rem; }
+.bridge-amount-section #bridge-amount-help { order: 4; }
+
+.bridge-actions.bridge-step {
+  gap: 0.65rem;
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
 }
 
 .bridge-account-col {
@@ -1093,79 +1178,18 @@ main.app-main:has(.vault-layout) {
   flex: 0 0 auto;
 }
 
-.bridge-amount-slider,
-input.bridge-amount-slider[type="range"] {
-  display: block;
-  width: 15rem;
-  max-width: 15rem;
-  min-width: 15rem;
-  height: 1.15rem;
-  min-height: 0 !important;
-  margin: 0.05rem 0 0.15rem;
-  padding: 0 !important;
-  appearance: none;
-  -webkit-appearance: none;
-  border: none !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  cursor: pointer;
-}
-
-.bridge-amount-slider::-webkit-slider-runnable-track {
-  height: 4px;
-  border: 1px solid var(--line);
-  background: linear-gradient(
-    to right,
-    var(--text) 0,
-    var(--text) var(--amount-slider-fill, 0%),
-    var(--bg) var(--amount-slider-fill, 0%),
-    var(--bg) 100%
-  );
-}
-
-.bridge-amount-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 12px;
-  height: 12px;
-  margin-top: -5px;
-  border: 1.5px solid var(--text);
-  border-radius: 0;
-  background: var(--bg);
-}
-
-.bridge-amount-slider::-moz-range-track {
-  height: 4px;
-  border: 1px solid var(--line);
-  background: var(--bg);
-}
-
-.bridge-amount-slider::-moz-range-progress {
-  height: 4px;
-  background: var(--text);
-}
-
-.bridge-amount-slider::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
-  border: 1.5px solid var(--text);
-  border-radius: 0;
-  background: var(--bg);
-}
-
-.bridge-amount-slider:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
 .bridge-amount-input-wrap {
   display: flex;
   align-items: center;
   flex: 1 1 auto;
   min-width: 0;
-  border: none;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.4rem;
   background: transparent;
+}
+
+.bridge-amount-input-wrap:focus-within {
+  border-bottom-color: var(--text);
 }
 
 .bridge-amount-input,
@@ -1199,10 +1223,10 @@ input.bridge-amount-input:focus-visible {
 
 .bridge-amount-unit {
   flex: 0 0 auto;
-  padding: 0.28rem 0.55rem;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--text);
+  padding: 0 0 0 0.75rem;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
   font-family: var(--font);
   font-size: 0.875rem;
   font-weight: 700;
@@ -1224,6 +1248,42 @@ input.bridge-amount-input:focus-visible {
 
 .bridge-amount-card #bridge-amount-help.marquee-hint {
   text-overflow: clip;
+}
+
+.bridge-amount-card #bridge-amount-help.bridge-fee-summary {
+  overflow: visible;
+  white-space: normal;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--line);
+  color: var(--text-muted);
+}
+
+.bridge-fee-summary dl {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+}
+
+.bridge-fee-summary dl > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.bridge-fee-summary dt,
+.bridge-fee-summary dd {
+  margin: 0;
+}
+
+.bridge-fee-summary dd {
+  color: var(--text);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.bridge-fee-summary p {
+  margin: 0.45rem 0 0;
 }
 
 .marquee-hint-viewport {
@@ -1324,6 +1384,10 @@ input.bridge-amount-input:focus-visible {
 @media (max-width: 640px) {
   .bridge-accounts {
     grid-template-columns: 1fr;
+  }
+
+  .bridge-accounts .bridge-account-balance {
+    gap: 0.7rem;
   }
 
   .bridge-amount-input,
@@ -2724,7 +2788,7 @@ html[data-theme="light"] .integrity-tip {
 }
 
 .connect-gate.is-split .connect-gate-stack {
-  width: min(58rem, calc(100% - 2rem));
+  width: min(28.375rem, calc(100% - 2rem));
   min-height: 0;
 }
 
@@ -2850,6 +2914,7 @@ html[data-theme="light"] .integrity-tip {
 
 .wallet-manager-notice.is-error {
   border-color: var(--danger);
+  cursor: pointer;
 }
 
 .wallet-manager-notice.is-error p {
@@ -3291,6 +3356,11 @@ html[data-theme="light"] .integrity-tip {
 
 .dapp-log-error::before {
   background: var(--pink-400);
+}
+
+.dapp-log-card.dapp-log-error,
+.app-error-toast {
+  cursor: pointer;
 }
 
 .dapp-log-card-head {
@@ -3818,6 +3888,12 @@ body:has(.app-frame.session-locked) {
   overflow: auto;
 }
 
+@media (min-height: 800px) {
+  .connect-gate.is-split {
+    padding-bottom: calc(2rem + 120px);
+  }
+}
+
 .connect-gate-wallet-head {
   display: flex;
   align-items: center;
@@ -3832,7 +3908,7 @@ body:has(.app-frame.session-locked) {
 }
 
 .connect-gate.is-wallets.is-split .connect-gate-stack {
-  width: min(58rem, calc(100% - 2rem));
+  width: min(28.375rem, calc(100% - 2rem));
 }
 
 .connect-gate-card {
@@ -5119,29 +5195,6 @@ input.bridge-amount-input.input-invalid,
 input.bridge-amount-input[aria-invalid="true"] {
   box-shadow: none !important;
   color: var(--text-heading) !important;
-}
-
-.bridge-amount-slider,
-input.bridge-amount-slider[type="range"] {
-  width: 15rem !important;
-  max-width: 15rem !important;
-  min-width: 15rem !important;
-  min-height: 0 !important;
-  height: 1.15rem !important;
-  margin: 0.05rem 0 0.15rem !important;
-  padding: 0 !important;
-  border: none !important;
-  background: transparent !important;
-  box-shadow: none !important;
-}
-
-.bridge-amount-slider:focus,
-.bridge-amount-slider:focus-visible,
-input.bridge-amount-slider[type="range"]:focus,
-input.bridge-amount-slider[type="range"]:focus-visible {
-  outline: none !important;
-  border: none !important;
-  box-shadow: none !important;
 }
 
 .mono,
