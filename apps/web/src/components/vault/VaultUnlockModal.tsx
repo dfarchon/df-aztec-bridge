@@ -78,11 +78,18 @@ export function VaultUnlockModal(props: {
 
   return (
     <div className="modal-backdrop vault-modal-backdrop" role="presentation">
-      <div
+      <form
         className="modal vault-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!canSubmit) return;
+          void onSubmit(password, {
+            registerPasskey: mode === "setup" ? registerPasskey && webAuthnOk : false,
+          });
+        }}
       >
         <div className="modal-header">
           <h2 id={titleId}>
@@ -119,27 +126,36 @@ export function VaultUnlockModal(props: {
         {mode === "unlock" && passkeyRequired ? (
           <p className="hint mono small">Site host (passkey rpId): {host}</p>
         ) : null}
-        <label className="field">
-          <span>Password</span>
-          <input
-            type="password"
-            autoComplete={mode === "setup" ? "new-password" : "current-password"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={busy}
-          />
-        </label>
-        {mode === "setup" ? (
-          <label className="field">
-            <span>Confirm password</span>
+        <div className="field">
+          <label htmlFor={`${titleId}-password`}>Password</label>
+          <div className="vault-input-wrap">
             <input
+              id={`${titleId}-password`}
               type="password"
-              autoComplete="new-password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
+              autoFocus={mode === "unlock"}
+              autoComplete={mode === "setup" ? "new-password" : "current-password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               disabled={busy}
             />
-          </label>
+            {mode === "unlock" ? <EnterHint /> : null}
+          </div>
+        </div>
+        {mode === "setup" ? (
+          <div className="field">
+            <label htmlFor={`${titleId}-confirm`}>Confirm password</label>
+            <div className="vault-input-wrap">
+              <input
+                id={`${titleId}-confirm`}
+                type="password"
+                autoComplete="new-password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                disabled={busy}
+              />
+              <EnterHint />
+            </div>
+          </div>
         ) : null}
         {mode === "setup" && webAuthnOk ? (
           <label className="field vault-passkey-opt">
@@ -176,6 +192,15 @@ export function VaultUnlockModal(props: {
         ) : null}
         {mismatch ? <p className="error small">Passwords do not match.</p> : null}
         {error ? <p className="error small">{error}</p> : null}
+        {busy ? (
+          <div className="vault-loading" role="status" aria-live="polite">
+            <span>{mode === "unlock" ? "Unlocking vault…" : "Creating vault…"}</span>
+            <div className="vault-loading-track" role="progressbar" aria-label={mode === "unlock" ? "Unlocking vault" : "Creating vault"}>
+              <div className="vault-loading-bar" />
+            </div>
+            {passkeyRequired ? <span>Approve the passkey prompt if it appears.</span> : null}
+          </div>
+        ) : null}
         {passkeyRecovery ? (
           <div className="vault-passkey-recovery">
             <p className="hint">
@@ -213,14 +238,9 @@ export function VaultUnlockModal(props: {
             </button>
           ) : null}
           <button
-            type="button"
+            type="submit"
             className="primary"
             disabled={!canSubmit}
-            onClick={() =>
-              void onSubmit(password, {
-                registerPasskey: mode === "setup" ? registerPasskey && webAuthnOk : false,
-              })
-            }
           >
             {busy
               ? "…"
@@ -233,7 +253,17 @@ export function VaultUnlockModal(props: {
                   : "Unlock"}
           </button>
         </div>
-      </div>
+      </form>
     </div>
+  );
+}
+
+function EnterHint() {
+  return (
+    <span className="vault-input-enter" aria-hidden="true" title="Press Enter to submit">
+      <svg viewBox="0 0 24 24" width="18" height="18">
+        <path d="M19 5v5a4 4 0 0 1-4 4H5m0 0 4-4m-4 4 4 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </span>
   );
 }

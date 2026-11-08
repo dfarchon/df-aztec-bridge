@@ -75,6 +75,10 @@ requestBridge,
       void onBridge();
       return;
     }
+    if (progress.track === "claim" && progress.combinedFlow) {
+      void claimAfterBridge();
+      return;
+    }
     if (!selectedSession) return;
     if (progress.track === "claim") void onResumeClaim(selectedSession);
     else if (progress.track === "resume-l1") void retryResumeL1(selectedSession);
@@ -94,6 +98,7 @@ requestBridge,
       detail={bridgePhase}
       aztecNodeUrl={networkMeta?.aztecNodeUrl}
       networkId={networkId}
+      claimRecipient={progress.claimRecipient ?? credentials?.recipient ?? selectedSession?.credentials?.recipient ?? selectedSession?.recipient}
       onDismiss={() => {
         setProgress(null);
         setBridgePhase(null);

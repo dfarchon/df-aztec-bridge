@@ -23,6 +23,8 @@ interface ImportMetaEnv {
   readonly VITE_SPONSORED_FPC_ADDRESS?: string;
   readonly VITE_BRIDGE_PUBLIC_URL?: string;
   readonly VITE_DFPUNK_PLAY_URL?: string;
+  /** Optional public event link; unset hides the sidebar event entrance. */
+  readonly VITE_DF_AZTEC_EVENT_URL?: string;
 }
 
 interface ImportMeta {

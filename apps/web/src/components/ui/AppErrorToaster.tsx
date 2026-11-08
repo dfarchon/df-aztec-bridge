@@ -15,7 +15,15 @@ export function AppErrorToastList(props: {
   return (
     <aside className="app-error-toaster" aria-label="Errors" aria-live="assertive">
       {entries.map((entry) => (
-        <article key={entry.id} className="app-error-toast" role="alert">
+        <article
+          key={entry.id}
+          className="app-error-toast"
+          role="alert"
+          onClick={(event) => {
+            if ((event.target as Element).closest("button, a")) return;
+            onDismiss(entry.id);
+          }}
+        >
           <div className="app-error-toast-body">
             <p className="app-error-toast-title">{entry.title}</p>
             {entry.detail ? <p className="app-error-toast-detail">{entry.detail}</p> : null}

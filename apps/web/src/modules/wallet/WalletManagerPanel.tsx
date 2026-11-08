@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState, type DragEvent } from "react";
 import { createPortal } from "react-dom";
 import type { ConnectedWallet } from "@df-bridge/browser-sdk";
 import type { ImportedAztecAccount } from "../../lib/account-import.ts";
@@ -43,6 +43,53 @@ import {
 } from "../../lib/df-pxe-import.ts";
 import { ConnectNoticeHostContext } from "../../components/ui/ConnectSessionGate.tsx";
 import { useUi } from "../../providers/UiProvider.tsx";
+
+function DfAccountDropZone({ disabled, importing, onChoose, onFiles }: {
+  disabled: boolean;
+  importing: boolean;
+  onChoose: () => void;
+  onFiles: (files: FileList) => void;
+}) {
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
+  const isFileDrag = (event: DragEvent) => Array.from(event.dataTransfer.types).includes("Files");
+  return (
+    <div
+      className={`df-account-drop-wrap${dragging && !disabled ? " is-dragging" : ""}${disabled ? " is-disabled" : ""}`}
+      onDragEnter={(event) => {
+        if (!isFileDrag(event)) return;
+        event.preventDefault();
+        dragDepth.current += 1;
+        if (!disabled) setDragging(true);
+      }}
+      onDragOver={(event) => {
+        if (!isFileDrag(event)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = disabled ? "none" : "copy";
+      }}
+      onDragLeave={(event) => {
+        if (!isFileDrag(event)) return;
+        event.preventDefault();
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (!dragDepth.current) setDragging(false);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        dragDepth.current = 0;
+        setDragging(false);
+        if (!disabled && event.dataTransfer.files.length) onFiles(event.dataTransfer.files);
+      }}
+    >
+      <button type="button" className="df-account-drop" disabled={disabled} onClick={onChoose}>
+        <span className="df-account-drop-icon" aria-hidden="true">↑</span>
+        <span className="df-account-drop-copy">
+          <strong>{importing ? "Importing…" : dragging ? "Drop your DF account file" : "Import DF account"}</strong>
+          <span>Drag and drop a JSON file here, or click to choose</span>
+        </span>
+      </button>
+    </div>
+  );
+}
 
 export function WalletManagerPanel(props: {
   networkId: string;
@@ -425,6 +472,14 @@ export function WalletManagerPanel(props: {
     }
   };
 
+  const importDroppedFiles = (files: FileList) => {
+    if (files.length !== 1) {
+      setError("Choose one DF account JSON file.");
+      return;
+    }
+    void importFromDfClientIntoPxe(files[0]);
+  };
+
   const createV6Wallet = async () => {
     if (!sessionOk || !ethWallet) {
       setError("Connect a wallet first.");
@@ -761,6 +816,7 @@ export function WalletManagerPanel(props: {
   const blocked =
     busy || importingPxe || creatingPxe || unlockingVault || pendingGateHandoff || rebaseChecking;
   const showAztecPane = !!ethWallet && browserClaimEnabled;
+  const hideGateEthereum = onConnectGate && !!ethWallet && showAztecPane;
   const l2ActionsDisabled = blocked || !sessionOk || sessionChecking;
 
   const bridgeReadyAccounts = aztecAccounts.filter((a) =>
@@ -826,7 +882,14 @@ export function WalletManagerPanel(props: {
           </div>
         ) : null}
         {error ? (
-          <div className="wallet-manager-notice is-error" role="alert">
+          <div
+            className="wallet-manager-notice is-error"
+            role="alert"
+            onClick={(event) => {
+              if ((event.target as Element).closest("button, a")) return;
+              setError(null);
+            }}
+          >
             <p>{error}</p>
             <button
               type="button"
@@ -856,9 +919,17 @@ export function WalletManagerPanel(props: {
         </p>
       ) : null}
 
+      {hideGateEthereum && expectedL1ChainId != null && ethWallet.chainId !== expectedL1ChainId ? (
+        <p className="error">Switch your wallet to {expectedL1Name ?? "the correct network"}.</p>
+      ) : null}
+      {hideGateEthereum && !sessionChecking && !sessionOk && sessionReason ? (
+        <p className="error">{sessionReason}</p>
+      ) : null}
+
       <div
-        className={`wallet-manager-grid${showAztecPane ? "" : " wallet-manager-grid-solo"}`}
+        className={`wallet-manager-grid${!showAztecPane || hideGateEthereum ? " wallet-manager-grid-solo" : ""}`}
       >
+        {!hideGateEthereum ? (
         <div className={`wallet-manager-col${ethWallet ? "" : " is-connect"}`}>
           {ethWallet ? (
             <p className="wallet-manager-pane-title">Ethereum L1</p>
@@ -914,7 +985,7 @@ export function WalletManagerPanel(props: {
                   {sessionReason ?? "Reconnect wallet to continue."}
                 </p>
               )}
-              <div className="wallet-manager-actions">
+              {!onConnectGate ? <div className="wallet-manager-actions">
                 <button
                   type="button"
                   className="ghost"
@@ -935,17 +1006,18 @@ export function WalletManagerPanel(props: {
                 >
                   Disconnect
                 </button>
-              </div>
+              </div> : null}
             </>
           ) : (
-            <button type="button" disabled={blocked} onClick={onConnectEth}>
+            <button type="button" data-boot-connect-wallet disabled={blocked} onClick={onConnectEth}>
               Connect wallet
             </button>
           )}
         </div>
+        ) : null}
 
         {showAztecPane ? (
-          <div className="wallet-manager-col">
+          <div className="wallet-manager-col" data-boot-wallet-step>
             {formatOpen ? (
               <div className="df-pxe-format-pane">
                 <p className="wallet-manager-pane-title">What file is this?</p>
@@ -1018,14 +1090,12 @@ export function WalletManagerPanel(props: {
                 >
                   {creatingPxe ? "Creating…" : "Create DF account"}
                 </button>
-                <button
-                  type="button"
-                  className="ghost"
+                <DfAccountDropZone
                   disabled={l2ActionsDisabled || !replaceBackedUp}
-                  onClick={() => dfImportInputRef.current?.click()}
-                >
-                  {importingPxe ? "Importing…" : "Import DF account"}
-                </button>
+                  importing={importingPxe}
+                  onChoose={() => dfImportInputRef.current?.click()}
+                  onFiles={importDroppedFiles}
+                />
                 <button
                   type="button"
                   className="ghost"
@@ -1267,7 +1337,7 @@ export function WalletManagerPanel(props: {
                   ) : (
                     <p className="hint">Ready to import or create a DF Aztec account.</p>
                   )
-                ) : sessionReason ? (
+                ) : sessionReason && !hideGateEthereum ? (
                   <p className="error">{sessionReason}</p>
                 ) : null}
                 {showUnlock ? (
@@ -1280,14 +1350,12 @@ export function WalletManagerPanel(props: {
                     {unlockingVault || pendingGateHandoff ? "Unlocking…" : "Unlock saved DF account"}
                   </button>
                 ) : null}
-                <button
-                  type="button"
-                  className={`df-pxe-import-btn${ethWallet && sessionOk && !l2ActionsDisabled && !showUnlock ? " cta-pulse" : ""}`}
+                <DfAccountDropZone
                   disabled={l2ActionsDisabled}
-                  onClick={() => dfImportInputRef.current?.click()}
-                >
-                  {importingPxe ? "Importing…" : "Import DF account"}
-                </button>
+                  importing={importingPxe}
+                  onChoose={() => dfImportInputRef.current?.click()}
+                  onFiles={importDroppedFiles}
+                />
                 <button
                   type="button"
                   className={`df-pxe-import-btn${ethWallet && sessionOk && !l2ActionsDisabled && !showUnlock ? " cta-pulse" : ""}`}

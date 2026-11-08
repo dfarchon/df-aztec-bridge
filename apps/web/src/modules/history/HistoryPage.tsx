@@ -65,7 +65,7 @@ export function HistoryPage() {
                 No operations yet. A finished bridge or claim will show up here.
               </p>
             ) : (
-              <div className="history-groups">
+              <div className="history-groups scrollable-list" tabIndex={0} aria-label="History entries">
                 {groups.map((group) => (
                   <div key={group.day} className="history-day">
                     <p className="label">{group.day}</p>

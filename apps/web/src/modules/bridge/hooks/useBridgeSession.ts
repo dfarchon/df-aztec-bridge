@@ -95,6 +95,7 @@ import { useNetwork } from "../../../providers/NetworkProvider.tsx";
 import { getVaultLockReason, isVaultUnlocked, subscribeVault } from "../../../lib/vault.ts";
 import { clearBridgeSensitiveUiState } from "../../../lib/bridge-sensitive-ui.ts";
 import { setVaultIdleLockPaused, VAULT_TIMEOUT_NOTICE } from "../../../lib/vault-idle-lock.ts";
+import { DISCONNECTED_CONNECTOR, rememberConnector } from "../../../lib/wallet-reconnect.ts";
 import { useVault } from "../../../providers/VaultProvider.tsx";
 import { useUi } from "../../../providers/UiProvider.tsx";
 import { assertSafeClaimApiBase } from "../../../lib/api-base.ts";
@@ -109,7 +110,7 @@ import {
 import { loadInitialSession, loadInitialSessions, storageErrorMessage } from "../tools.ts";
 
 /** Wallet, PXE import, balances, and browser session state for the bridge shell. */
-export function useBridgeSession() {
+export function useBridgeSession(initialWallet: ConnectedWallet | null = null) {
   const path = usePath();
   const navigate = useNavigate();
   const networkApi = useNetwork();
@@ -144,12 +145,13 @@ export function useBridgeSession() {
   const [bridgeConfirmOpen, setBridgeConfirmOpen] = useState(false);
   const [recoveryAcknowledged, setRecoveryAcknowledged] = useState(false);
   const [recoveryPromptOpen, setRecoveryPromptOpen] = useState(false);
+  const [recoveryCheckPending, setRecoveryCheckPending] = useState(() => isVaultUnlocked());
   const [availableWallets, setAvailableWallets] = useState<EIP6963ProviderDetail[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [connectingWallet, setConnectingWallet] = useState(false);
   const [walletConnectError, setWalletConnectError] = useState<string | null>(null);
   const [wcUri, setWcUri] = useState<string | null>(null);
-  const [wallet, setWallet] = useState<ConnectedWallet | null>(null);
+  const [wallet, setWallet] = useState<ConnectedWallet | null>(initialWallet);
   const [ethSessionOk, setEthSessionOk] = useState(false);
   const [dfPxeAccount, setDfPxeAccount] = useState<ImportedAztecAccount | null>(null);
   const [gateImportingPxe, setGateImportingPxe] = useState(false);
@@ -228,7 +230,11 @@ export function useBridgeSession() {
     let wasUnlocked = isVaultUnlocked();
     return subscribeVault(() => {
       const nowUnlocked = isVaultUnlocked();
-      if (wasUnlocked && !nowUnlocked) {
+      const previouslyUnlocked = wasUnlocked;
+      // Clearing the account synchronously notifies vault subscribers again.
+      // Record the transition before doing so to avoid re-entering this branch.
+      wasUnlocked = nowUnlocked;
+      if (previouslyUnlocked && !nowUnlocked) {
         const reason = getVaultLockReason();
         clearBridgeSensitiveUiState({
           setDfPxeAccount,
@@ -248,13 +254,14 @@ export function useBridgeSession() {
           setShowBridgeResult,
           closeWalletPanel,
         });
+        setRecoveryCheckPending(false);
         if (reason === "idle" || reason === "tab-hidden") {
           setVaultTimeoutNotice(VAULT_TIMEOUT_NOTICE);
         }
-      } else if (!wasUnlocked && nowUnlocked) {
+      } else if (!previouslyUnlocked && nowUnlocked) {
+        setRecoveryCheckPending(true);
         void refreshSessions();
       }
-      wasUnlocked = nowUnlocked;
     });
   }, [setVaultPxeAccount, closeWalletPanel, refreshSessions]);
 
@@ -285,13 +292,28 @@ export function useBridgeSession() {
         setL1TxHash(visibleSession.l1TxHash);
         setCredentials(visibleSession.credentials ?? null);
         setClaimJobId(visibleSession.claimJobId ?? null);
-        if (visibleSession.credentials) setRecoveryPromptOpen(true);
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [networkId]);
+
+  // Check once per vault unlock, after the wallet gate is ready. Later bridge
+  // sessions created in this same visit should not trigger a recovery prompt.
+  useEffect(() => {
+    if (!recoveryCheckPending || !shellReady || !ethSessionOk || !dfPxeAccount ||
+        busy || progress?.runState === "running" || !isVaultUnlocked()) return;
+    let cancelled = false;
+    void refreshSessions().then((sessions) => {
+      if (cancelled || !isVaultUnlocked()) return;
+      setRecoveryCheckPending(false);
+      if (sessions.length > 0 && path !== ROUTES.recover) setRecoveryPromptOpen(true);
+    }).catch(() => {
+      if (!cancelled) setRecoveryCheckPending(false);
+    });
+    return () => { cancelled = true; };
+  }, [recoveryCheckPending, shellReady, ethSessionOk, dfPxeAccount, busy, progress?.runState, path, refreshSessions]);
 
   type AccountImportOptions = {
     expectedRecipient?: string;
@@ -813,6 +835,7 @@ export function useBridgeSession() {
           } catch (switchErr: unknown) {
             // Connected but wrong network — still usable after user switches manually
             setWallet(connected);
+            rememberConnector(detail.info.rdns);
             setPickerOpen(false);
             const msg = isWalletUserRejection(switchErr)
               ? `Connected to ${detail.info.name}, but network switch was cancelled. Switch to chain ${networkMeta.l1ChainId} in the wallet, then bridge.`
@@ -824,6 +847,7 @@ export function useBridgeSession() {
           }
         }
         setWallet(connected);
+        rememberConnector(detail.info.rdns);
         setPickerOpen(false);
         setWalletConnectError(null);
         pushDappLog({
@@ -888,6 +912,7 @@ export function useBridgeSession() {
           await switchWalletChain(connected.provider, networkMeta.l1ChainId);
         } catch (switchErr: unknown) {
           setWallet(connected);
+          rememberConnector("walletconnect");
           setWcUri(null);
           setPickerOpen(false);
           const msg = isWalletUserRejection(switchErr)
@@ -899,6 +924,7 @@ export function useBridgeSession() {
         }
       }
       setWallet(connected);
+      rememberConnector("walletconnect");
       setWcUri(null);
       setPickerOpen(false);
       setWalletConnectError(null);
@@ -953,6 +979,7 @@ export function useBridgeSession() {
   }, []);
 
   const onDisconnect = useCallback(async () => {
+    rememberConnector(DISCONNECTED_CONNECTOR);
     setBusy(true);
     setError(null);
     try {

@@ -73,6 +73,35 @@ describe("advanceProgress", () => {
   });
 });
 
+describe("step timing", () => {
+  it("starts a new timer only when the active step advances", () => {
+    const initial = startProgress("bridge", "prepare", 1000);
+    const next = advanceProgress(initial, { track: "bridge", stepKey: "approve" }, 5000);
+    expect(next.startedAt).toBe(1000);
+    expect(next.stepStartedAt).toBe(5000);
+    const repeated = advanceProgress(next, { track: "bridge", stepKey: "prepare" }, 9000);
+    expect(repeated.stepStartedAt).toBe(5000);
+    const later = advanceProgress(repeated, { track: "bridge", stepKey: "deposit" }, 12000);
+    expect(later.stepStartedAt).toBe(12000);
+    expect(later.startedAt).toBe(1000);
+  });
+});
+
+describe("recovery timing", () => {
+  it("keeps recovery total time while advancing its L1 steps", () => {
+    const recovery = startProgress("resume-l1", "receipt", 2000);
+    const credentials = advanceProgress(recovery, { track: "resume-l1", stepKey: "credentials" }, 7000);
+    expect(credentials.startedAt).toBe(2000);
+    expect(credentials.stepStartedAt).toBe(7000);
+  });
+
+  it("starts a fresh timer when waiting for a recovered L2 transaction", () => {
+    const waiting = startProgress("wait-l2", "confirm", 9000);
+    expect(waiting.startedAt).toBe(9000);
+    expect(waiting.stepStartedAt).toBe(9000);
+  });
+});
+
 describe("finishProgress", () => {
   it("jumps to the last step on success", () => {
     const state = finishProgress(startProgress("claim", "status", 0), "succeeded");
