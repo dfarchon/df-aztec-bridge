@@ -149,17 +149,8 @@ requestBridge,
               </div>
               </div>
               <div className="bridge-account-col">
-              <p className="wallet-manager-pane-title">To Aztec:</p>
-              <div className="bridge-account">
-                {recipient.trim() ? (
-                  <div className="wallet-manager-address">
-                    <span className="wallet-manager-address-text mono">
-                      {shortHash(recipient)}
-                    </span>
-                  </div>
-                ) : (
-                  <p className="hint">Import a DF Punk account.</p>
-                )}
+              <div className="bridge-account-col-header">
+                <p className="wallet-manager-pane-title">To Aztec:</p>
                 {recipient.trim() && dfPxeAccount ? (
                   <p
                     className={
@@ -170,17 +161,26 @@ requestBridge,
                         : "hint aztec-wallet-compat"
                     }
                   >
-                    {dfPxeAccount.walletCompat === "v6-initializerless"
-                      ? "Wallet: Aztec 6.0 (DF Schnorr initializerless) — OK to bridge."
-                      : dfPxeAccount.walletCompat === "v6-schnorr"
-                        ? "Wallet: Aztec 6.0 (Schnorr-with-init) — OK to bridge."
-                        : dfPxeAccount.walletCompat === "v6-external"
-                          ? "Wallet: Aztec 6.0 extension — OK to bridge."
-                          : dfPxeAccount.walletCompat === "pre-v6"
-                            ? "Wallet: v5 / v5.1 — do not bridge to this address. Open Wallets and verify an Aztec 6.0 address from the same keys."
-                            : "Wallet: version unknown — verify with a 6.0 DF account before bridging."}
+                    {dfPxeAccount.walletCompat === "v6-initializerless" ||
+                    dfPxeAccount.walletCompat === "v6-schnorr" ||
+                    dfPxeAccount.walletCompat === "v6-external"
+                      ? "Aztec v6 - OK to bridge!"
+                      : dfPxeAccount.walletCompat === "pre-v6"
+                        ? "v5 / v5.1 — do not bridge"
+                        : "version unknown — verify before bridging"}
                   </p>
                 ) : null}
+              </div>
+              <div className="bridge-account">
+                {recipient.trim() ? (
+                  <div className="wallet-manager-address">
+                    <span className="wallet-manager-address-text mono">
+                      {shortHash(recipient)}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="hint">Import a DF Punk account.</p>
+                )}
                 {dfPxeReady ? (
                   <div className="bridge-account-balance">
                     <span

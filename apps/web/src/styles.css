@@ -955,6 +955,26 @@ main.app-main:has(.vault-layout) {
   min-width: 0;
 }
 
+.bridge-account-col-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.bridge-account-col-header .wallet-manager-pane-title {
+  flex: 0 0 auto;
+}
+
+.bridge-account-col-header .aztec-wallet-compat {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  line-height: 1.25;
+}
+
 .bridge-account {
   display: flex;
   flex-direction: column;
