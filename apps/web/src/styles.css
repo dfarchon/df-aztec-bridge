@@ -810,27 +810,26 @@ main.app-main:has(.vault-layout) {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: safe center;
+  justify-content: flex-start;
+}
+
+.app-main-inner.app-main-inner-bridge,
+.app-main-inner:has(.recover-layout),
+.app-main-inner:has(.history-layout),
+.app-main-inner:has(.vault-layout) {
+  padding-block: 170px 1.25rem;
 }
 
 .app-main-inner:has(.recover-layout),
 .app-main-inner:has(.history-layout),
 .app-main-inner:has(.vault-layout) {
   width: min(36rem, 100%);
-  padding-block: 1.25rem;
 }
 
 .bridge-workspace:has(.bridge-risk-gate),
 .app-main-inner-bridge .bridge-workspace {
-  flex: 1;
-  justify-content: safe center;
-}
-
-@media (min-height: 800px) {
-  .app-main-inner-bridge .bridge-workspace:has(.bridge-workspace-body) {
-    box-sizing: border-box;
-    padding-bottom: 160px;
-  }
+  flex: 0 0 auto;
+  justify-content: flex-start;
 }
 
 .bridge-risk-body {
@@ -2205,7 +2204,7 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
 
 .progress-panel-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.7rem;
 }
 
@@ -2216,10 +2215,17 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
 
 .progress-panel-title .wallet-manager-pane-title {
   display: block;
+  line-height: 1.25;
 }
 
 .progress-panel-step {
-  margin: 0.15rem 0 0;
+  margin: 0.1rem 0 0;
+  line-height: 1.3;
+}
+
+.progress-panel-head .icon-btn {
+  flex: 0 0 auto;
+  margin: 0 !important;
 }
 
 .progress-panel .icon-btn {
@@ -2231,8 +2237,12 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
 
 .progress-elapsed {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
   margin: 0;
-  padding: 0.15rem 0.4rem;
+  padding: 0 0.4rem;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 
@@ -2300,8 +2310,10 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
 
 .aztec-block-estimate-on-time .aztec-block-estimate-timer,
 .aztec-block-estimate-on-time .aztec-block-estimate-pace {
-  color: #9adba0;
+  color: var(--pink-300);
 }
+html[data-theme="light"] .aztec-block-estimate-on-time .aztec-block-estimate-timer,
+html[data-theme="light"] .aztec-block-estimate-on-time .aztec-block-estimate-pace { color: #9c3857; }
 
 .aztec-block-estimate-on-time .aztec-block-estimate-fill {
   background: #4caf6a;
@@ -2357,8 +2369,8 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
 }
 
 .progress-panel-succeeded .progress-panel-badge {
-  background: #23401f;
-  color: #9adba0;
+  background: var(--pink-200);
+  color: var(--ink);
 }
 
 .progress-panel-failed .progress-panel-badge,
@@ -2392,6 +2404,14 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
   display: flex;
   align-items: flex-start;
   gap: 0.6rem;
+}
+
+.progress-step:not(:has(.progress-step-note)) {
+  align-items: center;
+}
+
+.progress-step:not(:has(.progress-step-note)) .progress-step-marker {
+  margin-top: 0;
 }
 
 .progress-step-marker {
@@ -2478,10 +2498,10 @@ html[data-theme="light"] label.check input[type="checkbox"]:checked {
 .progress-success-line {
   margin: 0.75rem 0 0;
   font-family: var(--font);
-  font-size: 1.05rem;
-  font-weight: 700;
+  font-size: 0.875rem;
+  font-weight: 400;
   line-height: 1.4;
-  color: var(--text-heading);
+  color: var(--text);
 }
 
 .progress-panel-actions {
@@ -4148,6 +4168,13 @@ html[data-theme="light"] .wallet-float-close {
 }
 
 @media (max-width: 780px) {
+  .app-main-inner.app-main-inner-bridge,
+  .app-main-inner:has(.recover-layout),
+  .app-main-inner:has(.history-layout),
+  .app-main-inner:has(.vault-layout) {
+    padding-top: 1.25rem;
+  }
+
   .app-main-column {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto auto minmax(0, 1fr);
@@ -4857,7 +4884,7 @@ a:hover,
   box-shadow: none;
 }
 
-button:not(.dapp-log-toggle):not(.dapp-log-dismiss):not(.app-error-toast-dismiss):not(.df-pxe-import-format-toggle):not(.wallet-manager-notice-close):not(.recovery-resume),
+button:not(.dapp-log-toggle):not(.dapp-log-dismiss):not(.app-error-toast-dismiss):not(.df-pxe-import-format-toggle):not(.wallet-manager-notice-close):not(.recovery-resume):not(.progress-stage-toggle),
 [role="button"],
 .icon-btn,
 .utility-control,
@@ -4906,7 +4933,7 @@ html[data-theme="light"] .recover-layout .recovery-resume:hover:not(:disabled) {
   border-color: var(--ink) !important;
 }
 
-:where(button, [role="button"], .icon-btn, .utility-control, .wallet-chip, .action-hint, button.ghost):not(.dapp-log-toggle):not(.dapp-log-dismiss):not(.app-error-toast-dismiss):not(.df-pxe-import-format-toggle):not(.wallet-manager-notice-close):not(.recovery-resume):hover:not(:disabled),
+:where(button, [role="button"], .icon-btn, .utility-control, .wallet-chip, .action-hint, button.ghost):not(.dapp-log-toggle):not(.dapp-log-dismiss):not(.app-error-toast-dismiss):not(.df-pxe-import-format-toggle):not(.wallet-manager-notice-close):not(.recovery-resume):not(.progress-stage-toggle):hover:not(:disabled),
 .wallet-chip.is-open {
   background: var(--accent-tint) !important;
   color: var(--text) !important;
@@ -4914,7 +4941,7 @@ html[data-theme="light"] .recover-layout .recovery-resume:hover:not(:disabled) {
   box-shadow: none !important;
 }
 
-html:not([data-theme="light"]) :where(button, [role="button"], .icon-btn, .utility-control, .wallet-chip, .action-hint, button.ghost):not(.dapp-log-toggle):not(.dapp-log-dismiss):not(.app-error-toast-dismiss):not(.df-pxe-import-format-toggle):not(.wallet-manager-notice-close):hover:not(:disabled),
+html:not([data-theme="light"]) :where(button, [role="button"], .icon-btn, .utility-control, .wallet-chip, .action-hint, button.ghost):not(.dapp-log-toggle):not(.dapp-log-dismiss):not(.app-error-toast-dismiss):not(.df-pxe-import-format-toggle):not(.wallet-manager-notice-close):not(.progress-stage-toggle):hover:not(:disabled),
 html:not([data-theme="light"]) .wallet-chip.is-open {
   background: var(--pink-200) !important;
   color: var(--ink) !important;
@@ -5253,7 +5280,7 @@ label {
 .progress-success-line {
   color: var(--text-heading) !important;
   font-family: var(--font) !important;
-  font-weight: 700 !important;
+  font-weight: 400 !important;
 }
 
 .progress-notice-warn,
@@ -5576,5 +5603,145 @@ html[data-theme="light"] .dapp-log-shell {
 
 .dapp-log-tx-link:hover {
   background: transparent !important;
+}
+
+
+/* Inline controls for amount and password fields. */
+button.bridge-amount-clear.icon-btn {
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  color: var(--text-muted);
+}
+.vault-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.vault-input-wrap input {
+  width: 100%;
+  padding-right: 3rem;
+}
+span.vault-input-enter {
+  position: absolute;
+  right: 0.4rem;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.progress-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.progress-stage {
+  overflow: hidden;
+  border: 1.5px solid color-mix(in srgb, var(--text-muted) 65%, var(--line));
+  border-radius: 6px;
+}
+button.progress-stage-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin: 0;
+  padding: 0.65rem 0.4rem 0.65rem 0.75rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font-weight: 600;
+  box-shadow: none;
+}
+html button.progress-stage-toggle,
+html button.progress-stage-toggle:hover:not(:disabled) {
+  border: 0 !important;
+  border-radius: 5px 5px 0 0 !important;
+  background: transparent !important;
+  color: var(--text) !important;
+  box-shadow: none !important;
+}
+html button.progress-stage-toggle:hover:not(:disabled) {
+  background: var(--accent-tint) !important;
+}
+html button.progress-stage-toggle[aria-expanded="true"] {
+  border-bottom: 1.5px solid color-mix(in srgb, var(--text-muted) 65%, var(--line)) !important;
+}
+.progress-stage-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.progress-stage-status {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.progress-stage-status.is-active {
+  color: var(--text-heading);
+}
+.progress-stage-status.is-completed {
+  color: #ff9fbe;
+}
+html[data-theme="light"] .progress-stage-status.is-completed { color: #9c3857; }
+.progress-stage-status.is-stopped { color: var(--danger); }
+.progress-stage-chevron {
+  display: inline-block;
+  color: var(--text-muted);
+  transition: transform 220ms ease;
+}
+.progress-stage-chevron.is-open { transform: rotate(180deg); }
+.progress-stage-drawer {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 260ms ease, opacity 200ms ease;
+}
+.progress-stage-drawer.is-open { grid-template-rows: 1fr; opacity: 1; }
+.progress-stage-drawer-inner { min-height: 0; overflow: hidden; }
+@media (prefers-reduced-motion: reduce) {
+  .progress-stage-drawer, .progress-stage-chevron { transition: none; }
+}
+.progress-stage .progress-steps { padding: 0.5rem 0.75rem 0.75rem; }
+.progress-stage-waiting { margin: 0; padding: 0.5rem 0.75rem 0.75rem; }
+
+.progress-panel-success-actions {
+  align-items: center;
+}
+.progress-panel-success-actions .progress-success-line {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+.progress-panel-success-actions > button {
+  flex: 0 0 auto;
+}
+
+.progress-step-done .progress-step-marker {
+  width: 1rem;
+  height: 1rem;
+  margin-inline: 0.1rem;
+  background: var(--pink-200) !important;
+  border-color: var(--pink-200) !important;
+  color: var(--ink) !important;
+  font-weight: 800;
+}
+
+.progress-step-active .progress-step-marker {
+  background: transparent !important;
+  border: 2px solid var(--line) !important;
+  border-top-color: var(--accent) !important;
+  animation: icon-spin 0.85s linear infinite !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress-step-active .progress-step-marker { animation: none !important; }
 }
 

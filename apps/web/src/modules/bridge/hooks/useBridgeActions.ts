@@ -100,6 +100,7 @@ import {
 import { LEGACY_WALLET_RDNS } from "@df-bridge/browser-sdk";
 import { ROUTES } from "../../../app/routes.ts";
 import { assertSafeClaimApiBase } from "../../../lib/api-base.ts";
+import { isVaultUnlocked } from "../../../lib/vault.ts";
 import {
   API_BASE,
   BROWSER_CLAIM,
@@ -111,6 +112,18 @@ import {
 } from "../config.ts";
 import { readJsonResponse, resolveClaimSigningKey, storageErrorMessage } from "../tools.ts";
 import type { BridgeSession } from "./useBridgeSession.ts";
+
+function startClaimStage(current: ProgressState | null, combinedFlow: boolean): ProgressState {
+  if (current?.track === "claim" && current.runState === "running" &&
+      !!current.combinedFlow === combinedFlow) return current;
+  const now = Date.now();
+  return {
+    ...startProgress("claim", "status", now),
+    startedAt: combinedFlow && current?.combinedFlow ? current.startedAt : now,
+    combinedFlow,
+    serverClaim: !BROWSER_CLAIM,
+  };
+}
 
 /** L1 resume, bridge submit, and recovery claim actions. */
 export function useBridgeActions(session: BridgeSession) {
@@ -301,7 +314,11 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
       secret: string,
       salt?: string,
       signingKey?: string,
+      combinedFlow = false,
     ) => {
+      if (combinedFlow) {
+        setProgress((prev) => startClaimStage(prev, true));
+      }
       if (BROWSER_CLAIM) {
         if (!networkMeta?.aztecNodeUrl) {
           throw new Error("Network meta missing aztecNodeUrl for browser claim.");
@@ -312,7 +329,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
           setClaimStatus("running");
           setL2TxHash(null);
           setBridgePhase("Asking Nulo to claim…");
-          setProgress(startProgress("claim", "status"));
+          setProgress((prev) => startClaimStage(prev, combinedFlow));
           const { l2TxHash: hash } = await claimWithNulo({
             aztecNodeUrl: networkMeta.aztecNodeUrl,
             credentials: creds,
@@ -358,7 +375,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
         setClaimStatus("running");
         setL2TxHash(null);
         setBridgePhase("Checking claim message status…");
-        setProgress(startProgress("claim", "status"));
+        setProgress((prev) => startClaimStage(prev, combinedFlow));
 
         const status = await getClaimMessageStatus({
           aztecNodeUrl: networkMeta.aztecNodeUrl,
@@ -541,7 +558,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
 
       // Server-side claim: nothing runs in this tab, so the step panel would be
       // misleading — the polling status line covers it instead.
-      setProgress(null);
+      if (!combinedFlow) setProgress(null);
       assertSafeClaimApiBase(API_BASE);
       const res = await fetch(`${API_BASE}/v1/claim`, {
         method: "POST",
@@ -607,7 +624,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
     setClaimJobId(null);
     setClaimStatus(null);
     setL2TxHash(null);
-    setProgress(startProgress("bridge", "prepare"));
+    setProgress({ ...startProgress("bridge", "prepare"), combinedFlow: autoClaim });
     try {
       let provider = wallet.provider;
       let chainId = wallet.chainId;
@@ -760,6 +777,34 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
         recipient: result.credentials.recipient,
         l1TxHash: result.l1TxHash,
       });
+
+      if (autoClaim) {
+        setProgress((prev) => startClaimStage(prev, true));
+        if (!isVaultUnlocked()) {
+          const message = "L1 bridge completed, but the vault locked before auto-claim. Unlock it and continue from Recover.";
+          setError(message);
+          setBridgePhase(message);
+          setProgress((prev) => finishProgress(prev, "failed"));
+          return;
+        }
+        try {
+          await startClaimJob(
+            result.l1TxHash,
+            result.credentials,
+            l2Secret.trim(),
+            l2Salt,
+            resolveClaimSigningKey(result.credentials.recipient, l2SigningKey, dfPxeAccount),
+            true,
+          );
+          if (!BROWSER_CLAIM) setBridgePhase("L2 claim job queued. Polling status.");
+        } catch (claimError: unknown) {
+          endFlowFromError(claimError);
+          if (!isWalletUserRejection(claimError)) {
+            const detail = claimError instanceof Error ? claimError.message : String(claimError);
+            setError(`L1 bridge completed, but auto-claim did not finish: ${detail}. Open Recover to continue.`);
+          }
+        }
+      }
     } catch (e: unknown) {
       endFlowFromError(e);
     } finally {
@@ -772,7 +817,10 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
     amountFj,
     autoClaim,
     l2Secret,
+    l2Salt,
+    l2SigningKey,
     dfPxeAccount,
+    startClaimJob,
     l1Backend,
     networkId,
     refreshSessions,
@@ -985,6 +1033,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
       setCredentials(session.credentials);
       setBusy(true);
       setError(null);
+      setProgress(null);
       try {
         await startClaimJob(
           session.l1TxHash,
@@ -992,6 +1041,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
           l2Secret.trim(),
           l2Salt,
           resolveClaimSigningKey(session.credentials.recipient, l2SigningKey, dfPxeAccount),
+          true,
         );
       } catch (e: unknown) {
         endFlowFromError(e);
@@ -1042,6 +1092,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
         l2Secret.trim(),
         l2Salt,
         resolveClaimSigningKey(credentials.recipient, l2SigningKey, dfPxeAccount),
+        progress?.combinedFlow === true,
       );
       if (!BROWSER_CLAIM) {
         setBridgePhase("L2 claim job queued. Polling status.");
@@ -1060,6 +1111,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
     dfPxeAccount,
     startClaimJob,
     endFlowFromError,
+    progress?.combinedFlow,
   ]);
 
   return {

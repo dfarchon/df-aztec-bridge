@@ -154,6 +154,8 @@ vaultTimeoutNotice,
         .then(async (job: { status: string; error?: string; result?: { l2TxHash?: string } }) => {
           setClaimStatus(job.status);
           if (job.status === "failed") {
+            setProgress((prev) => prev?.combinedFlow ? finishProgress(prev, "failed") : prev);
+            setBridgePhase(job.error ?? "Claim failed");
             setError(job.error ?? "Claim failed");
             if (credentials) {
               await upsertSession(networkId, {
@@ -170,6 +172,8 @@ vaultTimeoutNotice,
             clearInterval(t);
           }
           if (job.status === "succeeded") {
+            setProgress((prev) => prev?.combinedFlow ? finishProgress(prev, "succeeded") : prev);
+            setBridgePhase("L2 claim complete.");
             if (job.result?.l2TxHash) setL2TxHash(job.result.l2TxHash);
             setRecoveryPromptOpen(false);
             await removeSession(networkId, currentL1Hash);
@@ -178,6 +182,7 @@ vaultTimeoutNotice,
           }
         })
         .catch((cause: unknown) => {
+          setProgress((prev) => prev?.combinedFlow ? finishProgress(prev, "failed") : prev);
           setError(cause instanceof Error ? cause.message : String(cause));
           clearInterval(t);
         });

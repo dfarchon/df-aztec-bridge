@@ -152,6 +152,19 @@ requestBridge,
                       aria-invalid={amountInvalid ? true : undefined}
                       aria-describedby="bridge-amount-help"
                     />
+                    {amountFj ? (
+                      <button
+                        type="button"
+                        className="icon-btn bridge-amount-clear"
+                        aria-label="Clear amount"
+                        title="Clear amount"
+                        onClick={() => applyAmountFj("")}
+                      >
+                        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                          <path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                      </button>
+                    ) : null}
                     <span className="bridge-amount-unit">{tokenSymbol}</span>
                   </div>
                   <div className="dex-pay-meta">
