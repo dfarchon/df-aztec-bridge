@@ -129,7 +129,7 @@ wcUri, setWcUri, wallet, setWallet, ethSessionOk, setEthSessionOk, dfPxeAccount,
 gateImportingPxe, setGateImportingPxe, gateUnlockingVault, setGateUnlockingVault, gateImportError, setGateImportError,
 walletPickerRef,
 recipient, amountFj, setAmountFj, autoClaim, setAutoClaim, l2Secret, l2Salt,
-l2SigningKey, legacyAccountStyles, setLegacyAccountStyles, showL2Secret, setShowL2Secret,
+l2SigningKey, showL2Secret, setShowL2Secret,
 busy, setBusy, error, setError, ethServiceFeeWei, setEthServiceFeeWei, bridgePhase, setBridgePhase,
 progress, setProgress, l1TxHash, setL1TxHash, showBridgeResult, setShowBridgeResult,
 credentials, setCredentials, claimJobId, setClaimJobId, claimStatus, setClaimStatus, l2TxHash, setL2TxHash,
@@ -301,7 +301,6 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
       secret: string,
       salt?: string,
       signingKey?: string,
-      legacyStyles?: boolean,
     ) => {
       if (BROWSER_CLAIM) {
         if (!networkMeta?.aztecNodeUrl) {
@@ -404,7 +403,6 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
             l2SecretKey: secret,
             salt,
             signingKey: signingKey?.trim() || undefined,
-            legacyAccountStyles: legacyStyles,
             onProgress: (phase, detail) => {
               setClaimStatus(phase);
               setBridgePhase(detail ?? null);
@@ -994,7 +992,6 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
           l2Secret.trim(),
           l2Salt,
           resolveClaimSigningKey(session.credentials.recipient, l2SigningKey, dfPxeAccount),
-          legacyAccountStyles,
         );
       } catch (e: unknown) {
         endFlowFromError(e);
@@ -1003,7 +1000,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
         await refreshSessions();
       }
     },
-    [l2Secret, l2Salt, l2SigningKey, dfPxeAccount, legacyAccountStyles, startClaimJob, refreshSessions, endFlowFromError],
+    [l2Secret, l2Salt, l2SigningKey, dfPxeAccount, startClaimJob, refreshSessions, endFlowFromError],
   );
 
   const onRemoveSession = useCallback(
@@ -1045,7 +1042,6 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
         l2Secret.trim(),
         l2Salt,
         resolveClaimSigningKey(credentials.recipient, l2SigningKey, dfPxeAccount),
-        legacyAccountStyles,
       );
       if (!BROWSER_CLAIM) {
         setBridgePhase("L2 claim job queued. Polling status.");
@@ -1062,7 +1058,6 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
     l2Salt,
     l2SigningKey,
     dfPxeAccount,
-    legacyAccountStyles,
     startClaimJob,
     endFlowFromError,
   ]);

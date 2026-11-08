@@ -60,13 +60,17 @@ export function assertAztecReplaceBackupReady(opts: {
   existingAddress: string | null | undefined;
   incomingAddress: string;
   backupReady: boolean;
+  /**
+   * Vault exists on this host but no unlocked DF account is in memory (e.g. locked
+   * 5.1 leftover). User cannot download a JSON backup — allow replace to a new 6.0 account.
+   */
+  discardLockedVault?: boolean;
 }): void {
   if (!needsAztecAccountReplace(opts.existingAddress, opts.incomingAddress)) return;
-  if (!opts.backupReady) {
-    throw new Error(
-      "This browser keeps one Aztec account. Download a JSON backup of the current account before importing another.",
-    );
-  }
+  if (opts.backupReady || opts.discardLockedVault) return;
+  throw new Error(
+    "This browser keeps one Aztec account. Download a JSON backup of the current account before importing another.",
+  );
 }
 
 export async function saveAztecWallet(account: ImportedAztecAccount): Promise<void> {

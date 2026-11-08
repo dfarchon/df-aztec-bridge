@@ -15,6 +15,10 @@
  * Also accepts Quick Join `dark-forest-privacy-*.json` (same keys + optional homeCoordinates).
  */
 
+import type { AztecWalletCompat } from "./aztec-wallet-compat.ts";
+
+export type { AztecWalletCompat };
+
 export interface ImportedAztecAccount {
   address: string;
   secretKey: string;
@@ -32,6 +36,11 @@ export interface ImportedAztecAccount {
   boundEthAddress?: string;
   /** External Aztec wallet. Nulo holds the keys; this app only stores the address. */
   connector?: "nulo";
+  /**
+   * Client-side Aztec version check vs this 6.0 bridge.
+   * `pre-v6` = keys do not recreate the address on 6.0 (v5 / v5.1 era).
+   */
+  walletCompat?: AztecWalletCompat;
 }
 
 /** Canonical dfpunk single-account object. */
@@ -142,10 +151,11 @@ export function accountFromNulo(address: string, boundEthAddress: string): Impor
     pxeRegisteredAt: Date.now(),
     boundEthAddress: boundEthAddress.trim().toLowerCase(),
     connector: "nulo",
+    walletCompat: "v6-external",
   };
 }
 
-/** Shape produced by the in-browser Aztec 6.0 Schnorr account. */
+/** Shape produced by an in-browser DF-compatible Schnorr initializerless account. */
 export function accountFromV6Wallet(
   created: {
     address: string;
@@ -154,6 +164,7 @@ export function accountFromV6Wallet(
     signingKey: string;
     createdAt: number;
     label?: string;
+    walletCompat?: AztecWalletCompat;
   },
   boundEthAddress: string,
 ): ImportedAztecAccount {
@@ -163,11 +174,12 @@ export function accountFromV6Wallet(
     salt: created.salt,
     signingKey: created.signingKey,
     createdAt: created.createdAt,
-    label: created.label?.trim() || "Aztec 6.0 wallet",
+    label: created.label?.trim() || "DF Aztec account",
     fromDfClient: true,
     pxeRegistered: true,
     pxeRegisteredAt: created.createdAt,
     boundEthAddress: boundEthAddress.trim().toLowerCase(),
+    walletCompat: created.walletCompat ?? "v6-initializerless",
   };
 }
 

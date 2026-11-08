@@ -86,13 +86,13 @@ export function historyTitle(kind: HistoryKind, amount?: string): string {
     case "claim-removed":
       return fj ? `${fj} FJ claim removed` : "Claim removed";
     case "account-imported":
-      return "Account imported";
+      return "DF Aztec account imported";
     case "account-created":
-      return "Aztec 6.0 wallet created";
+      return "DF Aztec account created";
     case "account-replaced":
-      return "Account replaced";
+      return "DF Aztec account replaced";
     case "account-removed":
-      return "Account removed";
+      return "DF Aztec account removed";
   }
 }
 

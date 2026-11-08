@@ -164,8 +164,6 @@ export function useBridgeSession() {
   const [l2Secret, setL2Secret] = useState("");
   const [l2Salt, setL2Salt] = useState("");
   const [l2SigningKey, setL2SigningKey] = useState("");
-  /** Try initializerless and secret-derived signing keys when an older address misses the backup. */
-  const [legacyAccountStyles, setLegacyAccountStyles] = useState(true);
   const [showL2Secret, setShowL2Secret] = useState(false);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -308,20 +306,29 @@ export function useBridgeSession() {
       setL2Secret(account.connector === "nulo" ? "" : account.secretKey);
       setL2Salt(account.connector === "nulo" ? "" : account.salt);
       setL2SigningKey(account.connector === "nulo" ? "" : (account.signingKey ?? ""));
-      if (account.connector === "nulo" && isBridgeReadyDfPxeAccount(account, wallet?.address)) {
+      const walletCompat = account.walletCompat;
+      const bridgeReady = isBridgeReadyDfPxeAccount(account, wallet?.address);
+      if (account.connector === "nulo" && bridgeReady) {
         setDfPxeAccount(account);
         setVaultPxeAccount(account);
         setAutoClaim(true);
         setError(null);
         return;
       }
-      if (isBridgeReadyDfPxeAccount(account, wallet?.address)) {
+      if (bridgeReady) {
         setDfPxeAccount(account);
         setVaultPxeAccount(account);
         setAutoClaim(true);
         void requireVaultAfterPxeImport(account).catch((e: unknown) => {
           setError(e instanceof Error ? e.message : String(e));
         });
+      } else if (walletCompat === "pre-v6" || walletCompat === "unknown") {
+        // Keep the account visible under To Aztec so the version warning can render;
+        // bridge stays locked via walletCompat checks.
+        setDfPxeAccount(account);
+        setVaultPxeAccount(account);
+        setAutoClaim(false);
+        setError(null);
       } else if (!opts?.forRecovery) {
         // Manual / non-PXE imports do not unlock bridge.
         setDfPxeAccount(null);
@@ -1017,7 +1024,7 @@ wcUri, setWcUri, wallet, setWallet, ethSessionOk, setEthSessionOk, dfPxeAccount,
 gateImportingPxe, setGateImportingPxe, gateUnlockingVault, setGateUnlockingVault, gateImportError, setGateImportError,
 walletPickerRef,
 recipient, setRecipient, amountFj, setAmountFj, autoClaim, setAutoClaim, l2Secret, setL2Secret, l2Salt, setL2Salt,
-l2SigningKey, setL2SigningKey, legacyAccountStyles, setLegacyAccountStyles, showL2Secret, setShowL2Secret,
+l2SigningKey, setL2SigningKey, showL2Secret, setShowL2Secret,
 busy, setBusy, error, setError, ethServiceFeeWei, setEthServiceFeeWei, bridgePhase, setBridgePhase,
 progress, setProgress, l1TxHash, setL1TxHash, showBridgeResult, setShowBridgeResult,
 credentials, setCredentials, claimJobId, setClaimJobId, claimStatus, setClaimStatus, l2TxHash, setL2TxHash,

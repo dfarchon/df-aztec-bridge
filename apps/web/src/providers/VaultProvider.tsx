@@ -70,15 +70,22 @@ export function useVault(): VaultContextValue {
   return ctx;
 }
 
+function isUsableVaultAccount(account: ImportedAztecAccount | null | undefined): boolean {
+  if (!account?.address?.trim()) return false;
+  // Nulo stores address only — keys stay in the extension.
+  if (account.connector === "nulo") return true;
+  return !!account.signingKey?.trim();
+}
+
 async function loadAccountFromUnlockedVault(
   preferredAddress?: string | null,
 ): Promise<ImportedAztecAccount | null> {
   if (preferredAddress) {
     const one = await getStoredAztecWallet(preferredAddress);
-    if (one?.signingKey?.trim()) return one;
+    if (isUsableVaultAccount(one)) return one;
   }
   const all = await listStoredAztecWallets();
-  return all.find((a) => !!a.signingKey?.trim()) ?? all[0] ?? null;
+  return all.find((a) => isUsableVaultAccount(a)) ?? all[0] ?? null;
 }
 
 export function VaultProvider(props: { children: ReactNode }) {
@@ -239,9 +246,9 @@ export function VaultProvider(props: { children: ReactNode }) {
       if (!ok) return null;
 
       const restored = await loadAccountFromUnlockedVault(address);
-      if (!restored?.signingKey?.trim()) {
+      if (!isUsableVaultAccount(restored)) {
         throw new VaultError(
-          "Vault unlocked, but no full DF Punk wallet JSON is stored. Import dfpunk-account-*.json from DF client “Download account info”.",
+          "Vault unlocked, but no usable Aztec account is stored. Import dfpunk-account-*.json from DF client “Download account info”, or create a Dark Forest Aztec 6.0 account.",
         );
       }
       setPxeAccount(restored);

@@ -57,12 +57,33 @@ function parseSalt(raw?: string): Fr {
   return Fr.fromHexString(raw.trim());
 }
 
-/** Schnorr signing key: explicit hex from account file, else derive from secret (CLI convention). */
-function resolveSigningKey(secret: Fr, signingKeyHex?: string): Fq {
-  if (signingKeyHex?.trim()) {
-    return Fq.fromHexString(signingKeyHex.trim());
+type SchnorrAccountStyle = "schnorr_initializerless" | "schnorr";
+
+/** Result of matching account keys to an address on Aztec 6.0. */
+export type AztecWalletCompat =
+  | "v6-initializerless"
+  | "v6-schnorr"
+  | "pre-v6"
+  | "unknown";
+
+/** Signing-key candidates: file key first (DF), then secret-derived (older CLI). */
+function signingKeyCandidates(secret: Fr, signingKeyHex?: string): { label: string; key: Fq }[] {
+  const derived = deriveMasterMessageSigningSecretKey(secret);
+  if (!signingKeyHex?.trim()) {
+    return [{ label: "derived", key: derived }];
   }
-  return deriveMasterMessageSigningSecretKey(secret);
+  const fromFile = Fq.fromHexString(signingKeyHex.trim());
+  if (fromFile.equals(derived)) {
+    return [{ label: "file", key: fromFile }];
+  }
+  return [
+    { label: "file", key: fromFile },
+    { label: "derived", key: derived },
+  ];
+}
+
+function compatFromStyle(style: SchnorrAccountStyle): Exclude<AztecWalletCompat, "pre-v6" | "unknown"> {
+  return style === "schnorr" ? "v6-schnorr" : "v6-initializerless";
 }
 
 function cacheKey(networkId: string, aztecNodeUrl: string, apiKey?: string): string {
@@ -90,38 +111,69 @@ function logRegister(step: string, detail: Record<string, unknown>) {
   console.info(`[claim][register] ${step}`, detail);
 }
 
-/** Initializerless Schnorr account on Aztec Tierra 6.0.0. */
+type RegisterAccountResult = {
+  manager: Awaited<ReturnType<EmbeddedWallet["createSchnorrInitializerlessAccount"]>>;
+  style: SchnorrAccountStyle;
+  compat: Exclude<AztecWalletCompat, "pre-v6" | "unknown">;
+};
+
+/**
+ * Register a DF / Aztec Schnorr account into the EmbeddedWallet PXE.
+ * New wallets (no expected address): Schnorr initializerless only (current DF Punk).
+ * Import / claim (expected address set): try initializerless first, then Schnorr-with-init
+ * and alternate signing-key derivation until the address matches — older DF / CLI backups
+ * often used createSchnorrAccount instead of initializerless.
+ */
 async function registerAccount(
   wallet: EmbeddedWallet,
   secret: Fr,
   salt: Fr,
   signingKeyHex: string | undefined,
   expected?: AztecAddress,
-) {
+): Promise<RegisterAccountResult> {
   const expectedAddress = expected?.toString() ?? null;
-  const signingKey = resolveSigningKey(secret, signingKeyHex);
+  const signingKeys = signingKeyCandidates(secret, signingKeyHex);
+  // Prefer current DF Punk style; fall back to Schnorr-with-init for older backups.
+  const styles: SchnorrAccountStyle[] = expected
+    ? ["schnorr_initializerless", "schnorr"]
+    : ["schnorr_initializerless"];
+
   logRegister("1-start", {
     sdk: "6.0.0",
-    create: "initializerless",
     expected: expectedAddress,
     signingKeyFromFile: Boolean(signingKeyHex?.trim()),
+    styles,
+    signingCandidates: signingKeys.map((s) => s.label),
   });
-  const manager = await wallet.createSchnorrInitializerlessAccount(
-    secret,
-    salt,
-    signingKey,
-    "main",
-  );
-  const derived = manager.address.toString();
-  const match = expected ? manager.address.equals(expected) : true;
-  logRegister("2-created", { derived, expected: expectedAddress, match });
-  if (!match) {
-    throw new Error(
-      `This file is not an Aztec 6.0 wallet. The file address is ${expectedAddress}. These keys derive ${derived} on 6.0. Create a new 6.0 wallet, or import a file saved from 6.0.`,
-    );
+
+  const attempts: { style: SchnorrAccountStyle; signing: string; derived: string }[] = [];
+
+  for (const signing of signingKeys) {
+    for (const style of styles) {
+      const manager =
+        style === "schnorr"
+          ? await wallet.createSchnorrAccount(secret, salt, signing.key, "main")
+          : await wallet.createSchnorrInitializerlessAccount(secret, salt, signing.key, "main");
+      const derived = manager.address.toString();
+      const match = expected ? manager.address.equals(expected) : true;
+      attempts.push({ style, signing: signing.label, derived });
+      logRegister("2-attempt", { style, signing: signing.label, derived, expected: expectedAddress, match });
+      if (match) {
+        logRegister("3-ok", { address: derived, style, signing: signing.label });
+        return { manager, style, compat: compatFromStyle(style) };
+      }
+    }
   }
-  logRegister("3-ok", { address: derived });
-  return manager;
+
+  const attemptSummary = attempts
+    .map((a) => `${a.style}/${a.signing}→${a.derived}`)
+    .join("; ");
+  throw new Error(
+    `These keys do not recreate address ${expectedAddress} on Aztec 6.0 ` +
+      `(tried Schnorr initializerless and Schnorr-with-init). Attempts: ${attemptSummary}. ` +
+      `If this backup is from Aztec v5 or v5.1, the same keys can be checked for a new 6.0 address. ` +
+      `Funds already sent to ${expectedAddress} stay at that address.`,
+  );
 }
 
 async function sendClaimTx(wallet: Wallet, caller: AztecAddress, claim: ClaimCredentials) {
@@ -345,12 +397,6 @@ export async function waitAndClaimInBrowser(params: {
    * signing key (e.g. dfpunk). Omit to derive from secret (CLI / aztec-kit convention).
    */
   signingKey?: string;
-  /**
-   * When a backup address was created under an older account style, also try the
-   * initializerless account and a signing key derived from the secret.
-   * Runs inside the 6.0 wallet. Stops at the first address match.
-   */
-  legacyAccountStyles?: boolean;
   timeoutMs?: number;
   onProgress?: (phase: BrowserClaimProgress, detail?: string) => void;
   /** Fired as soon as the L2 claim tx hash is known (after prove + submit). */
@@ -382,9 +428,15 @@ export async function waitAndClaimInBrowser(params: {
   logRegister("0-claim-inputs", {
     recipient: params.credentials.recipient,
     signingKeyPresent: Boolean(params.signingKey?.trim()),
-    legacyAccountStyles: Boolean(params.legacyAccountStyles),
   });
-  const manager = await registerAccount(wallet, secret, salt, params.signingKey, expected);
+  const { manager, compat } = await registerAccount(
+    wallet,
+    secret,
+    salt,
+    params.signingKey,
+    expected,
+  );
+  logRegister("0-claim-compat", { compat });
 
   if (messageStatus === "l2-sync-pending") {
     progress(
@@ -508,7 +560,7 @@ export async function claimUsingExternalWallet(params: {
   return { l2TxHash };
 }
 
-/** dfpunk-compatible Schnorr account created in-browser via EmbeddedWallet / PXE. */
+/** DF Punk–compatible Schnorr initializerless account created in-browser via EmbeddedWallet / PXE. */
 export interface QuickDfpunkAccount {
   address: string;
   secretKey: string;
@@ -516,10 +568,11 @@ export interface QuickDfpunkAccount {
   signingKey: string;
   createdAt: number;
   label: string;
+  walletCompat: "v6-initializerless";
 }
 
 /**
- * Create a quick Aztec wallet (same credential shape as dfpunk-account-*.json).
+ * Create a DF Aztec wallet (same credential shape as dfpunk-account-*.json).
  * Uses the warmed EmbeddedWallet / PXE when available.
  */
 export async function createQuickDfpunkAccount(params: {
@@ -530,7 +583,7 @@ export async function createQuickDfpunkAccount(params: {
   onProgress?: (phase: BrowserClaimProgress, detail?: string) => void;
 }): Promise<QuickDfpunkAccount> {
   const { wallet } = await getOrCreateWarmEntry(params);
-  params.onProgress?.("account", "Generating Schnorr keys (dfpunk-compatible)…");
+  params.onProgress?.("account", "Generating Schnorr initializerless keys (DF Punk)…");
 
   const secretKey = Fr.random();
   const salt = Fr.random();
@@ -549,7 +602,8 @@ export async function createQuickDfpunkAccount(params: {
     salt: salt.toString(),
     signingKey: signingKey.toString(),
     createdAt: Date.now(),
-    label: params.label?.trim() || "dfpunk quick wallet",
+    label: params.label?.trim() || "DF Aztec account",
+    walletCompat: "v6-initializerless",
   };
 }
 
@@ -567,7 +621,7 @@ export async function importDfpunkAccountIntoPxe(params: {
   /** Required for dfpunk accounts (independent Grumpkin signing key). */
   signingKey: string;
   onProgress?: (phase: BrowserClaimProgress, detail?: string) => void;
-}): Promise<{ address: string }> {
+}): Promise<{ address: string; walletCompat: AztecWalletCompat }> {
   if (!params.signingKey?.trim()) {
     throw new Error(
       "DF client accounts require signingKey. Download dfpunk-account-*.json from the DF game (Settings / Download account info).",
@@ -578,7 +632,7 @@ export async function importDfpunkAccountIntoPxe(params: {
 
   const secret = Fr.fromHexString(params.secretKey.trim());
   const salt = Fr.fromHexString(params.salt.trim());
-  const manager = await registerAccount(
+  const { manager, compat } = await registerAccount(
     wallet,
     secret,
     salt,
@@ -586,6 +640,122 @@ export async function importDfpunkAccountIntoPxe(params: {
     AztecAddress.fromStringUnsafe(params.address.trim()),
   );
 
-  params.onProgress?.("account", `PXE registered ${manager.address.toString()}`);
-  return { address: manager.address.toString() };
+  params.onProgress?.("account", `PXE registered ${manager.address.toString()} (${compat})`);
+  return { address: manager.address.toString(), walletCompat: compat };
+}
+
+const AZTEC_ADDRESS_RE = /^0x[0-9a-fA-F]{64}$/;
+
+/** Aztec 6.0 DF account derived from an older Schnorr backup. Keys are unchanged. */
+export interface VerifiedV6DfpunkAccount {
+  previousAddress: string;
+  address: string;
+  secretKey: string;
+  salt: string;
+  signingKey: string;
+  walletCompat: "v6-initializerless";
+}
+
+/**
+ * Derive the Aztec 6.0 DF address from a v5 / v5.1 Schnorr backup.
+ * Uses the file signing key and Schnorr initializerless (current DF).
+ * Returns only after a second registration reproduces that same address.
+ */
+export async function deriveVerifiedV6DfpunkAccount(params: {
+  aztecNodeUrl: string;
+  networkId: string;
+  apiKey?: string;
+  address: string;
+  secretKey: string;
+  salt: string;
+  signingKey: string;
+  onProgress?: (phase: BrowserClaimProgress, detail?: string) => void;
+}): Promise<VerifiedV6DfpunkAccount> {
+  const signingKey = params.signingKey?.trim() ?? "";
+  if (!signingKey) {
+    throw new Error(
+      "This backup has no signingKey. Download dfpunk-account-*.json from the DF game (Settings / Download account info).",
+    );
+  }
+  const previousAddress = params.address.trim();
+  const secretKey = params.secretKey.trim();
+  const salt = params.salt.trim();
+  if (!AZTEC_ADDRESS_RE.test(previousAddress)) {
+    throw new Error("The backup address is not a 32-byte Aztec address.");
+  }
+
+  const { wallet } = await getOrCreateWarmEntry(params);
+  params.onProgress?.("account", "Deriving the Aztec 6.0 address from these Schnorr keys…");
+  const secret = Fr.fromHexString(secretKey);
+  const saltFr = Fr.fromHexString(salt);
+  const signing = Fq.fromHexString(signingKey);
+  const manager = await wallet.createSchnorrInitializerlessAccount(secret, saltFr, signing, "main");
+  const derived = manager.address.toString();
+  if (!AZTEC_ADDRESS_RE.test(derived)) {
+    throw new Error("Aztec 6.0 did not return a valid account address for these keys.");
+  }
+  if (manager.address.equals(AztecAddress.fromStringUnsafe(previousAddress))) {
+    throw new Error("These keys already recreate this address on Aztec 6.0. Import the file as-is.");
+  }
+
+  params.onProgress?.("account", "Checking the new address matches these keys…");
+  const checked = await registerAccount(
+    wallet,
+    secret,
+    saltFr,
+    signingKey,
+    AztecAddress.fromStringUnsafe(derived),
+  );
+  if (
+    checked.style !== "schnorr_initializerless" ||
+    !checked.manager.address.equals(manager.address)
+  ) {
+    throw new Error("Aztec 6.0 validation failed. The derived address did not match these keys.");
+  }
+
+  return {
+    previousAddress,
+    address: checked.manager.address.toString(),
+    secretKey,
+    salt,
+    signingKey,
+    walletCompat: "v6-initializerless",
+  };
+}
+
+/**
+ * Classify whether account keys recreate `address` under Aztec 6.0 Schnorr styles.
+ * Does not throw on mismatch — returns `pre-v6` (v5 / v5.1 era addresses).
+ */
+export async function classifyAztecWalletCompat(params: {
+  aztecNodeUrl: string;
+  networkId: string;
+  apiKey?: string;
+  address: string;
+  secretKey: string;
+  salt: string;
+  signingKey?: string;
+  onProgress?: (phase: BrowserClaimProgress, detail?: string) => void;
+}): Promise<AztecWalletCompat> {
+  if (!params.address.trim() || !params.secretKey.trim()) return "unknown";
+  try {
+    const { wallet } = await getOrCreateWarmEntry(params);
+    params.onProgress?.("account", "Checking Aztec account version…");
+    const secret = Fr.fromHexString(params.secretKey.trim());
+    const salt = Fr.fromHexString(params.salt.trim() || "0x0");
+    const { compat } = await registerAccount(
+      wallet,
+      secret,
+      salt,
+      params.signingKey,
+      AztecAddress.fromStringUnsafe(params.address.trim()),
+    );
+    return compat;
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    if (/do not recreate address|not an Aztec|5\.1|initializerless and Schnorr/i.test(message)) {
+      return "pre-v6";
+    }
+    throw e;
+  }
 }

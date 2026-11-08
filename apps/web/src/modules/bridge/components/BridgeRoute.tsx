@@ -38,7 +38,7 @@ wcUri, setWcUri, wallet, setWallet, ethSessionOk, setEthSessionOk, dfPxeAccount,
 gateImportingPxe, setGateImportingPxe, gateUnlockingVault, setGateUnlockingVault, gateImportError, setGateImportError,
 walletPickerRef,
 recipient, setRecipient, amountFj, setAmountFj, autoClaim, setAutoClaim, l2Secret, setL2Secret, l2Salt, setL2Salt,
-l2SigningKey, setL2SigningKey, legacyAccountStyles, setLegacyAccountStyles, showL2Secret, setShowL2Secret,
+l2SigningKey, setL2SigningKey, showL2Secret, setShowL2Secret,
 busy, setBusy, error, setError, ethServiceFeeWei, setEthServiceFeeWei, bridgePhase, setBridgePhase,
 progress, setProgress, l1TxHash, setL1TxHash, showBridgeResult, setShowBridgeResult,
 credentials, setCredentials, claimJobId, setClaimJobId, claimStatus, setClaimStatus, l2TxHash, setL2TxHash,
@@ -160,6 +160,27 @@ requestBridge,
                 ) : (
                   <p className="hint">Import a DF Punk account.</p>
                 )}
+                {recipient.trim() && dfPxeAccount ? (
+                  <p
+                    className={
+                      dfPxeAccount.walletCompat === "pre-v6" ||
+                      dfPxeAccount.walletCompat === "unknown" ||
+                      !dfPxeAccount.walletCompat
+                        ? "hint error aztec-wallet-compat"
+                        : "hint aztec-wallet-compat"
+                    }
+                  >
+                    {dfPxeAccount.walletCompat === "v6-initializerless"
+                      ? "Wallet: Aztec 6.0 (DF Schnorr initializerless) — OK to bridge."
+                      : dfPxeAccount.walletCompat === "v6-schnorr"
+                        ? "Wallet: Aztec 6.0 (Schnorr-with-init) — OK to bridge."
+                        : dfPxeAccount.walletCompat === "v6-external"
+                          ? "Wallet: Aztec 6.0 extension — OK to bridge."
+                          : dfPxeAccount.walletCompat === "pre-v6"
+                            ? "Wallet: v5 / v5.1 — do not bridge to this address. Open Wallets and verify an Aztec 6.0 address from the same keys."
+                            : "Wallet: version unknown — verify with a 6.0 DF account before bridging."}
+                  </p>
+                ) : null}
                 {dfPxeReady ? (
                   <div className="bridge-account-balance">
                     <span
@@ -196,7 +217,14 @@ requestBridge,
             </div>
           ) : null}
 
-          {dfPxeReady ? null : (
+          {dfPxeAccount?.walletCompat === "pre-v6" ? (
+            <p className="error">
+              This Aztec address is a <strong>v5 / v5.1</strong> wallet. The same Schnorr keys can
+              open an Aztec 6.0 account, but the address will be different. Bridging to this address
+              stays blocked. Open <strong>Wallets</strong> and choose{" "}
+              <strong>Verify Aztec 6.0 address</strong>. Fee Juice already sent here stays here.
+            </p>
+          ) : dfPxeReady ? null : (
             <p className="hint">
               Open <strong>Wallets</strong> (top right): validate MetaMask/WalletConnect, then{" "}
               <strong>Import from DF client → PXE</strong>. Generic file import does not unlock
