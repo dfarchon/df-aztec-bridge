@@ -1,8 +1,10 @@
 import { Link, usePath } from "../../app/router.tsx";
 import { NAV_ITEMS } from "../../app/routes.ts";
+import { eventUrlOrNull } from "../../lib/event-url.ts";
 
 export function Sidebar() {
   const path = usePath();
+  const eventUrl = eventUrlOrNull(import.meta.env.VITE_DF_AZTEC_EVENT_URL);
 
   return (
     <aside className="app-sidebar" aria-label="Main navigation">
@@ -23,9 +25,9 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <a
+      {eventUrl ? <a
         className="sidebar-event"
-        href="http://dfaztec-s1.dfarchon.xyz/"
+        href={eventUrl}
         target="_blank"
         rel="noopener noreferrer"
         aria-label="DF Aztec Season 1 in progress. Visit the event site (opens in a new tab)."
@@ -40,7 +42,7 @@ export function Sidebar() {
           <strong>Season 1 is live</strong>
           <span className="sidebar-event-cta">Explore the event <span aria-hidden="true">↗</span></span>
         </span>
-      </a>
+      </a> : null}
     </aside>
   );
 }
