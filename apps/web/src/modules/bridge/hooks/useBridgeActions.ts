@@ -878,11 +878,9 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
           (session) => normalizeL1TxHash(session.l1TxHash) === parsed.l1TxHash,
         );
         if (duplicate) {
-          await selectRecoverySession(duplicate);
+          await refreshSessions();
           setCredentialsImportNotice(
-            `Already in the list — L1 ${shortHash(duplicate.l1TxHash)} is ${phaseLabel(
-              duplicate.phase,
-            ).toLowerCase()}. Selected it below instead of adding a copy.`,
+            `This claim is already saved in this browser (L1 ${shortHash(duplicate.l1TxHash)}). Select it in the list to check its status.`,
           );
           return;
         }

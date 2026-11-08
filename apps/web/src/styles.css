@@ -5745,3 +5745,94 @@ html[data-theme="light"] .progress-stage-status.is-completed { color: #9c3857; }
   .progress-step-active .progress-step-marker { animation: none !important; }
 }
 
+
+#recovery-session-guide button.recovery-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.4rem;
+  width: auto;
+  min-height: 0;
+  margin: 0 0 0.85rem;
+  padding: 0.2rem 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--text-muted) !important;
+  font-size: 0.875rem !important;
+  box-shadow: none !important;
+}
+#recovery-session-guide button.recovery-back:hover:not(:disabled) {
+  background: transparent !important;
+  color: var(--text-heading) !important;
+}
+#recovery-session-guide button.recovery-remove,
+#recovery-remove-confirm button.recovery-confirm-delete {
+  border: 1px solid #d75c68 !important;
+  background: rgba(190, 45, 60, 0.1) !important;
+  color: #ff8b96 !important;
+}
+#recovery-session-guide button.recovery-remove:hover:not(:disabled),
+#recovery-remove-confirm button.recovery-confirm-delete:hover:not(:disabled) {
+  background: rgba(190, 45, 60, 0.24) !important;
+  color: #ffd5d9 !important;
+}
+html[data-theme="light"] #recovery-session-guide button.recovery-remove,
+html[data-theme="light"] #recovery-remove-confirm button.recovery-confirm-delete {
+  color: #9d1c2b !important;
+  border-color: #b52b39 !important;
+}
+
+.recovery-route {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+.recovery-list-card,
+.recovery-import-card {
+  min-height: 0;
+  height: auto;
+  overflow: visible;
+}
+
+/* Long lists scroll inside their cards; grouped history has one scroll area. */
+.scrollable-list {
+  max-height: min(calc(24rem + 300px), 75dvh);
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.scrollable-list:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.scrollable-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-strong) var(--surface);
+}
+.scrollable-list::-webkit-scrollbar { width: 8px; }
+.scrollable-list::-webkit-scrollbar-track { background: var(--surface); }
+.scrollable-list::-webkit-scrollbar-thumb {
+  background: var(--accent-strong);
+  border: 2px solid var(--surface);
+  border-radius: 8px;
+}
+.scrollable-list::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* Leave room for the separate import card on Recover. */
+.recovery-list-card .scrollable-list {
+  max-height: min(45rem, max(8rem, calc(100dvh - 35rem)));
+}
+
+/* History has no card below it, so it can use the remaining viewport height. */
+.history-layout .history-groups.scrollable-list {
+  max-height: max(8rem, calc(100dvh - 21rem));
+}
+
+@media (max-width: 780px) {
+  .history-layout .history-groups.scrollable-list {
+    max-height: max(8rem, calc(100dvh - 17rem));
+  }
+}

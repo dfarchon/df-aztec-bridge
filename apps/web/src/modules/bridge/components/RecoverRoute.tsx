@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type DragEvent, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { phaseLabel, shortHash } from "../../../lib/claim-recovery.ts";
 import { formatFjAmount } from "../../../lib/bridge-amount.ts";
 import { downloadClaimCredentials } from "../../../lib/claim-credentials-store.ts";
@@ -43,7 +44,6 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
     recoveryAccountReady,
   } = flows;
 
-  const [importOpen, setImportOpen] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
   const [accountMissing, setAccountMissing] = useState(false);
   const claimFileRef = useRef<HTMLInputElement>(null);
@@ -59,30 +59,19 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
       progress.track === "resume-l1" ||
       progress.track === "wait-l2");
 
-  const pane = recoverProgress
-    ? "progress"
-    : removeOpen && showDetail
-      ? "remove"
-      : importOpen
-        ? "import"
-        : showDetail
-          ? "detail"
-          : "list";
+  const pane = recoverProgress ? "progress" : showDetail ? "detail" : "list";
 
   const pickSession = (entry: BridgeSessionEntry) => {
     setRemoveOpen(false);
-    setImportOpen(false);
     void selectRecoverySession(entry);
   };
 
   const pickClaimFile = (file: File | null) => {
     void onClaimCredentialsFile(file);
-    setImportOpen(false);
   };
 
   const backToList = () => {
     setRemoveOpen(false);
-    setImportOpen(false);
     setSelectedRecoveryHash(null);
   };
 
@@ -124,7 +113,8 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
   ]);
 
   return (
-    <div className="bridge-layout recover-layout" aria-label="Recover">
+    <div className="recovery-route" aria-label="Recover">
+      <div className={`bridge-layout recover-layout${pane === "list" ? " recovery-list-card" : ""}`}>
       <section className="bridge-step" id="recovery-session-guide">
         {pane === "progress" && progress ? (
           <ProgressPanel
@@ -149,53 +139,6 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
               else if (progress.track === "wait-l2") void waitForSessionL2(selectedSession);
             }}
           />
-        ) : null}
-
-        {pane === "import" ? (
-          <div className="df-pxe-format-pane">
-            <p className="wallet-manager-pane-title">Import claim</p>
-            <p className="hint">
-              Pick the claim-*.json downloaded after the L1 deposit. It has to be for the Aztec
-              account already in this browser. A file for another account is not saved.
-            </p>
-            <ClaimFileButton
-              inputRef={claimFileRef}
-              busy={busy}
-              label="Choose claim JSON"
-              onFile={pickClaimFile}
-            />
-            <ImportFeedback
-              error={credentialsImportError}
-              notice={credentialsImportNotice}
-            />
-            <button type="button" className="ghost" onClick={() => setImportOpen(false)}>
-              Back
-            </button>
-          </div>
-        ) : null}
-
-        {pane === "remove" && selectedSession ? (
-          <div className="df-pxe-format-pane">
-            <p className="wallet-manager-pane-title">Think twice before removing</p>
-            <p className="hint">
-              This only deletes the saved claim from this browser. The Ethereum deposit is not
-              undone. Without a downloaded claim JSON, this Fee Juice may be unclaimable later.
-            </p>
-            <button type="button" onClick={() => setRemoveOpen(false)}>
-              Keep this claim
-            </button>
-            <button
-              type="button"
-              className="ghost"
-              disabled={busy}
-              onClick={() => {
-                setRemoveOpen(false);
-                void onRemoveSession(selectedSession);
-              }}
-            >
-              Delete anyway
-            </button>
-          </div>
         ) : null}
 
         {pane === "detail" && selectedSession ? (
@@ -227,62 +170,79 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
         {pane === "list" ? (
           <>
             <p className="wallet-manager-pane-title">Which claim</p>
+            <ImportFeedback error={null} notice={credentialsImportNotice} />
             {storageReady === false ? (
               <p className="error">{storageError ?? "Browser storage is unavailable."}</p>
             ) : null}
             {recoverySessions.length === 0 ? (
-              <>
-                <p className="hint">
-                  No unfinished claim for the Aztec account in this browser. Import the claim-*.json
-                  downloaded after the L1 deposit.
-                </p>
-                <ClaimFileButton
-                  inputRef={claimFileRef}
-                  busy={busy}
-                  label="Import claim"
-                  onFile={pickClaimFile}
-                />
-                <ImportFeedback
-                  error={credentialsImportError}
-                  notice={credentialsImportNotice}
-                />
-              </>
+              <p className="hint">
+                No unfinished claim for the Aztec account in this browser.
+              </p>
             ) : (
-              <>
-                <ul className="recovery-session-list">
-                  {recoverySessions.map((entry) => {
-                    const key = normalizeL1TxHash(entry.l1TxHash);
-                    return (
-                      <li key={key}>
-                        <button
-                          type="button"
-                          className="recovery-session-item"
-                          onClick={() => pickSession(entry)}
-                        >
-                          <span className="recovery-session-amount">
-                            {sessionAmountFj(entry.claimAmount)} FJ → {shortHash(entry.recipient)}
-                          </span>
-                          <span className="hint">
-                            {phaseLabel(entry.phase)}
-                            {entry.updatedAt ? ` · ${formatUpdatedAt(entry.updatedAt)}` : ""}
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-                <ImportFeedback
-                  error={credentialsImportError}
-                  notice={credentialsImportNotice}
-                />
-                <button type="button" className="ghost" onClick={() => setImportOpen(true)}>
-                  Import claim
-                </button>
-              </>
+              <ul className="recovery-session-list scrollable-list" tabIndex={0} aria-label="Unfinished claims">
+                {recoverySessions.map((entry) => {
+                  const key = normalizeL1TxHash(entry.l1TxHash);
+                  return (
+                    <li key={key}>
+                      <button
+                        type="button"
+                        className="recovery-session-item"
+                        onClick={() => pickSession(entry)}
+                      >
+                        <span className="recovery-session-amount">
+                          {sessionAmountFj(entry.claimAmount)} FJ → {shortHash(entry.recipient)}
+                        </span>
+                        <span className="hint">
+                          L1 {shortHash(entry.l1TxHash)} · {phaseLabel(entry.phase)}
+                          {entry.updatedAt ? ` · ${formatUpdatedAt(entry.updatedAt)}` : ""}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </>
         ) : null}
       </section>
+      </div>
+      {pane === "list" ? (
+        <section className="bridge-layout recovery-import-card" aria-labelledby="recovery-import-title">
+          <p id="recovery-import-title" className="wallet-manager-pane-title">Import claim</p>
+          <p className="hint">
+            Choose the claim-*.json downloaded after the L1 deposit. It must be for an Aztec
+            account already in this browser; a file for another account is not saved.
+          </p>
+          <ClaimFileButton inputRef={claimFileRef} busy={busy} label="Import claim" onFile={pickClaimFile} />
+          <ImportFeedback error={credentialsImportError} notice={null} />
+        </section>
+      ) : null}
+      {removeOpen && showDetail && selectedSession ? createPortal(
+        <div className="modal-backdrop" role="presentation" onClick={(event) => {
+          if (event.target === event.currentTarget && !busy) setRemoveOpen(false);
+        }}>
+          <div className="modal recovery-remove-confirm" id="recovery-remove-confirm" role="alertdialog" aria-modal="true" aria-labelledby="remove-claim-title" aria-describedby="remove-claim-description" onKeyDown={(event) => {
+            if (event.key === "Escape" && !busy) setRemoveOpen(false);
+          }}>
+            <p id="remove-claim-title" className="wallet-manager-pane-title">Remove this claim?</p>
+            <p id="remove-claim-description" className="hint">
+              This deletes the saved claim from this browser only. The Ethereum deposit is not
+              undone. Without a downloaded claim JSON, this Fee Juice may be unclaimable later.
+            </p>
+            <div className="modal-actions">
+              <button type="button" className="ghost" autoFocus disabled={busy} onClick={() => setRemoveOpen(false)}>
+                Keep claim
+              </button>
+              <button type="button" className="recovery-confirm-delete" disabled={busy} onClick={() => {
+                setRemoveOpen(false);
+                void onRemoveSession(selectedSession);
+              }}>
+                Remove claim
+              </button>
+            </div>
+          </div>
+        </div>, document.body,
+      ) : null}
     </div>
   );
 }
@@ -418,6 +378,12 @@ function DetailStep({
 
   return (
     <>
+      <button type="button" className="recovery-back" onClick={onBackToList}>
+        <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+          <path d="M12.5 4.5 7 10l5.5 5.5M7 10h9" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        Back to list
+      </button>
       <p className="wallet-manager-pane-title">{detailTitle(selectedSession)}</p>
       <p className="hint">
         {amount} FJ → {shortHash(recipient)}
@@ -473,11 +439,8 @@ function DetailStep({
             Download claim JSON
           </button>
         ) : null}
-        <button type="button" className="ghost" onClick={onRemove}>
+        <button type="button" className="recovery-remove" disabled={busy} onClick={onRemove}>
           Remove
-        </button>
-        <button type="button" className="ghost" onClick={onBackToList}>
-          Back to list
         </button>
       </div>
     </>

@@ -430,7 +430,7 @@ export function VaultPage() {
                 Recover.
               </p>
             ) : (
-              <ul className="recovery-session-list">
+              <ul className="recovery-session-list scrollable-list" tabIndex={0} aria-label="Unfinished claims">
                 {snapshot.claims.map((entry) => {
                   const key = normalizeL1TxHash(entry.l1TxHash);
                   return (
@@ -491,7 +491,7 @@ export function VaultPage() {
               Same URLs Bridge uses after merging app defaults with anything saved in this vault.
               Change Aztec nodes from RPC settings on Bridge.
             </p>
-            <ul className="recovery-session-list vault-node-list">
+            <ul className="recovery-session-list vault-node-list scrollable-list" tabIndex={0} aria-label="RPC nodes">
               {snapshot.nodeRows.map((row) => (
                 <li key={row.networkId}>
                   <div className="recovery-session-item recovery-session-item-static vault-node-card">
