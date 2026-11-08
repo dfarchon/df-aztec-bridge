@@ -1,6 +1,6 @@
-import { parseEthFeeWeiOverride } from "@df-bridge/browser-sdk";
 import { assertSafeClaimApiBase } from "../../lib/api-base.ts";
 import { assertPinnedFeeRecipient } from "../../lib/fee-recipient.ts";
+import { assertPinnedSponsoredFpc } from "../../lib/sponsored-fpc.ts";
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
 assertSafeClaimApiBase(API_BASE);
@@ -12,14 +12,14 @@ export const BRIDGE_FEE_RECIPIENT = assertPinnedFeeRecipient(
   import.meta.env.VITE_BRIDGE_FEE_RECIPIENT as string | undefined,
 );
 
-/** Optional fixed mainnet ETH service fee (wei). Empty = estimate from gas × ~1 L1 tx. */
-export const BRIDGE_ETH_FEE_WEI_OVERRIDE = parseEthFeeWeiOverride(
-  (import.meta.env.VITE_BRIDGE_ETH_FEE_WEI as string | undefined) ?? "",
+/** Pinned L2 Sponsored FPC — env may only repeat this address. */
+export const SPONSORED_FPC_ADDRESS = assertPinnedSponsoredFpc(
+  import.meta.env.VITE_SPONSORED_FPC_ADDRESS as string | undefined,
 );
 
 export const BRIDGE_PUBLIC_URL =
   (import.meta.env.VITE_BRIDGE_PUBLIC_URL as string | undefined)?.trim() ||
-  "https://df-atlas.onchainreality.xyz/";
+  "https://aztec-dfarchon-kit.netlify.app/";
 
 export const DFPUNK_PLAY_URL =
   (import.meta.env.VITE_DFPUNK_PLAY_URL as string | undefined)?.trim() ||

@@ -95,7 +95,7 @@ function integrityFacts(
     {
       label: "Connection",
       value: result.officialRpcHost ? "Official host" : "Custom host",
-      bad: false,
+      bad: !result.officialRpcHost,
       tip: host ? { text: host } : undefined,
     },
   ];

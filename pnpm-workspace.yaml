@@ -73,6 +73,8 @@ overrides:
   fast-copy: "4.3.1"
   # glob GHSA-3g3m-2fjr-6pw4 (<=14.0.1). 14.0.4 pulls minimatch 11, which clears the nested advisory.
   glob: "14.0.4"
+  # pbkdf2 GHSA-477h-4r7f-fvrx (<=3.1.6) via vite-plugin-node-polyfills → crypto-browserify.
+  pbkdf2: "3.1.7"
 
 # Only these packages may run install/build lifecycle scripts.
 allowBuilds:

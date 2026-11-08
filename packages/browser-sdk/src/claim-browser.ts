@@ -108,6 +108,9 @@ function createBrowserNode(url: string, apiKey?: string) {
 }
 
 function logRegister(step: string, detail: Record<string, unknown>) {
+  // Vite production builds drop console; keep quiet unless DEV is explicitly true.
+  const env = (import.meta as ImportMeta & { env?: { DEV?: boolean } }).env;
+  if (env?.DEV !== true) return;
   console.info(`[claim][register] ${step}`, detail);
 }
 

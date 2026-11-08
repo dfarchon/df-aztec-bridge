@@ -19,7 +19,6 @@ interface ImportMetaEnv {
   /** Anonymous Trezor / treasury receiving the 5% L1 AZTEC fee + mainnet ETH service fee. */
   readonly VITE_BRIDGE_FEE_RECIPIENT?: string;
   /** Optional fixed mainnet ETH service fee in wei (else estimated from gas × ~1 L1 tx). */
-  readonly VITE_BRIDGE_ETH_FEE_WEI?: string;
   /** Aztec L2 Sponsored FPC address (Fee Juice funding target for DF sponsor mode). */
   readonly VITE_SPONSORED_FPC_ADDRESS?: string;
   readonly VITE_BRIDGE_PUBLIC_URL?: string;

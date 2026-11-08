@@ -4358,7 +4358,8 @@ html[data-theme="light"] {
   --text-muted: var(--neutral-600);
   --text-heading: var(--ink);
   --accent: var(--ink);
-  --accent-strong: var(--ink);
+  /* Match dark: hover shifts accent → accent-strong (black → pink). */
+  --accent-strong: var(--pink-400);
   --accent-tint: var(--pink-200);
   --code-surface: var(--neutral-100);
   --void: var(--bg);

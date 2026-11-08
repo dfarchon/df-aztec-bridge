@@ -6,6 +6,9 @@
 import {
   PREVIEW_COOKIE,
   PREVIEW_COOKIE_TTL_MS,
+  clientIpFromHeaders,
+  createAttemptLimiter,
+  escapeHtml,
   isPreviewGateHost,
   passwordMatches,
   readCookie,
@@ -22,9 +25,11 @@ const HEADERS = {
     "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
 };
 
+const attemptLimiter = createAttemptLimiter();
+
 function page(message, showForm) {
   const note = message
-    ? `<p>${message}</p>`
+    ? `<p>${escapeHtml(message)}</p>`
     : "<p>This preview is locked. The password stays on the server.</p>";
   const form = showForm
     ? `<form method="post" action="/__preview-gate">
@@ -53,6 +58,10 @@ export default async function previewGate(request, context) {
   }
 
   if (request.method === "POST" && url.pathname === "/__preview-gate") {
+    const clientKey = clientIpFromHeaders(request.headers);
+    if (attemptLimiter.isLimited(clientKey)) {
+      return html(429, "Too many attempts. Wait a minute and try again.", true);
+    }
     let given = "";
     try {
       const form = await request.formData();
@@ -61,8 +70,13 @@ export default async function previewGate(request, context) {
       given = "";
     }
     if (!(await passwordMatches(given, password))) {
+      attemptLimiter.recordFailure(clientKey);
+      if (attemptLimiter.isLimited(clientKey)) {
+        return html(429, "Too many attempts. Wait a minute and try again.", true);
+      }
       return html(401, "Invalid password.", true);
     }
+    attemptLimiter.clear(clientKey);
     const exp = Date.now() + PREVIEW_COOKIE_TTL_MS;
     const token = await signPreviewCookie(password, url.hostname, exp);
     const headers = new Headers(HEADERS);

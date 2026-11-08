@@ -15,7 +15,6 @@ import {
   watchProviderSession,
   computeBridgeFee,
   BRIDGE_FEE_BPS,
-  parseEthFeeWeiOverride,
   resolveBridgeEthServiceFee,
   shouldChargeBridgeEthServiceFee,
   type BridgeProgressPhase,
@@ -91,13 +90,12 @@ import { ROUTES } from "../../../app/routes.ts";import { assertSafeClaimApiBase 
 import {
   API_BASE,
   BROWSER_CLAIM,
-  BRIDGE_ETH_FEE_WEI_OVERRIDE,
   BRIDGE_FEE_RECIPIENT,
   BRIDGE_PUBLIC_URL,
   DFPUNK_PLAY_URL,
   WC_PROJECT_ID,
 } from "../config.ts";
-import { readJsonResponse, resolveClaimSigningKey, storageErrorMessage } from "../tools.ts";
+import { readClaimApiJobResponse, resolveClaimSigningKey, storageErrorMessage } from "../tools.ts";
 import type { BridgeSession } from "./useBridgeSession.ts";
 
 /** Claim-job polling, unload guard, and bridge form derived state. */
@@ -144,14 +142,8 @@ vaultTimeoutNotice,
         return;
       }
       void fetch(`${API_BASE}/v1/jobs/${claimJobId}`)
-        .then((response) =>
-          readJsonResponse<{
-            status: string;
-            error?: string;
-            result?: { l2TxHash?: string };
-          }>(response, "Claim status API"),
-        )
-        .then(async (job: { status: string; error?: string; result?: { l2TxHash?: string } }) => {
+        .then((response) => readClaimApiJobResponse(response, "Claim status API"))
+        .then(async (job) => {
           setClaimStatus(job.status);
           if (job.status === "failed") {
             setError(job.error ?? "Claim failed");

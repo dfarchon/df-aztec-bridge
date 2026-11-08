@@ -38,6 +38,13 @@ describe("csp", () => {
     expect(buildProductionCsp()).not.toContain("lb.drpc.live");
     expect(buildDevCsp({ unsafeInlineScripts: false })).not.toContain("lb.drpc.live");
   });
+
+  it("matches netlify.toml Content-Security-Policy (csp.ts is source of truth)", () => {
+    const toml = readFileSync(new URL("../../../../netlify.toml", import.meta.url), "utf8");
+    const match = toml.match(/Content-Security-Policy\s*=\s*"([^"]+)"/);
+    expect(match?.[1], "netlify.toml must declare Content-Security-Policy").toBeDefined();
+    expect(match![1]).toBe(buildProductionCsp());
+  });
 });
 
 describe("preview gate is not a client secret", () => {

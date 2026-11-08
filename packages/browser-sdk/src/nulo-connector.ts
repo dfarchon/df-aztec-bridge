@@ -16,6 +16,7 @@ import {
   claimUsingExternalWallet,
   type BrowserClaimProgress,
 } from "./claim-browser.ts";
+import { privacyFetch } from "./privacy-fetch.ts";
 import type { ClaimCredentials } from "./types.ts";
 
 const APP_ID = "df-aztec-bridge";
@@ -60,7 +61,7 @@ export type NuloPendingConnect = {
 
 async function chainInfoForNode(aztecNodeUrl: string): Promise<ChainInfo> {
   try {
-    const response = await fetch(aztecNodeUrl, {
+    const response = await privacyFetch(aztecNodeUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({

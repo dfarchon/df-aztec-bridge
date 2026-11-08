@@ -285,6 +285,12 @@ export function WalletManagerPanel(props: {
   }, [formatOpen, replaceOpen, removeConfirm, rebaseOpen]);
 
   const backupAztecJson = (account: ImportedAztecAccount) => {
+    const confirmed = window.confirm(
+      "Download a plaintext wallet backup?\n\n" +
+        "The file includes full L2 secret keys. Store it offline and never share it or upload it to a website.\n\n" +
+        "Continue only if you are ready to protect this file.",
+    );
+    if (!confirmed) return;
     const filename = aztecBackupJsonFilename(account.address);
     downloadJsonBackup(filename, serializeAztecWalletJson(account));
     replaceBackedUpRef.current = true;
@@ -534,6 +540,12 @@ export function WalletManagerPanel(props: {
       setError("Refusing to download a backup that changed the keys.");
       return;
     }
+    const confirmed = window.confirm(
+      "Download a plaintext wallet backup?\n\n" +
+        "The file includes full L2 secret keys. Store it offline and never share it or upload it to a website.\n\n" +
+        "Continue only if you are ready to protect this file.",
+    );
+    if (!confirmed) return;
     const filename = aztecBackupJsonFilename(rebaseVerified.address);
     downloadJsonBackup(filename, serializeAztecWalletJson(rebaseVerified));
     setRebaseDownloaded(true);

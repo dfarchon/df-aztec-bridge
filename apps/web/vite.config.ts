@@ -7,6 +7,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildDevCsp } from "./src/lib/csp.ts";
 import { assertPinnedFeeRecipient } from "./src/lib/fee-recipient.ts";
+import { assertPinnedSponsoredFpc } from "./src/lib/sponsored-fpc.ts";
 import { assertSafeConfiguredRpcUrl, isSafeConfiguredRpcUrl } from "./src/lib/official-links.ts";
 
 const webDir = dirname(fileURLToPath(import.meta.url));
@@ -210,6 +211,12 @@ export default defineConfig(({ mode }) => {
     );
   }
   assertPinnedFeeRecipient(env.VITE_BRIDGE_FEE_RECIPIENT);
+  assertPinnedSponsoredFpc(env.VITE_SPONSORED_FPC_ADDRESS);
+  if (env.VITE_BRIDGE_ETH_FEE_WEI?.trim()) {
+    throw new Error(
+      "VITE_BRIDGE_ETH_FEE_WEI is removed. Mainnet ETH service fee is always gasPrice × ~1 L1 tx gas.",
+    );
+  }
   for (const key of [
     "VITE_MAINNET_AZTEC_NODE_URL",
     "VITE_MAINNET_L1_RPC_URL",

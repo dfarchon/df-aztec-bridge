@@ -15,7 +15,6 @@ import {
   watchProviderSession,
   computeBridgeFee,
   BRIDGE_FEE_BPS,
-  parseEthFeeWeiOverride,
   resolveBridgeEthServiceFee,
   shouldChargeBridgeEthServiceFee,
   type BridgeProgressPhase,
@@ -94,14 +93,14 @@ import { usePath, useNavigate } from "../../../app/router.tsx";
 import { ROUTES } from "../../../app/routes.ts";
 import { useNetwork } from "../../../providers/NetworkProvider.tsx";
 import { getVaultLockReason, isVaultUnlocked, subscribeVault } from "../../../lib/vault.ts";
-import { VAULT_TIMEOUT_NOTICE } from "../../../lib/vault-idle-lock.ts";
+import { clearBridgeSensitiveUiState } from "../../../lib/bridge-sensitive-ui.ts";
+import { setVaultIdleLockPaused, VAULT_TIMEOUT_NOTICE } from "../../../lib/vault-idle-lock.ts";
 import { useVault } from "../../../providers/VaultProvider.tsx";
 import { useUi } from "../../../providers/UiProvider.tsx";
 import { assertSafeClaimApiBase } from "../../../lib/api-base.ts";
 import {
   API_BASE,
   BROWSER_CLAIM,
-  BRIDGE_ETH_FEE_WEI_OVERRIDE,
   BRIDGE_FEE_RECIPIENT,
   BRIDGE_PUBLIC_URL,
   DFPUNK_PLAY_URL,
@@ -231,22 +230,24 @@ export function useBridgeSession() {
       const nowUnlocked = isVaultUnlocked();
       if (wasUnlocked && !nowUnlocked) {
         const reason = getVaultLockReason();
-        setDfPxeAccount(null);
-        setVaultPxeAccount(null);
-        setRecipient("");
-        setL2Secret("");
-        setL2Salt("0");
-        setL2SigningKey("");
-        setShowL2Secret(false);
-        setCredentials(null);
-        setRecoverySessions([]);
-        setSelectedRecoveryHash(null);
-        setRecoveryPromptOpen(false);
-        setImportedAccounts([]);
-        setImportedIndex(0);
-        setImportName(null);
-        setShowBridgeResult(false);
-        closeWalletPanel();
+        clearBridgeSensitiveUiState({
+          setDfPxeAccount,
+          setVaultPxeAccount,
+          setRecipient,
+          setL2Secret,
+          setL2Salt,
+          setL2SigningKey,
+          setShowL2Secret,
+          setCredentials,
+          setRecoverySessions,
+          setSelectedRecoveryHash,
+          setRecoveryPromptOpen,
+          setImportedAccounts,
+          setImportedIndex,
+          setImportName,
+          setShowBridgeResult,
+          closeWalletPanel,
+        });
         if (reason === "idle" || reason === "tab-hidden") {
           setVaultTimeoutNotice(VAULT_TIMEOUT_NOTICE);
         }
@@ -256,6 +257,13 @@ export function useBridgeSession() {
       wasUnlocked = nowUnlocked;
     });
   }, [setVaultPxeAccount, closeWalletPanel, refreshSessions]);
+
+  // Pause idle / tab-hidden auto-lock while a bridge or claim run is in progress.
+  useEffect(() => {
+    const running = progress?.runState === "running";
+    setVaultIdleLockPaused(running);
+    return () => setVaultIdleLockPaused(false);
+  }, [progress?.runState]);
 
   useEffect(() => {
     let cancelled = false;
@@ -762,7 +770,6 @@ export function useBridgeSession() {
         const publicClient = getL1PublicClient(networkMeta.l1RpcUrl, networkMeta.l1ChainId);
         const wei = await resolveBridgeEthServiceFee({
           chainId: networkMeta.l1ChainId,
-          overrideWei: BRIDGE_ETH_FEE_WEI_OVERRIDE,
           getMaxFeePerGas: async () => {
             try {
               const fees = await publicClient.estimateFeesPerGas();

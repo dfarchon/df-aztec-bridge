@@ -77,9 +77,12 @@ export function validateRpcOverrides(overrides: RpcOverrides): string | null {
 export async function getRpcOverrides(networkId: string): Promise<RpcOverrides> {
   const row = (await loadAll())[networkId];
   if (!row) return {};
-  return {
+  const next: RpcOverrides = {
     aztecNodeUrl: clean(row.aztecNodeUrl),
   };
+  // Drop legacy / tampered vault blobs that no longer pass the allowlist.
+  if (validateRpcOverrides(next)) return {};
+  return next;
 }
 
 /** Persist Aztec node override for one network. Clears the network entry when empty. */

@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useEffect, useRef } from "react";
 import { formatEther } from "viem";
 import { shouldChargeBridgeEthServiceFee } from "@df-bridge/browser-sdk";
 import { hasRpcOverrides } from "../../../lib/rpc-overrides.ts";
@@ -68,6 +68,11 @@ requestBridge,
     feeBalance && feeBalance.balance > 0n
       ? sliderFromAmount(feeBalance.balance, parseAmountWeiLoose(amountFj))
       : 0;
+  const sliderRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const fill = `${(sliderValue / AMOUNT_SLIDER_MAX) * 100}%`;
+    sliderRef.current?.style.setProperty("--amount-slider-fill", fill);
+  }, [sliderValue]);
   const amountPresetActions = feeBalance ? amountPresets(feeBalance.balance) : [];
   const selectedPreset = amountPresetActions.find((row) => row.amountFj === amountFj.trim())?.percent ?? null;
   const feeHint =
@@ -253,6 +258,7 @@ requestBridge,
                 <label htmlFor="bridge-amount-input">You pay</label>
               </div>
               <input
+                ref={sliderRef}
                 type="range"
                 className="bridge-amount-slider"
                 min={0}
@@ -262,7 +268,6 @@ requestBridge,
                 disabled={busy || !sliderEnabled}
                 aria-label="Bridge amount"
                 aria-valuetext={amountFj.trim() ? `${amountFj} ${tokenSymbol}` : `0 ${tokenSymbol}`}
-                style={{ "--amount-slider-fill": `${(sliderValue / AMOUNT_SLIDER_MAX) * 100}%` } as CSSProperties}
                 onChange={(event) => {
                   if (!feeBalance) return;
                   const wei = amountFromSlider(feeBalance.balance, Number(event.target.value));

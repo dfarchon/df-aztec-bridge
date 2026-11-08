@@ -36,7 +36,9 @@ Profile meta (salt, verifier, passkey id)
 | **CEK** | The key that encrypts your saved wallets / bridge sessions. Exists only in memory while unlocked. |
 | **Verifier** | Check that the password is correct without storing the password. |
 | **Passkey** | Optional WebAuthn check. When the authenticator supports the PRF extension, a random CEK is wrapped by the password and that passkey output together. The password alone cannot decrypt that vault. Older passkeys that cannot return a PRF stay password-only and are upgraded to 600k iterations on the next unlock. |
-| **Idle lock** | After **15 min** idle or **5 min** with the tab hidden → CEK wiped, and in-memory claim / account secrets cleared. |
+| **Idle lock** | After **15 min** idle or **5 min** with the tab hidden → CEK wiped, and in-memory claim / account secrets cleared. Timers **pause** while a bridge or claim run is in progress so mid-proof unlocks are not wiped. |
+| **Device key** | Per-origin IndexedDB AES key wraps profile **meta** at rest. Same-origin XSS can still use it; the CEK still needs the password (and PRF when wrapped). |
+| **CryptoKey wipe** | Locking clears the CEK *reference*. Web Crypto / JS cannot zero key bytes — inherent browser limit. |
 
 ## What is stored when unlocked
 
@@ -81,7 +83,8 @@ Open app
 1. Use a **strong** password. New vaults require at least 12 characters. Existing shorter passwords still unlock.
 2. Download **claim-*.json** after L1 deposit and keep a copy offline.
 3. Lock the vault when you walk away (or let idle lock do it).
-4. Same-origin XSS while unlocked ≈ attacker can use your CEK. Keep the site + CSP healthy.
+4. Same-origin XSS while unlocked ≈ attacker can use your CEK and any claim secrets in React/PXE memory. Keep the site + CSP healthy.
+5. Wallet JSON backups include plaintext L2 secrets by design — confirm the download warning and store the file offline.
 
 Code pointers: `apps/web/src/lib/vault.ts`, `vault-crypto.ts`, `vault-idb.ts`, `vault-idle-lock.ts`, `vault-passkey.ts`.
 

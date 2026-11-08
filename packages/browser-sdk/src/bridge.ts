@@ -110,11 +110,6 @@ export async function bridgeFromConnectedWallet(params: {
   l1RpcUrl?: string;
   /** L1 fee recipient (Trezor). Required — 5% of gross AZTEC + mainnet ETH service fee. */
   feeRecipient: Hex;
-  /**
-   * Optional fixed mainnet ETH service fee (wei). When omitted on chainId 1,
-   * fee is estimated as gasPrice × ~1 L1 tx gas.
-   */
-  ethServiceFeeWei?: bigint;
   onProgress?: (phase: BridgeProgressPhase, detail?: string) => void;
   /** Called as soon as the deposit tx is submitted, before waiting for its receipt. */
   onPending?: (pending: PendingBridge) => void;
@@ -147,10 +142,9 @@ export async function bridgeFromConnectedWallet(params: {
     throw new Error("Bridge amount too small after 5% protocol fee.");
   }
 
-  // Mainnet ETH service fee (~1 L1 tx) — batched into the portal/gobridge confirm when possible.
+  // Mainnet ETH service fee (~1 L1 tx) — live fee market × gas units only (no env wei override).
   const ethServiceFee = await resolveBridgeEthServiceFee({
     chainId: params.expectedChainId,
-    overrideWei: params.ethServiceFeeWei ?? null,
     getMaxFeePerGas: async () => {
       try {
         const fees = await publicClient.estimateFeesPerGas();

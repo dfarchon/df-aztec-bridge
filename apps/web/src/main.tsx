@@ -136,8 +136,19 @@ async function boot() {
   }
 
   if (import.meta.env.PROD && typeof window !== "undefined" && window.location.protocol === "http:") {
-    // Defense-in-depth: production DApp should only run on HTTPS (Netlify enforces this too).
-    console.warn("[boot] Refusing insecure origin in production");
+    const host = window.location.hostname.toLowerCase();
+    const loopback = host === "localhost" || host === "127.0.0.1" || host === "[::1]";
+    if (!loopback) {
+      setSplashHint("HTTPS required…");
+      const { HttpsRequiredPage } = await import("./components/ui/HttpsRequiredPage.tsx");
+      createRoot(document.getElementById("root")!).render(
+        <StrictMode>
+          <HttpsRequiredPage />
+        </StrictMode>,
+      );
+      dismissBootSplash();
+      return;
+    }
   }
 
   if (MAINTENANCE_MODE) {

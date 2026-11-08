@@ -46,6 +46,10 @@ type VaultSnapshot = {
   accountAddress: string | null;
   accountSavedAt: number | null;
   passkeyEnabled: boolean;
+  /** Passkey present but CEK is still password-only (no WebAuthn PRF wrap). */
+  passkeyWithoutPrf: boolean;
+  /** Legacy signingKey-bound verifier still in meta until one unlock migrates to v2. */
+  legacyVerifierV1: boolean;
   pxeRegistered: boolean;
   boundEthAddress: string | null;
   claimCount: number;
@@ -58,6 +62,8 @@ const EMPTY_SNAPSHOT: VaultSnapshot = {
   accountAddress: null,
   accountSavedAt: null,
   passkeyEnabled: false,
+  passkeyWithoutPrf: false,
+  legacyVerifierV1: false,
   pxeRegistered: false,
   boundEthAddress: null,
   claimCount: 0,
@@ -154,6 +160,8 @@ async function loadVaultSnapshot(activeNetworkId: string): Promise<VaultSnapshot
     accountAddress: account?.address ?? null,
     accountSavedAt: account?.createdAt ?? profile?.createdAt ?? null,
     passkeyEnabled: !!profile?.passkey,
+    passkeyWithoutPrf: !!profile?.passkey && !profile?.cekWrap,
+    legacyVerifierV1: profile?.v === 1,
     pxeRegistered: !!account?.pxeRegistered,
     boundEthAddress: account?.boundEthAddress ?? null,
     claimCount: claims.length,
@@ -294,6 +302,18 @@ export function VaultPage() {
               This page summarizes encrypted data in this browser. Private keys and claim secrets are
               never shown here.
             </p>
+            {snapshot.legacyVerifierV1 ? (
+              <p className="hint">
+                This vault still uses a legacy verifier. Unlock once with your password (and account
+                keys if prompted) so it migrates to the password-only verifier automatically.
+              </p>
+            ) : null}
+            {snapshot.passkeyWithoutPrf ? (
+              <p className="hint">
+                Your passkey is presence-only on this device. Re-register a passkey on a PRF-capable
+                browser so the vault key is wrapped and the password alone cannot decrypt.
+              </p>
+            ) : null}
             <ul className="recovery-session-list">
               <li>
                 <button

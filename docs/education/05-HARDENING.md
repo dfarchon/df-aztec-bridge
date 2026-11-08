@@ -46,10 +46,13 @@ Page JS ──connect-src──► allowlisted HTTPS hosts
          ──✕──────────► random.com   (blocked)
 ```
 
-Source of truth: `apps/web/src/lib/csp.ts` must match `netlify.toml` headers.  
-No open `https:` / `wss:` wildcards (except required WalletConnect / Reown patterns).
+Source of truth: `apps/web/src/lib/csp.ts` must match `netlify.toml` headers (CI test asserts parity).  
+No open `https:` / `wss:` wildcards (except required WalletConnect / Reown patterns — residual post-XSS exfil to those domains is accepted).  
+`style-src` keeps `'unsafe-inline'` (required for Vite HMR / stylesheet injection); dynamic values prefer CSSOM.
 
 CRS hosts (`crs.aztec-cdn.foundation`, `crs.aztec-labs.com`) are required for browser proving.
+
+Pinned L1 fee recipient and L2 Sponsored FPC addresses fail the build on env mismatch. Mainnet ETH service fee is gas-derived only (no `VITE_BRIDGE_ETH_FEE_WEI`).
 
 ## 3) DevGate vs real access control
 
@@ -58,11 +61,14 @@ Netlify edge function (netlify/edge-functions/preview-gate.js)
    = lock for branch deploys and deploy previews
    = password is DEV_GATE_PASSWORD in the Netlify UI (not a VITE_ variable)
    = missing or short password fails closed (503) before the app bundle
-   = production host and localhost are not gated
+   = HTML gate messages are escaped; failed POSTs are soft rate-limited (5 / 60s)
+   = production host and localhost are not gated (by design)
 
 Netlify visitor password
    = optional extra CDN lock the repo cannot turn on
 ```
+
+Also: `pnpm check:prod-env` asserts Netlify / `.env.example` keep browser claim on and do not bake maintenance mode or a remote claim API base.
 
 ## 4) pnpm / supply chain
 

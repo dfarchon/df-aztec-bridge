@@ -15,7 +15,6 @@ import {
   watchProviderSession,
   computeBridgeFee,
   BRIDGE_FEE_BPS,
-  parseEthFeeWeiOverride,
   resolveBridgeEthServiceFee,
   shouldChargeBridgeEthServiceFee,
   type BridgeProgressPhase,
@@ -103,13 +102,12 @@ import { assertSafeClaimApiBase } from "../../../lib/api-base.ts";
 import {
   API_BASE,
   BROWSER_CLAIM,
-  BRIDGE_ETH_FEE_WEI_OVERRIDE,
   BRIDGE_FEE_RECIPIENT,
   BRIDGE_PUBLIC_URL,
   DFPUNK_PLAY_URL,
   WC_PROJECT_ID,
 } from "../config.ts";
-import { readJsonResponse, resolveClaimSigningKey, storageErrorMessage } from "../tools.ts";
+import { readClaimApiCreateResponse, resolveClaimSigningKey, storageErrorMessage } from "../tools.ts";
 import type { BridgeSession } from "./useBridgeSession.ts";
 
 /** L1 resume, bridge submit, and recovery claim actions. */
@@ -555,10 +553,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
           ...(signingKey?.trim() ? { signingKey: signingKey.trim() } : {}),
         }),
       });
-      const body = await readJsonResponse<{ jobId?: string; error?: string }>(
-        res,
-        "Claim API",
-      );
+      const body = await readClaimApiCreateResponse(res, "Claim API");
       if (!res.ok) throw new Error(body.error ?? "Claim request failed");
       setClaimJobId(body.jobId ?? null);
       setClaimStatus("queued");
@@ -651,7 +646,6 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
         backend,
         l1RpcUrl: networkMeta.l1RpcUrl,
         feeRecipient: BRIDGE_FEE_RECIPIENT as Hex,
-        ethServiceFeeWei: BRIDGE_ETH_FEE_WEI_OVERRIDE ?? ethServiceFeeWei ?? undefined,
         onPending: async (pending: PendingBridge) => {
           setL1TxHash(pending.l1TxHash);
           setShowBridgeResult(true);

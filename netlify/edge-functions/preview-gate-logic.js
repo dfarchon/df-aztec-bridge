@@ -6,6 +6,65 @@
 export const PRODUCTION_KIT_HOST = "aztec-dfarchon-kit.netlify.app";
 export const PREVIEW_COOKIE = "df_preview_gate";
 export const PREVIEW_COOKIE_TTL_MS = 12 * 60 * 60 * 1000;
+/** Failed POST attempts per client IP before 429 (soft; edge isolate memory). */
+export const PREVIEW_GATE_MAX_ATTEMPTS = 5;
+export const PREVIEW_GATE_WINDOW_MS = 60_000;
+
+export function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * Sliding-window failed-attempt tracker. Soft rate limit (per isolate).
+ * Returns { limited: boolean, remaining: number }.
+ */
+export function createAttemptLimiter(opts = {}) {
+  const maxAttempts = opts.maxAttempts ?? PREVIEW_GATE_MAX_ATTEMPTS;
+  const windowMs = opts.windowMs ?? PREVIEW_GATE_WINDOW_MS;
+  /** @type {Map<string, number[]>} */
+  const buckets = new Map();
+
+  function prune(now, hits) {
+    return hits.filter((t) => now - t < windowMs);
+  }
+
+  return {
+    /** Record a failed attempt; returns whether the client is now limited. */
+    recordFailure(clientKey, now = Date.now()) {
+      const key = String(clientKey || "unknown");
+      const next = prune(now, buckets.get(key) ?? []);
+      next.push(now);
+      buckets.set(key, next);
+      return next.length >= maxAttempts;
+    },
+    isLimited(clientKey, now = Date.now()) {
+      const key = String(clientKey || "unknown");
+      const next = prune(now, buckets.get(key) ?? []);
+      if (next.length === 0) buckets.delete(key);
+      else buckets.set(key, next);
+      return next.length >= maxAttempts;
+    },
+    clear(clientKey) {
+      buckets.delete(String(clientKey || "unknown"));
+    },
+  };
+}
+
+export function clientIpFromHeaders(headers) {
+  const h = headers?.get?.bind(headers) ?? ((k) => headers?.[k]);
+  const raw =
+    h("x-nf-client-connection-ip") ||
+    h("cf-connecting-ip") ||
+    h("x-forwarded-for") ||
+    "";
+  const first = String(raw).split(",")[0]?.trim() ?? "";
+  return first || "unknown";
+}
 
 export function isPreviewGateHost(hostname) {
   const h = String(hostname ?? "").trim().toLowerCase();

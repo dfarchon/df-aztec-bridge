@@ -43,7 +43,6 @@ export {
   isValidFeeRecipient,
   shouldChargeBridgeEthServiceFee,
   resolveBridgeEthServiceFee,
-  parseEthFeeWeiOverride,
 } from "./fee.ts";
 export {
   waitForTransactionReceiptWithRetry,

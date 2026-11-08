@@ -23,6 +23,7 @@
   # Activity toasts stay hidden unless this is exactly "true".
   VITE_ENABLE_DAPP_LOG = "false"
   VITE_BRIDGE_FEE_RECIPIENT = "0x33D5928E1c66E831Eb250D1250bf2CfF9eACa370"
+  VITE_SPONSORED_FPC_ADDRESS = "0x1441491b59934ec64f8c98f17c91f23c01ca2a45dbb35caf123146ec76f9970c"
   VITE_BRIDGE_PUBLIC_URL = "https://aztec-dfarchon-kit.netlify.app/"
   VITE_DFPUNK_PLAY_URL = "https://aztec.dfpunk.xyz/play/"
   # Public RPC only. VITE_*_AZTEC_NODE_URL / VITE_*_L1_RPC_URL must be a pinned https host with no path.

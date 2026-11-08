@@ -50,6 +50,8 @@ export const CSP_FRAME_HOSTS = [
   "https://secure.walletconnect.org",
 ] as const;
 
+// style-src keeps 'unsafe-inline': Vite HMR injects <style> tags in dev; production
+// also needs it for any runtime style sheets. CSSOM is preferred for dynamic values.
 const CSP_BASE =
   "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; child-src 'self' blob:; manifest-src 'self'";
 

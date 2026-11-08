@@ -4,6 +4,8 @@
  *
  * On Ethereum mainnet, an additional native-ETH service fee (~1 L1 tx gas) is
  * sent to the same recipient, batched with the AZTEC skim when the wallet allows.
+ * That ETH fee is always derived from live L1 fees × BRIDGE_ETH_SERVICE_FEE_GAS —
+ * there is no env wei override (avoids deploy-env fee inflation).
  */
 export const BRIDGE_FEE_BPS = 500; // 5%
 export const BPS_DENOMINATOR = 10_000n;
@@ -56,33 +58,18 @@ export function shouldChargeBridgeEthServiceFee(chainId: number): boolean {
 }
 
 /**
- * Resolve mainnet ETH service fee in wei.
- * Prefer `overrideWei` (env); otherwise gasPrice × BRIDGE_ETH_SERVICE_FEE_GAS.
+ * Resolve mainnet ETH service fee in wei from live L1 fee market only:
+ * maxFeePerGas (or gasPrice) × BRIDGE_ETH_SERVICE_FEE_GAS.
  */
 export async function resolveBridgeEthServiceFee(opts: {
   chainId: number;
-  overrideWei?: bigint | null;
   getMaxFeePerGas?: () => Promise<bigint | null | undefined>;
   getGasPrice: () => Promise<bigint>;
 }): Promise<bigint> {
   if (!shouldChargeBridgeEthServiceFee(opts.chainId)) return 0n;
-  if (opts.overrideWei != null && opts.overrideWei > 0n) return opts.overrideWei;
   const maxFee = opts.getMaxFeePerGas ? await opts.getMaxFeePerGas() : null;
   const gasPrice =
     maxFee != null && maxFee > 0n ? maxFee : await opts.getGasPrice();
   if (gasPrice <= 0n) return 0n;
   return gasPrice * BRIDGE_ETH_SERVICE_FEE_GAS;
-}
-
-/** Parse optional env override (decimal wei string). */
-export function parseEthFeeWeiOverride(raw: string | undefined | null): bigint | null {
-  if (raw == null) return null;
-  const t = raw.trim();
-  if (!t || !/^\d+$/.test(t)) return null;
-  try {
-    const v = BigInt(t);
-    return v > 0n ? v : null;
-  } catch {
-    return null;
-  }
 }

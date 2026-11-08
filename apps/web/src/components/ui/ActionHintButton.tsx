@@ -1,8 +1,9 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 /**
  * Primary CTA when ready; otherwise a black / green “what to do next” hint.
  * Long hint text slowly marquee-waves when it overflows the bar.
+ * Duration is set via CSSOM (not a style= attribute) so CSP style-src can stay tight.
  */
 export function ActionHintButton(props: {
   label: string;
@@ -12,24 +13,28 @@ export function ActionHintButton(props: {
   className?: string;
 }) {
   const { label, ready, busy = false, onClick, className } = props;
+  const rootRef = useRef<HTMLButtonElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
   const [overflow, setOverflow] = useState(false);
-  const [durationSec, setDurationSec] = useState(24);
 
   useLayoutEffect(() => {
+    const root = rootRef.current;
     if (ready) {
       setOverflow(false);
+      root?.style.removeProperty("--action-hint-duration");
       return;
     }
     const viewport = viewportRef.current;
     const measure = measureRef.current;
-    if (!viewport || !measure) return;
+    if (!viewport || !measure || !root) return;
 
     const update = () => {
       const need = measure.scrollWidth > viewport.clientWidth + 2;
       setOverflow(need);
-      setDurationSec(Math.max(18, Math.min(48, measure.scrollWidth / 30)));
+      const durationSec = Math.max(18, Math.min(48, measure.scrollWidth / 30));
+      if (need) root.style.setProperty("--action-hint-duration", `${durationSec}s`);
+      else root.style.removeProperty("--action-hint-duration");
     };
     update();
     const ro = new ResizeObserver(update);
@@ -53,17 +58,13 @@ export function ActionHintButton(props: {
 
   return (
     <button
+      ref={rootRef}
       type="button"
       className={`action-hint${overflow ? " is-overflow" : ""}${className ? ` ${className}` : ""}`}
       disabled={busy}
       onClick={onClick}
       title={label}
       aria-label={label}
-      style={
-        overflow
-          ? ({ "--action-hint-duration": `${durationSec}s` } as CSSProperties)
-          : undefined
-      }
     >
       <span className="action-hint-viewport" ref={viewportRef}>
         <span ref={measureRef} className="action-hint-measure" aria-hidden="true">
