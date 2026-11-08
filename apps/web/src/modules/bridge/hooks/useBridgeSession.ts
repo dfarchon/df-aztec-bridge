@@ -229,7 +229,11 @@ export function useBridgeSession() {
     let wasUnlocked = isVaultUnlocked();
     return subscribeVault(() => {
       const nowUnlocked = isVaultUnlocked();
-      if (wasUnlocked && !nowUnlocked) {
+      const previouslyUnlocked = wasUnlocked;
+      // Clearing the account synchronously notifies vault subscribers again.
+      // Record the transition before doing so to avoid re-entering this branch.
+      wasUnlocked = nowUnlocked;
+      if (previouslyUnlocked && !nowUnlocked) {
         const reason = getVaultLockReason();
         setDfPxeAccount(null);
         setVaultPxeAccount(null);
@@ -250,10 +254,9 @@ export function useBridgeSession() {
         if (reason === "idle" || reason === "tab-hidden") {
           setVaultTimeoutNotice(VAULT_TIMEOUT_NOTICE);
         }
-      } else if (!wasUnlocked && nowUnlocked) {
+      } else if (!previouslyUnlocked && nowUnlocked) {
         void refreshSessions();
       }
-      wasUnlocked = nowUnlocked;
     });
   }, [setVaultPxeAccount, closeWalletPanel, refreshSessions]);
 
