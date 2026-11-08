@@ -146,6 +146,7 @@ export function useBridgeSession(initialWallet: ConnectedWallet | null = null) {
   const [bridgeConfirmOpen, setBridgeConfirmOpen] = useState(false);
   const [recoveryAcknowledged, setRecoveryAcknowledged] = useState(false);
   const [recoveryPromptOpen, setRecoveryPromptOpen] = useState(false);
+  const [recoveryCheckPending, setRecoveryCheckPending] = useState(() => isVaultUnlocked());
   const [availableWallets, setAvailableWallets] = useState<EIP6963ProviderDetail[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [connectingWallet, setConnectingWallet] = useState(false);
@@ -247,6 +248,7 @@ export function useBridgeSession(initialWallet: ConnectedWallet | null = null) {
         setRecoverySessions([]);
         setSelectedRecoveryHash(null);
         setRecoveryPromptOpen(false);
+        setRecoveryCheckPending(false);
         setImportedAccounts([]);
         setImportedIndex(0);
         setImportName(null);
@@ -256,6 +258,7 @@ export function useBridgeSession(initialWallet: ConnectedWallet | null = null) {
           setVaultTimeoutNotice(VAULT_TIMEOUT_NOTICE);
         }
       } else if (!previouslyUnlocked && nowUnlocked) {
+        setRecoveryCheckPending(true);
         void refreshSessions();
       }
     });
@@ -281,13 +284,28 @@ export function useBridgeSession(initialWallet: ConnectedWallet | null = null) {
         setL1TxHash(visibleSession.l1TxHash);
         setCredentials(visibleSession.credentials ?? null);
         setClaimJobId(visibleSession.claimJobId ?? null);
-        if (visibleSession.credentials) setRecoveryPromptOpen(true);
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [networkId]);
+
+  // Check once per vault unlock, after the wallet gate is ready. Later bridge
+  // sessions created in this same visit should not trigger a recovery prompt.
+  useEffect(() => {
+    if (!recoveryCheckPending || !shellReady || !ethSessionOk || !dfPxeAccount ||
+        busy || progress?.runState === "running" || !isVaultUnlocked()) return;
+    let cancelled = false;
+    void refreshSessions().then((sessions) => {
+      if (cancelled || !isVaultUnlocked()) return;
+      setRecoveryCheckPending(false);
+      if (sessions.length > 0 && path !== ROUTES.recover) setRecoveryPromptOpen(true);
+    }).catch(() => {
+      if (!cancelled) setRecoveryCheckPending(false);
+    });
+    return () => { cancelled = true; };
+  }, [recoveryCheckPending, shellReady, ethSessionOk, dfPxeAccount, busy, progress?.runState, path, refreshSessions]);
 
   type AccountImportOptions = {
     expectedRecipient?: string;

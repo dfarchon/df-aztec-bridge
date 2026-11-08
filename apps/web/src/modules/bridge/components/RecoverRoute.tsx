@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type DragEvent, type RefObject } from "react";
 import { phaseLabel, shortHash } from "../../../lib/claim-recovery.ts";
 import { formatFjAmount } from "../../../lib/bridge-amount.ts";
 import { downloadClaimCredentials } from "../../../lib/claim-credentials-store.ts";
@@ -38,6 +38,7 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
     retryResumeL1,
     waitForSessionL2,
     onResumeClaim,
+    claimAfterBridge,
     onRemoveSession,
     recoveryAccountReady,
   } = flows;
@@ -138,6 +139,10 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
               if (progress.runState === "succeeded") backToList();
             }}
             onRetry={() => {
+              if (progress.track === "claim" && progress.combinedFlow) {
+                void claimAfterBridge();
+                return;
+              }
               if (!selectedSession) return;
               if (progress.track === "claim") void onResumeClaim(selectedSession);
               else if (progress.track === "resume-l1") void retryResumeL1(selectedSession);
@@ -293,24 +298,70 @@ function ClaimFileButton({
   label: string;
   onFile: (file: File | null) => void;
 }) {
+  const [dragging, setDragging] = useState(false);
+  const [dropError, setDropError] = useState<string | null>(null);
+  const dragDepth = useRef(0);
+  const isFileDrag = (event: DragEvent) => Array.from(event.dataTransfer.types).includes("Files");
+
   return (
     <>
-      <button type="button" disabled={busy} onClick={() => inputRef.current?.click()}>
-        {label}
-      </button>
-      <input
-        ref={inputRef}
-        type="file"
-        className="sr-only"
-        accept="application/json,.json,.txt,text/plain"
-        disabled={busy}
-        aria-label="Import claim credentials JSON"
-        onChange={(e) => {
-          const file = e.target.files?.[0] ?? null;
-          onFile(file);
-          e.target.value = "";
+      <div
+        className={`df-account-drop-wrap${dragging && !busy ? " is-dragging" : ""}${busy ? " is-disabled" : ""}`}
+        onDragEnter={(event) => {
+          if (!isFileDrag(event)) return;
+          event.preventDefault();
+          dragDepth.current += 1;
+          if (!busy) setDragging(true);
         }}
-      />
+        onDragOver={(event) => {
+          if (!isFileDrag(event)) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = busy ? "none" : "copy";
+        }}
+        onDragLeave={(event) => {
+          if (!isFileDrag(event)) return;
+          event.preventDefault();
+          dragDepth.current = Math.max(0, dragDepth.current - 1);
+          if (!dragDepth.current) setDragging(false);
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          dragDepth.current = 0;
+          setDragging(false);
+          if (busy || !event.dataTransfer.files.length) return;
+          if (event.dataTransfer.files.length !== 1) {
+            setDropError("Choose one claim credentials file.");
+            return;
+          }
+          setDropError(null);
+          onFile(event.dataTransfer.files[0]);
+        }}
+      >
+        <button type="button" className="df-account-drop" disabled={busy} onClick={() => inputRef.current?.click()}>
+          <span className="df-account-drop-icon" aria-hidden="true">↑</span>
+          <span className="df-account-drop-copy">
+            <strong>{dragging ? "Drop your claim file" : label}</strong>
+            <span>Drag and drop a claim JSON file here, or click to choose</span>
+          </span>
+        </button>
+        <input
+          ref={inputRef}
+          type="file"
+          className="sr-only"
+          accept="application/json,.json,.txt,text/plain"
+          disabled={busy}
+          aria-label="Import claim credentials JSON"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) {
+              setDropError(null);
+              onFile(file);
+            }
+            event.target.value = "";
+          }}
+        />
+      </div>
+      {dropError ? <p className="error" role="alert">{dropError}</p> : null}
     </>
   );
 }

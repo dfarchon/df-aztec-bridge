@@ -157,7 +157,7 @@ requestBridge,
         </div>
       ) : null}
 
-      {recoveryPromptOpen && selectedSession?.credentials ? (
+      {recoveryPromptOpen && shellReady && selectedSession ? (
         <div className="modal-backdrop" role="presentation">
           <div
             className="modal recovery-modal"
@@ -171,7 +171,7 @@ requestBridge,
             <p className="hint">
               {phaseLabel(selectedSession.phase)} —{" "}
               <span className="mono">
-                {formatFjAmount(BigInt(selectedSession.credentials.claimAmount), 5)} FJ
+                {formatFjAmount(BigInt(selectedSession.claimAmount), 5)} FJ
               </span>{" "}
               is still waiting.
             </p>
@@ -181,7 +181,6 @@ requestBridge,
                 className="ghost"
                 onClick={() => {
                   setRecoveryPromptOpen(false);
-                  navigate(ROUTES.bridge);
                 }}
               >
                 Not now
@@ -199,9 +198,7 @@ requestBridge,
                   }, 0);
                 }}
               >
-                {selectedSession.phase === "claim-sent"
-                  ? "Wait for confirmation"
-                  : "Resume claim"}
+                Open Recover
               </button>
             </div>
           </div>
