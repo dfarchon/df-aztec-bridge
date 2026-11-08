@@ -98,6 +98,7 @@ requestBridge,
       detail={bridgePhase}
       aztecNodeUrl={networkMeta?.aztecNodeUrl}
       networkId={networkId}
+      claimRecipient={progress.claimRecipient ?? credentials?.recipient ?? selectedSession?.credentials?.recipient ?? selectedSession?.recipient}
       onDismiss={() => {
         setProgress(null);
         setBridgePhase(null);

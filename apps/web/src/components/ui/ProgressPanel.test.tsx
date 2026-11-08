@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ProgressPanel } from "./ProgressPanel.tsx";
-import { advanceProgress, finishProgress, startProgress } from "../../lib/progress-track.ts";
+import { advanceProgress, finishAlreadyClaimed, finishProgress, startProgress } from "../../lib/progress-track.ts";
 
 function render(progress: Parameters<typeof ProgressPanel>[0]["progress"], detail?: string) {
   return renderToStaticMarkup(
@@ -152,6 +152,15 @@ describe("ProgressPanel", () => {
     expect(html).toContain("progress-panel-rejected");
   });
 
+  it("does not show unperformed L2 steps when the message was already consumed", () => {
+    const progress = finishAlreadyClaimed({ ...startProgress("claim", "status"), combinedFlow: true })!;
+    const html = renderToStaticMarkup(<ProgressPanel progress={progress} detail={null} onDismiss={() => {}} />);
+    expect(html).toContain("Already claimed");
+    expect(html).toContain("No new L2 transaction was sent");
+    expect(html).not.toContain("Generating the proof and submitting the claim");
+    expect(html).not.toContain("Fee Juice is on this Aztec account.");
+  });
+
   it("does not claim Fee Juice arrived when only the L1 bridge was recovered", () => {
     const html = renderToStaticMarkup(
       <ProgressPanel progress={finishProgress(startProgress("resume-l1", "receipt"), "succeeded")!}
@@ -172,6 +181,20 @@ describe("ProgressPanel", () => {
     expect(html).toContain("Fee Juice is on this Aztec account.");
     expect(html).toContain("progress-success-line");
     expect(html).toContain(">OK</button>");
+  });
+
+  it("shows the claim recipient while its confirmed balance is loading", () => {
+    const html = renderToStaticMarkup(
+      <ProgressPanel
+        progress={finishProgress(startProgress("claim", "done"), "succeeded")!}
+        detail={null}
+        aztecNodeUrl="https://example.invalid"
+        claimRecipient="0x1234567890123456789012345678901234567890"
+        onDismiss={() => {}}
+      />,
+    );
+    expect(html).toContain("0x123456…567890");
+    expect(html).toContain("Loading balance…");
   });
 
   it("drops the overlay when embedded in Recover", () => {

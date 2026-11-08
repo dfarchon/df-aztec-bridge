@@ -28,6 +28,10 @@ export interface ProgressState {
   combinedFlow?: boolean;
   /** A server-side claim continues without this browser tab. */
   serverClaim?: boolean;
+  /** Target account for claim confirmation and balance display. */
+  claimRecipient?: string;
+  /** No claim transaction was needed because the message was already consumed. */
+  alreadyClaimed?: boolean;
   /**
    * True once the L2 claim tx is on chain. From that point a reload only costs
    * the confirmation wait, not the proving work, so the unload guard can relax.
@@ -266,6 +270,12 @@ export function finishProgress(
     finishedAt: Date.now(),
     stepIndex: runState === "succeeded" ? lastIndex : current.stepIndex,
   };
+}
+
+/** Finish without presenting unperformed proving or submission steps as completed. */
+export function finishAlreadyClaimed(current: ProgressState | null): ProgressState | null {
+  const finished = finishProgress(current, "succeeded");
+  return finished ? { ...finished, stepIndex: 0, alreadyClaimed: true } : null;
 }
 
 export function stepStateAt(index: number, progress: ProgressState): ProgressStepState {

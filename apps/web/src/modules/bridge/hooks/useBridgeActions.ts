@@ -57,6 +57,7 @@ import {
   parseBridgeAmount,
 } from "../../../lib/bridge-amount.ts";
 import { parseClaimCredentialsFile } from "../../../lib/claim-credentials-import.ts";
+import { describeClaimImport, type ImportedClaimStatus } from "../../../lib/claim-import-status.ts";
 import { recordHistory } from "../../../lib/operation-history.ts";
 import {
   downloadClaimCredentials,
@@ -67,6 +68,7 @@ import {
   bridgePhaseStep,
   claimPhaseStep,
   finishProgress,
+  finishAlreadyClaimed,
   shouldBlockUnload,
   startProgress,
   type ProgressState,
@@ -250,7 +252,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
         if (session.phase === "claim-sent" && session.l2TxHash) {
           if (isActiveFlow) {
             setBridgePhase(`Waiting for L2 confirmation ${shortHash(session.l2TxHash)}…`);
-            setProgress({ ...startProgress("wait-l2", "confirm"), txSubmitted: true });
+            setProgress({ ...startProgress("wait-l2", "confirm"), txSubmitted: true, claimRecipient: session.recipient });
           }
           try {
             const { loadBrowserClaim } = await import("@df-bridge/browser-sdk/claim-lazy");
@@ -317,7 +319,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
       combinedFlow = false,
     ) => {
       if (combinedFlow) {
-        setProgress((prev) => startClaimStage(prev, true));
+        setProgress((prev) => ({ ...startClaimStage(prev, true), claimRecipient: creds.recipient }));
       }
       if (BROWSER_CLAIM) {
         if (!networkMeta?.aztecNodeUrl) {
@@ -329,7 +331,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
           setClaimStatus("running");
           setL2TxHash(null);
           setBridgePhase("Asking Nulo to claim…");
-          setProgress((prev) => startClaimStage(prev, combinedFlow));
+          setProgress((prev) => ({ ...startClaimStage(prev, combinedFlow), claimRecipient: creds.recipient }));
           const { l2TxHash: hash } = await claimWithNulo({
             aztecNodeUrl: networkMeta.aztecNodeUrl,
             credentials: creds,
@@ -357,7 +359,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
             await refreshSessions();
             setClaimStatus("succeeded");
             setBridgePhase("Claim message already consumed. Nothing to do.");
-            setProgress((prev) => finishProgress(prev, "succeeded"));
+            setProgress((prev) => finishAlreadyClaimed(prev));
             return;
           }
           setClaimStatus("succeeded");
@@ -375,7 +377,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
         setClaimStatus("running");
         setL2TxHash(null);
         setBridgePhase("Checking claim message status…");
-        setProgress((prev) => startClaimStage(prev, combinedFlow));
+        setProgress((prev) => ({ ...startClaimStage(prev, combinedFlow), claimRecipient: creds.recipient }));
 
         const status = await getClaimMessageStatus({
           aztecNodeUrl: networkMeta.aztecNodeUrl,
@@ -386,7 +388,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
           await refreshSessions();
           setClaimStatus("succeeded");
           setBridgePhase("Claim message already consumed. Nothing to do.");
-          setProgress((prev) => finishProgress(prev, "succeeded"));
+          setProgress((prev) => finishAlreadyClaimed(prev));
           setRecoveryPromptOpen(false);
           void recordHistory({
             networkId,
@@ -478,7 +480,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
             await refreshSessions();
             setClaimStatus("succeeded");
             setBridgePhase("Claim message already consumed. Nothing to do.");
-            setProgress((prev) => finishProgress(prev, "succeeded"));
+            setProgress((prev) => finishAlreadyClaimed(prev));
             setRecoveryPromptOpen(false);
             void recordHistory({
               networkId,
@@ -873,42 +875,68 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
           throw new Error(unknownAccountClaimMessage(parsed.recipient));
         }
 
-        const sessions = await listIncompleteSessions(networkId);
-        const duplicate = sessions.find(
-          (session) => normalizeL1TxHash(session.l1TxHash) === parsed.l1TxHash,
-        );
-        if (duplicate) {
-          await refreshSessions();
-          setCredentialsImportNotice(
-            `This claim is already saved in this browser (L1 ${shortHash(duplicate.l1TxHash)}). Select it in the list to check its status.`,
+        setBusy(true);
+        try {
+          const sessions = await listIncompleteSessions(networkId);
+          const duplicate = sessions.find(
+            (session) => normalizeL1TxHash(session.l1TxHash) === parsed.l1TxHash,
           );
-          return;
-        }
+          setCredentialsImportNotice("Checking claim status on Aztec…");
+          let status: ImportedClaimStatus = "unavailable";
+          if (networkMeta?.aztecNodeUrl) {
+            try {
+              const { loadBrowserClaim } = await import("@df-bridge/browser-sdk/claim-lazy");
+              const { getClaimMessageStatus } = await loadBrowserClaim();
+              let timer: ReturnType<typeof setTimeout> | undefined;
+              try {
+                status = await Promise.race([
+                  getClaimMessageStatus({
+                    aztecNodeUrl: networkMeta.aztecNodeUrl,
+                    credentials: parsed.credentials,
+                  }),
+                  new Promise<never>((_, reject) => {
+                    timer = setTimeout(() => reject(new Error("Claim status check timed out")), 15_000);
+                  }),
+                ]);
+              } finally {
+                if (timer) clearTimeout(timer);
+              }
+            } catch {
+              // A node error is not evidence that a claim was or was not consumed.
+            }
+          }
+          const decision = describeClaimImport(status, !!duplicate, parsed.l1TxHash);
+          if (!decision.shouldSave) {
+            if (duplicate) await refreshSessions();
+            setCredentialsImportNotice(decision.message);
+            return;
+          }
 
-        const entry = await upsertSession(networkId, {
-          l1TxHash: parsed.l1TxHash,
-          phase: "ready-to-claim",
-          recipient: parsed.recipient,
-          claimAmount: parsed.credentials.claimAmount,
-          credentials: parsed.credentials,
-        });
-        await refreshSessions();
-        selectRecoverySession(entry);
-        setCredentialsImportNotice(
-          `Imported L1 ${shortHash(entry.l1TxHash)}. Claim it with the Aztec account already in this browser.`,
-        );
-        void recordHistory({
-          networkId,
-          kind: "claim-imported",
-          amount: entry.claimAmount,
-          recipient: entry.recipient,
-          l1TxHash: entry.l1TxHash,
-        });
+          const entry = await upsertSession(networkId, {
+            l1TxHash: parsed.l1TxHash,
+            phase: "ready-to-claim",
+            recipient: parsed.recipient,
+            claimAmount: parsed.credentials.claimAmount,
+            credentials: parsed.credentials,
+          });
+          await refreshSessions();
+          setCredentialsImportNotice(decision.message);
+          void recordHistory({
+            networkId,
+            kind: "claim-imported",
+            amount: entry.claimAmount,
+            recipient: entry.recipient,
+            l1TxHash: entry.l1TxHash,
+          });
+        } finally {
+          setBusy(false);
+        }
       } catch (e: unknown) {
+        setCredentialsImportNotice(null);
         setCredentialsImportError(e instanceof Error ? e.message : String(e));
       }
     },
-    [networkId, refreshSessions, selectRecoverySession, ensureUnlocked],
+    [networkId, networkMeta, refreshSessions, ensureUnlocked],
   );
 
   const retryResumeL1 = useCallback(
@@ -972,7 +1000,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
       setBusy(true);
       setError(null);
       setBridgePhase(`Waiting for L2 confirmation ${shortHash(session.l2TxHash)}…`);
-      setProgress({ ...startProgress("wait-l2", "confirm"), txSubmitted: true });
+      setProgress({ ...startProgress("wait-l2", "confirm"), txSubmitted: true, claimRecipient: session.recipient });
       try {
         const { loadBrowserClaim } = await import("@df-bridge/browser-sdk/claim-lazy");
         const { waitForL2ClaimTx } = await loadBrowserClaim();

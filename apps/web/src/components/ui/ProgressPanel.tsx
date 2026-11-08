@@ -12,6 +12,8 @@ import {
 } from "../../lib/progress-track.ts";
 import { WALLET_TX_REJECTED_DETAIL, WALLET_TX_REJECTED_TITLE } from "../../lib/app-error-toast.ts";
 import { AztecBlockEstimate } from "./AztecBlockEstimate.tsx";
+import { formatFjAmount } from "../../lib/bridge-amount.ts";
+import { shortHash } from "../../lib/claim-recovery.ts";
 
 interface ProgressPanelProps {
   progress: ProgressState;
@@ -24,6 +26,8 @@ interface ProgressPanelProps {
   /** When set, show Aztec tip + next-block countdown for L2 claim tracks. */
   aztecNodeUrl?: string | null;
   networkId?: string;
+  /** Recipient of the claim whose confirmed balance should be shown. */
+  claimRecipient?: string | null;
   /** Render inside an existing pane instead of a full-screen overlay. */
   embedded?: boolean;
 }
@@ -52,7 +56,8 @@ function progressCaughtUp(shown: ProgressState, target: ProgressState): boolean 
     shown.runState === target.runState &&
     shown.txSubmitted === target.txSubmitted &&
     shown.combinedFlow === target.combinedFlow &&
-    shown.serverClaim === target.serverClaim
+    shown.serverClaim === target.serverClaim &&
+    shown.alreadyClaimed === target.alreadyClaimed
   );
 }
 
@@ -87,7 +92,7 @@ function usePacedProgress(progress: ProgressState): ProgressState {
     return () => {
       cancelled = true;
     };
-  }, [progress.track, progress.stepIndex, progress.runState, progress.txSubmitted, progress.combinedFlow, progress.serverClaim]);
+  }, [progress.track, progress.stepIndex, progress.runState, progress.txSubmitted, progress.combinedFlow, progress.serverClaim, progress.alreadyClaimed]);
 
   return shown;
 }
@@ -106,6 +111,7 @@ export function ProgressPanel({
   onClaimL2,
   aztecNodeUrl,
   networkId,
+  claimRecipient,
   embedded = false,
 }: ProgressPanelProps) {
   const progress = usePacedProgress(liveProgress);
@@ -179,7 +185,9 @@ export function ProgressPanel({
             <p className="hint progress-panel-step" role="status" aria-live="polite">
               {rejected
                 ? WALLET_TX_REJECTED_DETAIL
-                : `Step ${progress.stepIndex + 1} of ${track.steps.length} · ${activeStep?.label}`}
+                : progress.alreadyClaimed
+                  ? "Already claimed · no new transaction needed"
+                  : `Step ${progress.stepIndex + 1} of ${track.steps.length} · ${activeStep?.label}`}
             </p>
           </div>
           <span className="hint progress-elapsed" title={liveProgress.runState === "running" ? "Current step time" : "Total elapsed time"}>
@@ -257,13 +265,17 @@ export function ProgressPanel({
                     <div className="progress-stage-drawer-inner">
                       {stage === "claim" && progress.track === "bridge"
                         ? <p className="hint progress-stage-waiting">Waiting for the L1 bridge to complete.</p>
-                        : renderSteps(state)}
+                        : stage === "claim" && progress.alreadyClaimed
+                          ? <p className="hint progress-stage-waiting">The claim message was already consumed. No new L2 transaction was sent.</p>
+                          : renderSteps(state)}
                     </div>
                   </div>
                 </section>
               );
             })}
           </div>
+        ) : progress.alreadyClaimed ? (
+          <p className="hint progress-stage-waiting">The claim message was already consumed. No new L2 transaction was sent.</p>
         ) : renderSteps(progress)}
 
         {estimate}
@@ -275,7 +287,12 @@ export function ProgressPanel({
         {progress.runState === "succeeded" ? (
           <div className="progress-panel-actions progress-panel-success-actions">
             {progress.track === "claim" || progress.track === "wait-l2" ? (
-              <p className="progress-success-line">🎉 Fee Juice is on this Aztec account.</p>
+              <div className="progress-success-copy">
+                <p className="progress-success-line">{progress.alreadyClaimed ? "🎉 Claim was already completed." : "🎉 Fee Juice is on this Aztec account."}</p>
+                {claimRecipient && aztecNodeUrl ? (
+                  <ClaimBalance recipient={claimRecipient} aztecNodeUrl={aztecNodeUrl} />
+                ) : null}
+              </div>
             ) : null}
             {progress.track === "bridge" && !progress.combinedFlow && onClaimL2 ? (
               <button type="button" className="ghost" onClick={onClaimL2}>
@@ -303,4 +320,36 @@ export function ProgressPanel({
 
   if (embedded) return panel;
   return <div className="progress-panel-backdrop">{panel}</div>;
+}
+
+function ClaimBalance({ recipient, aztecNodeUrl }: { recipient: string; aztecNodeUrl: string }) {
+  const [result, setResult] = useState<{ key: string; balance: bigint | null; error: boolean } | null>(null);
+  const key = `${aztecNodeUrl}\n${recipient.toLowerCase()}`;
+
+  useEffect(() => {
+    let cancelled = false;
+    setResult(null);
+    void (async () => {
+      try {
+        const { loadBrowserClaim } = await import("@df-bridge/browser-sdk/claim-lazy");
+        const { getAztecFeeJuiceBalance } = await loadBrowserClaim();
+        const balance = await getAztecFeeJuiceBalance({ aztecNodeUrl, aztecAddress: recipient });
+        if (!cancelled) setResult({ key, balance, error: false });
+      } catch {
+        if (!cancelled) setResult({ key, balance: null, error: true });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [aztecNodeUrl, recipient, key]);
+
+  const current = result?.key === key ? result : null;
+  return (
+    <p className="hint progress-claim-balance" role="status">
+      <span title={recipient}>Account {shortHash(recipient)}</span>
+      {" · "}
+      {current?.error ? "Balance unavailable" : current?.balance != null
+        ? `Balance ${formatFjAmount(current.balance, 5)} FJ`
+        : "Loading balance…"}
+    </p>
+  );
 }

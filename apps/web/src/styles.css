@@ -5945,3 +5945,10 @@ html[data-theme="light"] #recovery-remove-confirm button.recovery-confirm-delete
 @media (prefers-reduced-motion: reduce) {
   .sidebar-event-art::before { animation: none; opacity: 0.65; }
 }
+
+.progress-success-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.progress-success-copy .progress-success-line { margin: 0; }
+.progress-claim-balance { margin: 0.25rem 0 0; overflow-wrap: anywhere; }

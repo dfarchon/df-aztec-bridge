@@ -28,6 +28,7 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
     storageReady,
     storageError,
     selectedSession,
+    credentials,
     progress,
     setProgress,
     setBridgePhase,
@@ -123,6 +124,7 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
             detail={bridgePhase}
             aztecNodeUrl={networkMeta?.aztecNodeUrl}
             networkId={networkId}
+            claimRecipient={progress.claimRecipient ?? credentials?.recipient ?? selectedSession?.credentials?.recipient ?? selectedSession?.recipient}
             onDismiss={() => {
               setProgress(null);
               setBridgePhase(null);
