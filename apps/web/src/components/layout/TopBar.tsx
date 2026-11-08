@@ -34,7 +34,7 @@ export function TopBar(props: {
   /** When false, hide menu toggle / settings — session gate is active. */
   shellReady?: boolean;
 }) {
-  const { openWalletPanel, openCenterWallets, walletPanelOpen, centerWalletsOpen } = useUi();
+  const { openWalletPanel, walletPanelOpen } = useUi();
   const { openSettings, rpcOverrides } = useNetwork();
   const shellReady = props.shellReady !== false;
 
@@ -70,13 +70,15 @@ export function TopBar(props: {
 
         <button
           type="button"
-          className={`wallet-chip${walletPanelOpen || centerWalletsOpen ? " is-open" : ""}${props.ethSessionOk ? " is-ok" : ""}`}
+          className={`wallet-chip${walletPanelOpen ? " is-open" : ""}${props.ethSessionOk ? " is-ok" : ""}`}
           onClick={() => {
-            if (!props.wallet) props.onConnect();
-            if (shellReady) openWalletPanel();
-            else openCenterWallets();
+            if (!props.wallet) {
+              props.onConnect();
+              return;
+            }
+            openWalletPanel();
           }}
-          aria-expanded={shellReady ? walletPanelOpen : centerWalletsOpen}
+          aria-expanded={walletPanelOpen}
           aria-haspopup="dialog"
         >
           <WalletMark />

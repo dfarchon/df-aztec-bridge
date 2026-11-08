@@ -99,6 +99,7 @@ describe("operation history", () => {
   });
 
   it("names account events without an amount", () => {
-    expect(historyTitle("account-replaced")).toBe("Account replaced");
+    expect(historyTitle("account-replaced")).toBe("DF Aztec account replaced");
+    expect(historyTitle("account-created")).toBe("DF Aztec account created");
   });
 });

@@ -3,7 +3,7 @@ import { BRIDGE_FEE_BPS } from "@df-bridge/browser-sdk";
 import { getNetwork } from "../../../config/networks.ts";
 import { hasRpcOverrides } from "../../../lib/rpc-overrides.ts";
 import { phaseLabel } from "../../../lib/claim-recovery.ts";
-import { formatFjAmount } from "../../../lib/bridge-amount.ts";
+import { formatBridgeReceiptHint, formatFjAmount } from "../../../lib/bridge-amount.ts";
 import { useNetwork } from "../../../providers/NetworkProvider.tsx";
 import { ROUTES } from "../../../app/routes.ts";
 import {
@@ -32,7 +32,7 @@ wcUri, setWcUri, wallet, setWallet, ethSessionOk, setEthSessionOk, dfPxeAccount,
 gateImportingPxe, setGateImportingPxe, gateUnlockingVault, setGateUnlockingVault, gateImportError, setGateImportError,
 walletPickerRef,
 recipient, setRecipient, amountFj, setAmountFj, autoClaim, setAutoClaim, l2Secret, setL2Secret, l2Salt, setL2Salt,
-l2SigningKey, setL2SigningKey, legacyAccountStyles, setLegacyAccountStyles, showL2Secret, setShowL2Secret,
+l2SigningKey, setL2SigningKey, showL2Secret, setShowL2Secret,
 busy, setBusy, error, setError, ethServiceFeeWei, setEthServiceFeeWei, bridgePhase, setBridgePhase,
 progress, setProgress, l1TxHash, setL1TxHash, showBridgeResult, setShowBridgeResult,
 credentials, setCredentials, claimJobId, setClaimJobId, claimStatus, setClaimStatus, l2TxHash, setL2TxHash,
@@ -101,6 +101,9 @@ requestBridge,
                 transaction is submitted. After L1 confirmation, the complete credentials
                 JSON will download automatically.
               </p>
+              {feeSplit && !amountCheck.error ? (
+                <p className="hint">{formatBridgeReceiptHint(feeSplit.gross)}</p>
+              ) : null}
               {ethServiceFeeWei != null && ethServiceFeeWei > 0n ? (
                 <p className="hint">
                   Mainnet wallet confirm batches ETH service fee {formatEther(ethServiceFeeWei)} ETH
@@ -154,7 +157,7 @@ requestBridge,
         </div>
       ) : null}
 
-      {recoveryPromptOpen && selectedSession?.credentials ? (
+      {recoveryPromptOpen && shellReady && selectedSession ? (
         <div className="modal-backdrop" role="presentation">
           <div
             className="modal recovery-modal"
@@ -168,7 +171,7 @@ requestBridge,
             <p className="hint">
               {phaseLabel(selectedSession.phase)} —{" "}
               <span className="mono">
-                {formatFjAmount(BigInt(selectedSession.credentials.claimAmount), 5)} FJ
+                {formatFjAmount(BigInt(selectedSession.claimAmount), 5)} FJ
               </span>{" "}
               is still waiting.
             </p>
@@ -178,7 +181,6 @@ requestBridge,
                 className="ghost"
                 onClick={() => {
                   setRecoveryPromptOpen(false);
-                  navigate(ROUTES.bridge);
                 }}
               >
                 Not now
@@ -196,9 +198,7 @@ requestBridge,
                   }, 0);
                 }}
               >
-                {selectedSession.phase === "claim-sent"
-                  ? "Wait for confirmation"
-                  : "Resume claim"}
+                Open Recover
               </button>
             </div>
           </div>

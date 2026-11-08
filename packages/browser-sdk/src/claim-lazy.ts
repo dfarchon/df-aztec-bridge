@@ -3,6 +3,7 @@
  * initial bundle until boot warmup / claim actually needs it.
  */
 export type {
+  AztecWalletCompat,
   BrowserClaimProgress,
   ClaimMessageStatus,
   QuickDfpunkAccount,
@@ -15,6 +16,10 @@ export type GetAztecFeeJuiceBalance = typeof import("./claim-browser.ts").getAzt
 export type CreateQuickDfpunkAccount = typeof import("./claim-browser.ts").createQuickDfpunkAccount;
 export type ImportDfpunkAccountIntoPxe =
   typeof import("./claim-browser.ts").importDfpunkAccountIntoPxe;
+export type ClassifyAztecWalletCompat =
+  typeof import("./claim-browser.ts").classifyAztecWalletCompat;
+export type DeriveVerifiedV6DfpunkAccount =
+  typeof import("./claim-browser.ts").deriveVerifiedV6DfpunkAccount;
 
 export async function loadBrowserClaim(): Promise<{
   waitAndClaimInBrowser: WaitAndClaimInBrowser;
@@ -24,6 +29,8 @@ export async function loadBrowserClaim(): Promise<{
   getAztecFeeJuiceBalance: GetAztecFeeJuiceBalance;
   createQuickDfpunkAccount: CreateQuickDfpunkAccount;
   importDfpunkAccountIntoPxe: ImportDfpunkAccountIntoPxe;
+  classifyAztecWalletCompat: ClassifyAztecWalletCompat;
+  deriveVerifiedV6DfpunkAccount: DeriveVerifiedV6DfpunkAccount;
 }> {
   const mod = await import("./claim-browser.ts");
   return {
@@ -34,5 +41,7 @@ export async function loadBrowserClaim(): Promise<{
     getAztecFeeJuiceBalance: mod.getAztecFeeJuiceBalance,
     createQuickDfpunkAccount: mod.createQuickDfpunkAccount,
     importDfpunkAccountIntoPxe: mod.importDfpunkAccountIntoPxe,
+    classifyAztecWalletCompat: mod.classifyAztecWalletCompat,
+    deriveVerifiedV6DfpunkAccount: mod.deriveVerifiedV6DfpunkAccount,
   };
 }

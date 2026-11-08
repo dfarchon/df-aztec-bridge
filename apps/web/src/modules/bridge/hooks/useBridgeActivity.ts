@@ -15,7 +15,6 @@ import {
   watchProviderSession,
   computeBridgeFee,
   BRIDGE_FEE_BPS,
-  parseEthFeeWeiOverride,
   resolveBridgeEthServiceFee,
   shouldChargeBridgeEthServiceFee,
   type BridgeProgressPhase,
@@ -80,6 +79,7 @@ import {
 import {
   assertBridgeReadyDfPxeAccount,
   isBridgeReadyDfPxeAccount,
+  isInspectableDfAccount,
 } from "../../../lib/df-pxe-bridge-guard.ts";
 import {
   isTrustedConnector,
@@ -90,13 +90,12 @@ import { ROUTES } from "../../../app/routes.ts";import { assertSafeClaimApiBase 
 import {
   API_BASE,
   BROWSER_CLAIM,
-  BRIDGE_ETH_FEE_WEI_OVERRIDE,
   BRIDGE_FEE_RECIPIENT,
   BRIDGE_PUBLIC_URL,
   DFPUNK_PLAY_URL,
   WC_PROJECT_ID,
 } from "../config.ts";
-import { readJsonResponse, resolveClaimSigningKey, storageErrorMessage } from "../tools.ts";
+import { readClaimApiJobResponse, resolveClaimSigningKey, storageErrorMessage } from "../tools.ts";
 import type { BridgeSession } from "./useBridgeSession.ts";
 
 /** Claim-job polling, unload guard, and bridge form derived state. */
@@ -116,7 +115,7 @@ wcUri, setWcUri, wallet, setWallet, ethSessionOk, setEthSessionOk, dfPxeAccount,
 gateImportingPxe, setGateImportingPxe, gateUnlockingVault, setGateUnlockingVault, gateImportError, setGateImportError,
 walletPickerRef,
 recipient, setRecipient, amountFj, setAmountFj, autoClaim, setAutoClaim, l2Secret, setL2Secret, l2Salt, setL2Salt,
-l2SigningKey, setL2SigningKey, legacyAccountStyles, setLegacyAccountStyles, showL2Secret, setShowL2Secret,
+l2SigningKey, setL2SigningKey, showL2Secret, setShowL2Secret,
 busy, setBusy, error, setError, ethServiceFeeWei, setEthServiceFeeWei, bridgePhase, setBridgePhase,
 progress, setProgress, l1TxHash, setL1TxHash, showBridgeResult, setShowBridgeResult,
 credentials, setCredentials, claimJobId, setClaimJobId, claimStatus, setClaimStatus, l2TxHash, setL2TxHash,
@@ -143,16 +142,12 @@ vaultTimeoutNotice,
         return;
       }
       void fetch(`${API_BASE}/v1/jobs/${claimJobId}`)
-        .then((response) =>
-          readJsonResponse<{
-            status: string;
-            error?: string;
-            result?: { l2TxHash?: string };
-          }>(response, "Claim status API"),
-        )
-        .then(async (job: { status: string; error?: string; result?: { l2TxHash?: string } }) => {
+        .then((response) => readClaimApiJobResponse(response, "Claim status API"))
+        .then(async (job) => {
           setClaimStatus(job.status);
           if (job.status === "failed") {
+            setProgress((prev) => prev?.combinedFlow ? finishProgress(prev, "failed") : prev);
+            setBridgePhase(job.error ?? "Claim failed");
             setError(job.error ?? "Claim failed");
             if (credentials) {
               await upsertSession(networkId, {
@@ -169,6 +164,8 @@ vaultTimeoutNotice,
             clearInterval(t);
           }
           if (job.status === "succeeded") {
+            setProgress((prev) => prev?.combinedFlow ? finishProgress(prev, "succeeded") : prev);
+            setBridgePhase("L2 claim complete.");
             if (job.result?.l2TxHash) setL2TxHash(job.result.l2TxHash);
             setRecoveryPromptOpen(false);
             await removeSession(networkId, currentL1Hash);
@@ -177,6 +174,7 @@ vaultTimeoutNotice,
           }
         })
         .catch((cause: unknown) => {
+          setProgress((prev) => prev?.combinedFlow ? finishProgress(prev, "failed") : prev);
           setError(cause instanceof Error ? cause.message : String(cause));
           clearInterval(t);
         });
@@ -265,17 +263,43 @@ vaultTimeoutNotice,
     isBridgeReadyDfPxeAccount(dfPxeAccount, wallet?.address) &&
     !fundingSponsoredFpc;
 
+  // Allow opening the bridge UI with a pre-v6 (v5 / v5.1) account so the warning is visible.
+  // Actual bridging still requires dfPxeReady + 6.0 walletCompat.
+  const sessionViewable =
+    ethSessionOk &&
+    isTrustedConnector(wallet) &&
+    isInspectableDfAccount(dfPxeAccount, wallet?.address) &&
+    !fundingSponsoredFpc;
+
   useEffect(() => {
     if (vaultTimeoutNotice) {
       setShellReady(false);
       return;
     }
     setShellReady(
-      dfPxeReady || busy || progress?.runState === "running",
+      sessionViewable || dfPxeReady || busy || progress?.runState === "running",
     );
-  }, [vaultTimeoutNotice, dfPxeReady, busy, progress?.runState, setShellReady]);
+  }, [
+    vaultTimeoutNotice,
+    sessionViewable,
+    dfPxeReady,
+    busy,
+    progress?.runState,
+    setShellReady,
+  ]);
 
   useEffect(() => {
+    if (!sessionViewable) return;
+    if (dfPxeAccount?.walletCompat === "pre-v6") {
+      pushDappLog({
+        kind: "error",
+        title: "v5 / v5.1 wallet unlocked",
+        detail:
+          "You can view the bridge, but this address is not Aztec 6.0 — bridging is blocked. Open Wallets and verify an Aztec 6.0 address from the same keys.",
+        ttlMs: 16_000,
+      });
+      return;
+    }
     if (!dfPxeReady) return;
     pushDappLog({
       kind: "announce",
@@ -283,32 +307,41 @@ vaultTimeoutNotice,
       detail: "Web3 connector + DF Punk PXE ready — menus and bridge tools are available.",
       ttlMs: 12_000,
     });
-  }, [dfPxeReady]);
+  }, [sessionViewable, dfPxeReady, dfPxeAccount?.walletCompat]);
+
+  const recipientCompatOk =
+    dfPxeAccount?.walletCompat == null ||
+    dfPxeAccount.walletCompat === "v6-initializerless" ||
+    dfPxeAccount.walletCompat === "v6-schnorr" ||
+    dfPxeAccount.walletCompat === "v6-external";
 
   const canBridge =
     dfPxeReady &&
+    recipientCompatOk &&
     !!networkMeta &&
     !amountCheck.error &&
     !shortfall &&
     !!BRIDGE_FEE_RECIPIENT &&
-    (!autoClaim || !!l2Secret.trim());
+    (!autoClaim || !!l2Secret.trim() || dfPxeAccount?.connector === "nulo");
   const bridgeButtonLabel = !wallet
     ? "Connect wallet first"
     : !ethSessionOk
       ? "Validate connector session"
       : !dfPxeAccount
         ? "Import DF Punk → PXE first"
-        : shortfall
-          ? `Insufficient ${feeBalance?.symbol ?? "AZTEC"}`
-          : amountCheck.error
-            ? amountCheck.error
-            : !BRIDGE_FEE_RECIPIENT
-              ? "Bridge fee recipient not configured"
-              : autoClaim && !l2Secret.trim()
-                ? "Enter DF Punk L2 secret for auto-claim"
-                : autoClaim
-                  ? "Bridge and claim"
-                  : "Bridge";
+        : !recipientCompatOk
+          ? "Aztec 6.0 wallet required"
+          : shortfall
+            ? `Insufficient ${feeBalance?.symbol ?? "AZTEC"}`
+            : amountCheck.error
+              ? amountCheck.error
+              : !BRIDGE_FEE_RECIPIENT
+                ? "Bridge fee recipient not configured"
+                : autoClaim && !l2Secret.trim() && dfPxeAccount?.connector !== "nulo"
+                  ? "Enter DF Punk L2 secret for auto-claim"
+                  : autoClaim
+                    ? "Bridge and claim"
+                    : "Bridge";
   const recoveryAccountReady =
     !!selectedSession?.credentials &&
     !!l2Secret.trim() &&
@@ -321,6 +354,12 @@ vaultTimeoutNotice,
       );
       return;
     }
+    if (!recipientCompatOk) {
+      setError(
+        "This bridge is Aztec 6.0 only. The To Aztec address is a v5 / v5.1 wallet. Open Wallets and verify an Aztec 6.0 address from the same keys. Funds already sent to this address stay here.",
+      );
+      return;
+    }
     if (amountCheck.error) {
       setError(amountCheck.error);
       return;
@@ -329,7 +368,7 @@ vaultTimeoutNotice,
       setError(`Insufficient ${feeBalance?.symbol ?? "AZTEC"} balance.`);
       return;
     }
-    if (autoClaim && !l2Secret.trim()) {
+    if (autoClaim && !l2Secret.trim() && dfPxeAccount?.connector !== "nulo") {
       setError("Auto-claim is on — DF Punk account secret missing.");
       return;
     }

@@ -14,7 +14,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@aztec/bb.js": "5.1.0",
+    "@aztec-foundation/bb.js": "6.0.0",
     "@df-bridge/browser-sdk": "workspace:*",
     "assert": "2.1.0",
     "hash.js": "1.1.7",
@@ -35,8 +35,8 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "4.7.0",
     "typescript": "5.7.3",
-    "vite": "6.4.3",
+    "vite": "6.4.5",
     "vite-plugin-node-polyfills": "0.28.0",
-    "vitest": "4.1.10"
+    "vitest": "4.1.12"
   }
 }

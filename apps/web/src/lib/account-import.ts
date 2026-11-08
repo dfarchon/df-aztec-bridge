@@ -15,6 +15,10 @@
  * Also accepts Quick Join `dark-forest-privacy-*.json` (same keys + optional homeCoordinates).
  */
 
+import type { AztecWalletCompat } from "./aztec-wallet-compat.ts";
+
+export type { AztecWalletCompat };
+
 export interface ImportedAztecAccount {
   address: string;
   secretKey: string;
@@ -30,6 +34,13 @@ export interface ImportedAztecAccount {
   pxeRegisteredAt?: number;
   /** ETH connector address that performed PXE registration (anti-injection bind). */
   boundEthAddress?: string;
+  /** External Aztec wallet. Nulo holds the keys; this app only stores the address. */
+  connector?: "nulo";
+  /**
+   * Client-side Aztec version check vs this 6.0 bridge.
+   * `pre-v6` = keys do not recreate the address on 6.0 (v5 / v5.1 era).
+   */
+  walletCompat?: AztecWalletCompat;
 }
 
 /** Canonical dfpunk single-account object. */
@@ -122,6 +133,54 @@ export function parseAccountUpload(raw: unknown): ImportedAztecAccount[] {
     "Unrecognized account JSON. Expected DF client dfpunk-account-*.json " +
       "{ address, secretKey, salt, signingKey, createdAt? }.",
   );
+}
+
+export function isNuloWalletName(name: string): boolean {
+  return /nulo/i.test(name);
+}
+
+/** Public Aztec address from a connected Nulo session. No signing key is stored. */
+export function accountFromNulo(address: string, boundEthAddress: string): ImportedAztecAccount {
+  return {
+    address,
+    secretKey: "",
+    salt: "0x0",
+    label: "Nulo",
+    fromDfClient: false,
+    pxeRegistered: true,
+    pxeRegisteredAt: Date.now(),
+    boundEthAddress: boundEthAddress.trim().toLowerCase(),
+    connector: "nulo",
+    walletCompat: "v6-external",
+  };
+}
+
+/** Shape produced by an in-browser DF-compatible Schnorr initializerless account. */
+export function accountFromV6Wallet(
+  created: {
+    address: string;
+    secretKey: string;
+    salt: string;
+    signingKey: string;
+    createdAt: number;
+    label?: string;
+    walletCompat?: AztecWalletCompat;
+  },
+  boundEthAddress: string,
+): ImportedAztecAccount {
+  return {
+    address: created.address,
+    secretKey: created.secretKey,
+    salt: created.salt,
+    signingKey: created.signingKey,
+    createdAt: created.createdAt,
+    label: created.label?.trim() || "DF Aztec account",
+    fromDfClient: true,
+    pxeRegistered: true,
+    pxeRegisteredAt: created.createdAt,
+    boundEthAddress: boundEthAddress.trim().toLowerCase(),
+    walletCompat: created.walletCompat ?? "v6-initializerless",
+  };
 }
 
 /** Assert DF-client exports include signingKey (required for PXE reopen / claim). */

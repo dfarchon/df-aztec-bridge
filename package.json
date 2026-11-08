@@ -18,6 +18,7 @@
     "web:clean": "pnpm --filter @df-bridge/web run dev:clean",
     "check:artifacts": "bash scripts/check-artifacts.sh",
     "check:pnpm": "bash scripts/check-pnpm-hardening.sh",
+    "check:prod-env": "bash scripts/check-prod-env.sh",
     "audit": "pnpm audit --prod"
   },
   "devDependencies": {

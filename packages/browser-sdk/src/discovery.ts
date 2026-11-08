@@ -1,4 +1,5 @@
 import type { EIP1193Provider } from "viem";
+import { toUiSafeProvider } from "./provider.ts";
 
 /**
  * EIP-6963 multi-injected provider discovery.
@@ -35,9 +36,10 @@ function emit() {
 function handleAnnounce(event: Event) {
   const detail = (event as CustomEvent<EIP6963ProviderDetail>).detail;
   if (!detail?.info?.rdns || typeof detail.provider?.request !== "function") return;
+  const provider = toUiSafeProvider(detail.provider);
   const legacy = providers.get(LEGACY_WALLET_RDNS);
-  if (legacy && legacy.provider === detail.provider) providers.delete(LEGACY_WALLET_RDNS);
-  providers.set(detail.info.rdns, detail);
+  if (legacy && legacy.provider === provider) providers.delete(LEGACY_WALLET_RDNS);
+  providers.set(detail.info.rdns, { info: detail.info, provider });
   emit();
 }
 
@@ -56,7 +58,7 @@ function start() {
         icon: GENERIC_WALLET_ICON,
         rdns: LEGACY_WALLET_RDNS,
       },
-      provider: injected,
+      provider: toUiSafeProvider(injected),
     });
     emit();
   }

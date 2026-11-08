@@ -1,21 +1,31 @@
 /**
  * Password-locked vault: setup / unlock / JSON get-set / localStorage migrate.
- * Optional WebAuthn passkey is a second factor (device biometrics / phone).
+ * A passkey that supports the WebAuthn PRF wraps the vault key.
+ * Password alone cannot decrypt a wrapped vault.
  */
 
 import {
   computePasswordVerifier,
   decryptJson,
   deriveCek,
+  derivePasswordBits,
+  deriveWrapKey,
   encodeSalt,
   encryptJson,
   decodeSalt,
+  importCek,
   profileUsesPasswordVerifier,
   randomBytes,
+  randomCekBytes,
+  unwrapCek,
   verifyPassword,
   verifyPasswordOnly,
+  wrapCek,
   VAULT_KDF_ITERATIONS,
+  VAULT_PASSWORD_MIN_LENGTH,
   VAULT_SALT_BYTES,
+  type VaultCekWrap,
+  type VaultEnvelope,
   type VaultPasskeyMeta,
   type VaultProfileMeta,
 } from "./vault-crypto.ts";
@@ -23,7 +33,7 @@ import {
   createIdbVaultBackend,
   type VaultBackend,
 } from "./vault-idb.ts";
-import { assertVaultPasskey } from "./vault-passkey.ts";
+import { evalVaultPasskeyPrf } from "./vault-passkey.ts";
 export class VaultError extends Error {
   constructor(message: string) {
     super(message);
@@ -123,18 +133,87 @@ export async function getVaultProfile(
  * First-time admin password after successful PXE import.
  * Password-only verifier (v2) so later visits unlock with password + passkey only.
  */
+async function loadDocs(address: string): Promise<Record<string, VaultEnvelope>> {
+  const ids = await backend.listDocIds(address);
+  const docs: Record<string, VaultEnvelope> = {};
+  for (const id of ids) {
+    const env = await backend.getDoc(address, id);
+    if (env) docs[id] = env;
+  }
+  return docs;
+}
+
+async function reencryptDocs(
+  oldKey: CryptoKey,
+  newKey: CryptoKey,
+  docs: Record<string, VaultEnvelope>,
+): Promise<Record<string, VaultEnvelope>> {
+  const next: Record<string, VaultEnvelope> = {};
+  for (const [id, env] of Object.entries(docs)) {
+    next[id] = await encryptJson(newKey, await decryptJson(oldKey, env));
+  }
+  return next;
+}
+
+/** New salt, 600k PBKDF2, and optional passkey wrap. Writes meta + docs together. */
+async function upgradeVault(opts: {
+  meta: VaultProfileMeta;
+  password: string;
+  oldKey: CryptoKey;
+  prfSecret?: Uint8Array;
+  prfSalt?: string;
+}): Promise<{ meta: VaultProfileMeta; key: CryptoKey }> {
+  const newSalt = randomBytes(VAULT_SALT_BYTES);
+  const iterations = VAULT_KDF_ITERATIONS;
+  const docs = await loadDocs(opts.meta.aztecAddress);
+  let newKey: CryptoKey;
+  let cekWrap: VaultCekWrap | undefined;
+  if (opts.prfSecret && opts.prfSecret.length > 0) {
+    const raw = randomCekBytes();
+    const extractable = await importCek(raw, true);
+    raw.fill(0);
+    const bits = await derivePasswordBits(opts.password, newSalt, iterations);
+    const wrapKey = await deriveWrapKey(bits, opts.prfSecret, newSalt);
+    bits.fill(0);
+    cekWrap = await wrapCek(wrapKey, extractable);
+    newKey = await unwrapCek(wrapKey, cekWrap);
+  } else {
+    newKey = await deriveCek(opts.password, newSalt, iterations);
+  }
+  const nextDocs = await reencryptDocs(opts.oldKey, newKey, docs);
+  const passkey = opts.meta.passkey
+    ? { ...opts.meta.passkey, ...(opts.prfSalt ? { prfSalt: opts.prfSalt } : {}) }
+    : undefined;
+  const nextMeta: VaultProfileMeta = {
+    ...opts.meta,
+    v: 2,
+    salt: encodeSalt(newSalt),
+    iterations,
+    verifier: await computePasswordVerifier(opts.password, newSalt, opts.meta.aztecAddress, iterations),
+    verifierKind: "password",
+    kdf: "PBKDF2-SHA-256",
+    ...(passkey ? { passkey } : {}),
+  };
+  if (cekWrap) nextMeta.cekWrap = cekWrap;
+  else delete nextMeta.cekWrap;
+  await backend.commitProfile(nextMeta, nextDocs);
+  return { meta: nextMeta, key: newKey };
+}
+
 export async function setupVault(opts: {
   aztecAddress: string;
   password: string;
   /** Kept for API compat; not used by the v2 password verifier. */
   signingKey?: string;
   passkey?: VaultPasskeyMeta | null;
+  /** WebAuthn PRF output. When set with a passkey, the CEK is random and wrapped. */
+  prfSecret?: Uint8Array;
 }): Promise<void> {
   const address = opts.aztecAddress.trim();
   const password = opts.password;
   if (!address) throw new VaultError("Missing Aztec address for vault setup.");
-  if (password.length < 8) {
-    throw new VaultError("Password must be at least 8 characters.");
+  if (password.length < VAULT_PASSWORD_MIN_LENGTH) {
+    throw new VaultError(`Password must be at least ${VAULT_PASSWORD_MIN_LENGTH} characters.`);
   }
 
   const existing = await backend.getMeta(address);
@@ -144,7 +223,20 @@ export async function setupVault(opts: {
 
   const salt = randomBytes(VAULT_SALT_BYTES);
   const verifier = await computePasswordVerifier(password, salt, address);
-  const key = await deriveCek(password, salt);
+  let key: CryptoKey;
+  let cekWrap: VaultCekWrap | undefined;
+  if (opts.prfSecret && opts.prfSecret.length > 0) {
+    const raw = randomCekBytes();
+    const extractable = await importCek(raw, true);
+    raw.fill(0);
+    const bits = await derivePasswordBits(password, salt);
+    const wrapKey = await deriveWrapKey(bits, opts.prfSecret, salt);
+    bits.fill(0);
+    cekWrap = await wrapCek(wrapKey, extractable);
+    key = await unwrapCek(wrapKey, cekWrap);
+  } else {
+    key = await deriveCek(password, salt);
+  }
   const meta: VaultProfileMeta = {
     v: 2,
     aztecAddress: address,
@@ -155,6 +247,7 @@ export async function setupVault(opts: {
     iterations: VAULT_KDF_ITERATIONS,
     createdAt: Date.now(),
     ...(opts.passkey ? { passkey: opts.passkey } : {}),
+    ...(cekWrap ? { cekWrap } : {}),
   };
   await backend.putMeta(meta);
 
@@ -167,11 +260,26 @@ export async function setupVault(opts: {
   notify();
 }
 
-/** Attach or replace a passkey on an existing vault profile (must be unlocked). */
-export async function attachVaultPasskey(passkey: VaultPasskeyMeta): Promise<void> {
-  const { address } = requireUnlocked();
+/** Attach or replace a passkey. With a PRF secret, re-wrap the CEK so the password alone cannot decrypt. */
+export async function attachVaultPasskey(
+  passkey: VaultPasskeyMeta,
+  opts?: { password?: string; prfSecret?: Uint8Array },
+): Promise<void> {
+  const { address, key } = requireUnlocked();
   const meta = await backend.getMeta(address);
   if (!meta) throw new VaultError("No vault profile to attach passkey.");
+  if (opts?.prfSecret && opts.prfSecret.length > 0 && opts.password) {
+    const upgraded = await upgradeVault({
+      meta: { ...meta, passkey },
+      password: opts.password,
+      oldKey: key,
+      prfSecret: opts.prfSecret,
+      prfSalt: passkey.prfSalt,
+    });
+    cek = upgraded.key;
+    notify();
+    return;
+  }
   const next: VaultProfileMeta = { ...meta, passkey };
   await backend.putMeta(next);
   notify();
@@ -186,14 +294,19 @@ export async function unlockAndReplacePasskey(opts: {
   password: string;
   signingKey?: string;
   passkey: VaultPasskeyMeta;
+  prfSecret?: Uint8Array;
 }): Promise<void> {
   await unlockVault({
     aztecAddress: opts.aztecAddress,
     password: opts.password,
     signingKey: opts.signingKey,
     skipPasskey: true,
+    prfSecret: opts.prfSecret,
   });
-  await attachVaultPasskey(opts.passkey);
+  await attachVaultPasskey(opts.passkey, {
+    password: opts.password,
+    prfSecret: opts.prfSecret,
+  });
 }
 
 /** Delete vault profile after password check (skip passkey). User can re-import DF Punk JSON + setup. */
@@ -202,13 +315,27 @@ export async function wipeVaultProfileWithPassword(opts: {
   password: string;
   signingKey?: string;
 }): Promise<void> {
+  const address = opts.aztecAddress.trim();
+  const meta = await backend.getMeta(address);
+  if (!meta) throw new VaultError("No vault for this account.");
+  if (meta.cekWrap) {
+    const salt = decodeSalt(meta.salt);
+    const iterations = meta.iterations ?? VAULT_KDF_ITERATIONS;
+    const ok = profileUsesPasswordVerifier(meta)
+      ? await verifyPasswordOnly(opts.password, salt, meta.aztecAddress, meta.verifier, iterations)
+      : opts.signingKey
+        ? await verifyPassword(opts.password, salt, opts.signingKey, meta.verifier, iterations)
+        : false;
+    if (!ok) throw new VaultError("Invalid password.");
+    await deleteVaultProfile(address);
+    return;
+  }
   await unlockVault({
-    aztecAddress: opts.aztecAddress,
+    aztecAddress: address,
     password: opts.password,
     signingKey: opts.signingKey,
     skipPasskey: true,
   });
-  const address = opts.aztecAddress.trim();
   await deleteVaultProfile(address);
 }
 
@@ -239,6 +366,8 @@ export async function unlockVault(opts: {
   signingKey?: string;
   /** Test-only: skip WebAuthn when a passkey is registered. */
   skipPasskey?: boolean;
+  /** Test-only or caller-supplied WebAuthn PRF output. */
+  prfSecret?: Uint8Array;
 }): Promise<void> {
   const address = opts.aztecAddress.trim();
   const signingKey = opts.signingKey?.trim() || "";
@@ -286,14 +415,56 @@ export async function unlockVault(opts: {
     throw new VaultError("Invalid password.");
   }
 
-  if (meta.passkey && !opts.skipPasskey) {
-    await assertVaultPasskey(meta.passkey);
+  let key: CryptoKey;
+  let nextMeta = meta;
+  if (meta.cekWrap) {
+    let prf = opts.prfSecret;
+    if (!prf || prf.length === 0) {
+      if (opts.skipPasskey || !meta.passkey) {
+        throw new VaultError("This vault is wrapped by a passkey. Approve the passkey to unlock.");
+      }
+      const read = await evalVaultPasskeyPrf(meta.passkey, { required: true });
+      if (!read) throw new VaultError("This passkey did not return a wrap secret.");
+      prf = read.prfSecret;
+    }
+    const bits = await derivePasswordBits(opts.password, salt, iterations);
+    try {
+      key = await unwrapCek(await deriveWrapKey(bits, prf, salt), meta.cekWrap);
+    } catch (error) {
+      if (error instanceof VaultError) throw error;
+      throw new VaultError("Passkey wrap did not match this vault.");
+    } finally {
+      bits.fill(0);
+    }
+  } else {
+    let prfUpgrade: { prfSecret: Uint8Array; prfSalt: string } | null = null;
+    if (meta.passkey && !opts.skipPasskey) {
+      prfUpgrade = await evalVaultPasskeyPrf(meta.passkey, { required: false });
+    } else if (opts.prfSecret && opts.prfSecret.length > 0) {
+      prfUpgrade = {
+        prfSecret: opts.prfSecret,
+        prfSalt: meta.passkey?.prfSalt ?? "",
+      };
+    }
+    key = await deriveCek(opts.password, salt, iterations);
+    if (iterations < VAULT_KDF_ITERATIONS || prfUpgrade) {
+      const upgraded = await upgradeVault({
+        meta,
+        password: opts.password,
+        oldKey: key,
+        prfSecret: prfUpgrade?.prfSecret,
+        prfSalt: prfUpgrade?.prfSalt,
+      });
+      key = upgraded.key;
+      nextMeta = upgraded.meta;
+    }
   }
 
-  cek = await deriveCek(opts.password, salt, iterations);
-  activeAddress = meta.aztecAddress;
+  cek = key;
+  activeAddress = nextMeta.aztecAddress;
   unlocked = true;
   lastLockReason = null;
+  await migrateLocalStorageIntoVault();
   notify();
 }
 
@@ -341,22 +512,66 @@ export async function vaultListDocs(): Promise<string[]> {
   return backend.listDocIds(address);
 }
 
-export async function vaultExportAllJson(): Promise<Record<string, unknown>> {
-  const { address, key } = requireUnlocked();
+const VAULT_BACKUP_FORMAT = "df-bridge-vault-backup-v1";
+const VAULT_DOC_ID = /^[a-zA-Z0-9:_-]{1,64}$/;
+
+export type VaultEncryptedBackup = {
+  format: typeof VAULT_BACKUP_FORMAT;
+  exportedAt: string;
+  aztecAddress: string;
+  docs: Record<string, VaultEnvelope>;
+};
+
+function isVaultEnvelope(value: unknown): value is VaultEnvelope {
+  if (!value || typeof value !== "object") return false;
+  const env = value as VaultEnvelope;
+  return env.v === 1 && typeof env.iv === "string" && !!env.iv && typeof env.ct === "string" && !!env.ct;
+}
+
+/** Downloadable backup is the ciphertext already stored in IndexedDB. */
+export async function vaultExportAllJson(): Promise<VaultEncryptedBackup> {
+  const { address } = requireUnlocked();
   const ids = await backend.listDocIds(address);
-  const out: Record<string, unknown> = {
-    exportedAt: new Date().toISOString(),
-    aztecAddress: address,
-    docs: {},
-  };
-  const docs: Record<string, unknown> = {};
+  const docs: Record<string, VaultEnvelope> = {};
   for (const id of ids) {
     const env = await backend.getDoc(address, id);
-    if (!env) continue;
-    docs[id] = await decryptJson(key, env);
+    if (!env || !isVaultEnvelope(env)) continue;
+    docs[id] = { v: 1, iv: env.iv, ct: env.ct };
   }
-  out.docs = docs;
-  return out;
+  return {
+    format: VAULT_BACKUP_FORMAT,
+    exportedAt: new Date().toISOString(),
+    aztecAddress: address,
+    docs,
+  };
+}
+
+/** Restore a ciphertext backup into the unlocked profile. Same password must still unlock it. */
+export async function vaultImportEncryptedBackup(raw: unknown): Promise<number> {
+  const { address } = requireUnlocked();
+  if (!raw || typeof raw !== "object") {
+    throw new VaultError("Backup file is not a vault backup.");
+  }
+  const file = raw as Partial<VaultEncryptedBackup>;
+  if (file.format !== VAULT_BACKUP_FORMAT) {
+    throw new VaultError("Backup file is not an encrypted vault backup.");
+  }
+  if (typeof file.aztecAddress !== "string" || file.aztecAddress.trim().toLowerCase() !== address.toLowerCase()) {
+    throw new VaultError("Backup address does not match the unlocked vault.");
+  }
+  if (!file.docs || typeof file.docs !== "object" || Array.isArray(file.docs)) {
+    throw new VaultError("Backup file has no documents.");
+  }
+  const entries = Object.entries(file.docs);
+  for (const [id, env] of entries) {
+    if (!VAULT_DOC_ID.test(id) || !isVaultEnvelope(env)) {
+      throw new VaultError("Backup file contains an invalid document.");
+    }
+  }
+  for (const [id, env] of entries) {
+    await backend.putDoc(address, id, { v: 1, iv: env.iv, ct: env.ct });
+  }
+  return entries.length;
 }
 
 const LS_WALLETS = "df-bridge:aztec-wallets:v1";
@@ -438,26 +653,58 @@ export async function migrateLocalStorageIntoVault(): Promise<void> {
   }
 }
 
+const LEGACY_PLAINTEXT_REMOVED_FLAG = "df-bridge:legacy-plaintext-removed";
+
+function isLegacyPlaintextKey(key: string): boolean {
+  return (
+    key === LS_WALLETS ||
+    key === LS_ACTIVE ||
+    key === LS_RPC ||
+    key === LS_BRIDGE_V1 ||
+    key === LS_BRIDGE_V2 ||
+    key.startsWith(`${LS_BRIDGE_V2}:`) ||
+    key.startsWith(`${LS_BRIDGE_V2}__`)
+  );
+}
+
 export function wipeMigratedLocalStorage(): void {
-  if (typeof localStorage === "undefined") return;
+  discardLegacyPlaintextSecrets();
+}
+
+/**
+ * Delete pre-vault plaintext (account keys, claim secrets, RPC overrides)
+ * without copying the values into app state. Call at boot, including while locked.
+ * Returns how many keys were removed.
+ */
+export function discardLegacyPlaintextSecrets(): number {
+  if (typeof localStorage === "undefined") return 0;
   const keys: string[] = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (k) keys.push(k);
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k) keys.push(k);
+    }
+  } catch {
+    return 0;
   }
+  let removed = 0;
   for (const key of keys) {
-    if (
-      key === LS_WALLETS ||
-      key === LS_ACTIVE ||
-      key === LS_RPC ||
-      key === LS_BRIDGE_V1 ||
-      key === LS_BRIDGE_V2 ||
-      key.startsWith(`${LS_BRIDGE_V2}:`) ||
-      key.startsWith(`${LS_BRIDGE_V2}__`)
-    ) {
+    if (!isLegacyPlaintextKey(key)) continue;
+    try {
       localStorage.removeItem(key);
+      removed += 1;
+    } catch {
+      /* private mode */
     }
   }
+  if (removed > 0) {
+    try {
+      sessionStorage.setItem(LEGACY_PLAINTEXT_REMOVED_FLAG, "1");
+    } catch {
+      /* ignore */
+    }
+  }
+  return removed;
 }
 
 export function downloadJsonFile(filename: string, data: unknown): void {

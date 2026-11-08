@@ -1,9 +1,12 @@
+import { predictBridgeReceipt } from "@df-bridge/browser-sdk";
 import { formatUnits, parseUnits } from "viem";
 
 export const FJ_DECIMALS = 18;
 /** Anything smaller is not worth an L1 deposit + an L2 claim proof. */
 export const MIN_BRIDGE_FJ = 3;
 export const MIN_BRIDGE_WEI = parseUnits(String(MIN_BRIDGE_FJ), FJ_DECIMALS);
+export const MAX_BRIDGE_FJ = 500;
+export const MAX_BRIDGE_WEI = parseUnits(String(MAX_BRIDGE_FJ), FJ_DECIMALS);
 /** Range input ticks from 0 to this value. */
 export const AMOUNT_SLIDER_MAX = 10_000;
 /** Slider / percent fills keep this many fractional digits; typed input can go to 18. */
@@ -35,6 +38,9 @@ export function parseBridgeAmount(input: string): BridgeAmountCheck {
       error: `Minimum bridge amount is ${MIN_BRIDGE_FJ} FJ.`,
     };
   }
+  if (wei > MAX_BRIDGE_WEI) {
+    return { wei: null, error: `Maximum bridge amount is ${MAX_BRIDGE_FJ} FJ.` };
+  }
   return { wei, error: null };
 }
 
@@ -62,6 +68,8 @@ export function sanitizeAmountInput(raw: string): string {
     }
   }
   if (next.startsWith(".")) next = `0${next}`;
+  const amount = parseAmountWeiLoose(next);
+  if (amount !== null && amount > MAX_BRIDGE_WEI) return String(MAX_BRIDGE_FJ);
   return next;
 }
 
@@ -138,8 +146,9 @@ export interface AmountPreset {
 }
 
 export function amountPresets(balance: bigint): AmountPreset[] {
+  const available = balance > MAX_BRIDGE_WEI ? MAX_BRIDGE_WEI : balance;
   return AMOUNT_PRESET_PERCENTS.map((percent) => {
-    const wei = amountFromPercent(balance, percent);
+    const wei = amountFromPercent(available, percent);
     return {
       percent,
       label: percent === 100 ? "Max" : `${percent}%`,
@@ -166,4 +175,16 @@ export function bridgeShortfall(needed: bigint, have: bigint): BridgeShortfall |
     haveFormatted: formatFjAmount(have),
     missingFormatted: formatFjAmount(missing),
   };
+}
+
+/** Predicted Aztec balance after the 5% fee and the claim cost. */
+export function formatBridgeReceiptHint(gross: bigint): string {
+  const receipt = predictBridgeReceipt(gross);
+  const fee = formatFjAmount(receipt.protocolFee, 5);
+  const claim = formatFjAmount(receipt.claimFee, 5);
+  if (receipt.receive === 0n) {
+    return `The Aztec claim may use this whole deposit. The 5% fee is ${fee} FJ. The claim spends about ${claim} FJ.`;
+  }
+  const receive = formatFjAmount(receipt.receive, 5);
+  return `About ${receive} FJ in the Aztec account. The 5% fee is ${fee} FJ. The claim spends about ${claim} FJ.`;
 }

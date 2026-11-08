@@ -9,6 +9,15 @@ import {
   type BlockPace,
 } from "../../lib/aztec-block-estimate.ts";
 
+/** Width via CSSOM so CSP style-src need not allow 'unsafe-inline'. */
+function AztecBlockEstimateFill(props: { pct: number }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    ref.current?.style.setProperty("width", `${props.pct}%`);
+  }, [props.pct]);
+  return <span ref={ref} className="aztec-block-estimate-fill" />;
+}
+
 async function fetchTip(nodeUrl: string): Promise<number> {
   const res = await privacyFetch(nodeUrl, {
     method: "POST",
@@ -126,14 +135,11 @@ export function AztecBlockEstimate(props: {
         <span className="aztec-block-estimate-pace">{paceLabel(pace)}</span>
       </div>
       <div className="aztec-block-estimate-meter" aria-hidden="true">
-        <span
-          className="aztec-block-estimate-fill"
-          style={{
-            width: `${Math.max(
-              0,
-              Math.min(100, ((intervalMs - Math.max(0, remaining)) / intervalMs) * 100),
-            )}%`,
-          }}
+        <AztecBlockEstimateFill
+          pct={Math.max(
+            0,
+            Math.min(100, ((intervalMs - Math.max(0, remaining)) / intervalMs) * 100),
+          )}
         />
       </div>
     </div>

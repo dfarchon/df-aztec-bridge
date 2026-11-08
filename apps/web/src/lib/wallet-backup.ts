@@ -106,6 +106,38 @@ export function parseAztecWalletTxt(text: string): ImportedAztecAccount {
   };
 }
 
+const AZTEC_ADDRESS_RE = /^0x[0-9a-fA-F]{64}$/;
+
+/**
+ * Copy a DF backup and replace only the address, after Aztec 6.0 validation.
+ * secretKey, salt, and signingKey are copied unchanged.
+ */
+export function withVerifiedV6Address(
+  account: ImportedAztecAccount,
+  v6Address: string,
+): ImportedAztecAccount {
+  const address = v6Address.trim();
+  if (!AZTEC_ADDRESS_RE.test(address)) {
+    throw new Error("Aztec 6.0 address failed validation.");
+  }
+  if (address.toLowerCase() === account.address.trim().toLowerCase()) {
+    throw new Error("These keys already match this address on Aztec 6.0.");
+  }
+  if (!account.secretKey?.trim() || !account.salt?.trim() || !account.signingKey?.trim()) {
+    throw new Error("Backup is missing secretKey, salt, or signingKey.");
+  }
+  return {
+    address,
+    secretKey: account.secretKey,
+    salt: account.salt,
+    signingKey: account.signingKey,
+    createdAt: account.createdAt,
+    label: account.label,
+    fromDfClient: true,
+    walletCompat: "v6-initializerless",
+  };
+}
+
 export function serializeAztecWalletJson(account: ImportedAztecAccount): {
   address: string;
   secretKey: string;

@@ -23,10 +23,14 @@
   # Activity toasts stay hidden unless this is exactly "true".
   VITE_ENABLE_DAPP_LOG = "false"
   VITE_BRIDGE_FEE_RECIPIENT = "0x33D5928E1c66E831Eb250D1250bf2CfF9eACa370"
+  VITE_SPONSORED_FPC_ADDRESS = "0x1441491b59934ec64f8c98f17c91f23c01ca2a45dbb35caf123146ec76f9970c"
   VITE_BRIDGE_PUBLIC_URL = "https://aztec-dfarchon-kit.netlify.app/"
   VITE_DFPUNK_PLAY_URL = "https://aztec.dfpunk.xyz/play/"
-  # Optional keyed RPC: set VITE_MAINNET_AZTEC_NODE_URL in Netlify UI (not git). Default is public aztec-mainnet.drpc.org.
-  # Dev preview hosts: enable Netlify visitor password + VITE_DEV_GATE / VITE_DEV_GATE_PASSWORD_HASH in UI (never commit the hash of a real password into git).
+  # Public RPC only. VITE_*_AZTEC_NODE_URL / VITE_*_L1_RPC_URL must be a pinned https host with no path.
+  # A path key is never a VITE_* value and is not injected into the dev bundle either.
+  # Branch deploys and deploy previews are locked by netlify/edge-functions/preview-gate.js.
+  # Set DEV_GATE_PASSWORD (12+ characters) in the Netlify UI for those contexts. Never use a VITE_ name.
+  # Production host is not gated. A Netlify visitor password is an optional extra CDN lock.
 
 # SPA fallback for client-side routing (only when the path is not a real file).
 # Missing /a/sqlite3-opfs-async-proxy.js previously hit this and returned text/html.
@@ -68,4 +72,4 @@
     Cross-Origin-Opener-Policy = "same-origin"
     Cross-Origin-Embedder-Policy = "credentialless"
     Cross-Origin-Resource-Policy = "same-origin"
-    Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; child-src 'self' blob:; manifest-src 'self'; connect-src 'self' data: blob: https://docs.aztec.network https://aztec.network https://aztecscan.xyz https://testnet.aztecscan.xyz https://devnet.aztecscan.xyz https://v5.testnet.rpc.aztec-labs.com https://crs.aztec-cdn.foundation https://crs.aztec-labs.com https://aztec-mainnet.drpc.org https://lb.drpc.live https://ethereum-rpc.publicnode.com https://ethereum-sepolia-rpc.publicnode.com https://etherscan.io https://sepolia.etherscan.io https://df-atlas.onchainreality.xyz https://aztec.dfpunk.xyz https://rpc.walletconnect.com https://rpc.walletconnect.org https://explorer-api.walletconnect.com https://pulse.walletconnect.org https://api.web3modal.org https://api.web3modal.com https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org https://*.reown.com wss://*.reown.com; frame-src 'self' https://verify.walletconnect.com https://verify.walletconnect.org https://secure.walletconnect.com https://secure.walletconnect.org"
+    Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; child-src 'self' blob:; manifest-src 'self'; connect-src 'self' data: blob: https://docs.aztec.network https://aztec.network https://aztecscan.xyz https://testnet.aztecscan.xyz https://devnet.aztecscan.xyz https://aztec-testnet.drpc.org https://crs.aztec-cdn.foundation https://crs.aztec-labs.com https://aztec-mainnet.drpc.org https://ethereum-rpc.publicnode.com https://ethereum-sepolia-rpc.publicnode.com https://etherscan.io https://sepolia.etherscan.io https://df-atlas.onchainreality.xyz https://aztec.dfpunk.xyz https://rpc.walletconnect.com https://rpc.walletconnect.org https://explorer-api.walletconnect.com https://pulse.walletconnect.org https://api.web3modal.org https://api.web3modal.com https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org https://*.reown.com wss://*.reown.com; frame-src 'self' https://verify.walletconnect.com https://verify.walletconnect.org https://secure.walletconnect.com https://secure.walletconnect.org"

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { BridgeSessionEntry } from "../../lib/bridge-session.ts";
 import {
   loadSessionStore,
@@ -19,6 +19,7 @@ import {
   getVaultProfile,
   isVaultUnlocked,
   vaultExportAllJson,
+  vaultImportEncryptedBackup,
   vaultListDocs,
 } from "../../lib/vault.ts";
 
@@ -45,6 +46,10 @@ type VaultSnapshot = {
   accountAddress: string | null;
   accountSavedAt: number | null;
   passkeyEnabled: boolean;
+  /** Passkey present but CEK is still password-only (no WebAuthn PRF wrap). */
+  passkeyWithoutPrf: boolean;
+  /** Legacy signingKey-bound verifier still in meta until one unlock migrates to v2. */
+  legacyVerifierV1: boolean;
   pxeRegistered: boolean;
   boundEthAddress: string | null;
   claimCount: number;
@@ -57,6 +62,8 @@ const EMPTY_SNAPSHOT: VaultSnapshot = {
   accountAddress: null,
   accountSavedAt: null,
   passkeyEnabled: false,
+  passkeyWithoutPrf: false,
+  legacyVerifierV1: false,
   pxeRegistered: false,
   boundEthAddress: null,
   claimCount: 0,
@@ -153,6 +160,8 @@ async function loadVaultSnapshot(activeNetworkId: string): Promise<VaultSnapshot
     accountAddress: account?.address ?? null,
     accountSavedAt: account?.createdAt ?? profile?.createdAt ?? null,
     passkeyEnabled: !!profile?.passkey,
+    passkeyWithoutPrf: !!profile?.passkey && !profile?.cekWrap,
+    legacyVerifierV1: profile?.v === 1,
     pxeRegistered: !!account?.pxeRegistered,
     boundEthAddress: account?.boundEthAddress ?? null,
     claimCount: claims.length,
@@ -177,26 +186,36 @@ export function VaultPage() {
 
   const [pane, setPane] = useState<Pane>("locked");
   const [snapshot, setSnapshot] = useState<VaultSnapshot>(EMPTY_SNAPSHOT);
+  const [snapshotStatus, setSnapshotStatus] = useState<"loading" | "ready" | "error">("loading");
+  const snapshotRequest = useRef(0);
   const [selectedClaimKey, setSelectedClaimKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
+    const request = ++snapshotRequest.current;
+    setSnapshotStatus("loading");
     if (!isVaultUnlocked()) {
       setSnapshot(EMPTY_SNAPSHOT);
       setSelectedClaimKey(null);
       return;
     }
     try {
-      setSnapshot(await loadVaultSnapshot(networkId));
+      const next = await loadVaultSnapshot(networkId);
+      if (request !== snapshotRequest.current || !isVaultUnlocked()) return;
+      setSnapshot(next);
+      setSnapshotStatus("ready");
       setError(null);
     } catch (e) {
+      if (request !== snapshotRequest.current) return;
+      setSnapshotStatus("error");
       setError(e instanceof Error ? e.message : String(e));
     }
   }, [networkId]);
 
   useEffect(() => {
     void refresh();
+    return () => { snapshotRequest.current += 1; };
   }, [refresh, unlocked, networkId]);
 
   useEffect(() => {
@@ -211,12 +230,16 @@ export function VaultPage() {
     });
   }, [secretsVisible, unlocked]);
 
+  const snapshotReady = snapshotStatus === "ready" && unlocked;
+  const snapshotPlaceholder = snapshotStatus === "error" ? "Unable to load" : "Loading…";
+
   const selectedClaim =
     snapshot.claims.find(
       (entry) => normalizeL1TxHash(entry.l1TxHash) === selectedClaimKey,
     ) ?? null;
 
   const onExport = async () => {
+    if (snapshotStatus !== "ready" || !isVaultUnlocked() || busy) return;
     setBusy(true);
     setError(null);
     try {
@@ -228,6 +251,22 @@ export function VaultPage() {
         "vault";
       downloadJsonFile(`df-bridge-vault-${addr}-${Date.now()}.json`, all);
       setPane("overview");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onImportBackup = async (file: File) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const parsed: unknown = JSON.parse(await file.text());
+      const count = await vaultImportEncryptedBackup(parsed);
+      await refresh();
+      setPane("overview");
+      if (count === 0) setError("Backup file had no documents.");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -276,16 +315,33 @@ export function VaultPage() {
               This page summarizes encrypted data in this browser. Private keys and claim secrets are
               never shown here.
             </p>
+            {snapshotStatus === "loading" ? <p className="hint" role="status">Loading vault data…</p> : null}
+            {snapshotStatus === "error" ? (
+              <button type="button" className="ghost" onClick={() => void refresh()}>Retry loading</button>
+            ) : null}
+            {snapshot.legacyVerifierV1 ? (
+              <p className="hint">
+                This vault still uses a legacy verifier. Unlock once with your password (and account
+                keys if prompted) so it migrates to the password-only verifier automatically.
+              </p>
+            ) : null}
+            {snapshot.passkeyWithoutPrf ? (
+              <p className="hint">
+                Your passkey is presence-only on this device. Re-register a passkey on a PRF-capable
+                browser so the vault key is wrapped and the password alone cannot decrypt.
+              </p>
+            ) : null}
             <ul className="recovery-session-list">
               <li>
                 <button
                   type="button"
                   className="recovery-session-item"
+                  disabled={!snapshotReady}
                   onClick={() => setPane("account")}
                 >
                   <span className="recovery-session-amount">Aztec account</span>
                   <span className="hint">
-                    {snapshot.accountAddress
+                    {!snapshotReady ? snapshotPlaceholder : snapshot.accountAddress
                       ? `${shortHash(snapshot.accountAddress)}${
                           formatSavedAt(snapshot.accountSavedAt)
                             ? ` · saved ${formatSavedAt(snapshot.accountSavedAt)}`
@@ -299,11 +355,12 @@ export function VaultPage() {
                 <button
                   type="button"
                   className="recovery-session-item"
+                  disabled={!snapshotReady}
                   onClick={() => setPane("claims")}
                 >
                   <span className="recovery-session-amount">Unfinished claims</span>
                   <span className="hint">
-                    {snapshot.claimCount === 0
+                    {!snapshotReady ? snapshotPlaceholder : snapshot.claimCount === 0
                       ? "None"
                       : `${snapshot.claimCount} saved in this browser`}
                   </span>
@@ -313,21 +370,23 @@ export function VaultPage() {
                 <button
                   type="button"
                   className="recovery-session-item"
+                  disabled={!snapshotReady}
                   onClick={() => setPane("nodes")}
                 >
                   <span className="recovery-session-amount">Aztec node</span>
-                  <span className="hint">{nodeOverviewHint(snapshot.nodeRows)}</span>
+                  <span className="hint">{snapshotReady ? nodeOverviewHint(snapshot.nodeRows) : snapshotPlaceholder}</span>
                 </button>
               </li>
               <li>
                 <button
                   type="button"
                   className="recovery-session-item"
+                  disabled={!snapshotReady}
                   onClick={() => navigate(ROUTES.history)}
                 >
                   <span className="recovery-session-amount">Activity</span>
                   <span className="hint">
-                    {snapshot.historyCount === 0
+                    {!snapshotReady ? snapshotPlaceholder : snapshot.historyCount === 0
                       ? "No operations yet"
                       : `${snapshot.historyCount} event${
                           snapshot.historyCount === 1 ? "" : "s"
@@ -340,7 +399,7 @@ export function VaultPage() {
               <button type="button" className="ghost" onClick={() => lock()}>
                 Lock
               </button>
-              <button type="button" onClick={() => setPane("backup")}>
+              <button type="button" disabled={!snapshotReady || busy} onClick={() => setPane("backup")}>
                 Download a backup
               </button>
             </div>
@@ -391,7 +450,7 @@ export function VaultPage() {
                 Recover.
               </p>
             ) : (
-              <ul className="recovery-session-list">
+              <ul className="recovery-session-list scrollable-list" tabIndex={0} aria-label="Unfinished claims">
                 {snapshot.claims.map((entry) => {
                   const key = normalizeL1TxHash(entry.l1TxHash);
                   return (
@@ -452,7 +511,7 @@ export function VaultPage() {
               Same URLs Bridge uses after merging app defaults with anything saved in this vault.
               Change Aztec nodes from RPC settings on Bridge.
             </p>
-            <ul className="recovery-session-list vault-node-list">
+            <ul className="recovery-session-list vault-node-list scrollable-list" tabIndex={0} aria-label="RPC nodes">
               {snapshot.nodeRows.map((row) => (
                 <li key={row.networkId}>
                   <div className="recovery-session-item recovery-session-item-static vault-node-card">
@@ -481,12 +540,25 @@ export function VaultPage() {
           <div className="df-pxe-format-pane">
             <p className="wallet-manager-pane-title">Download a backup</p>
             <p className="hint">
-              The backup file includes your encrypted vault contents in plain JSON — account keys,
-              unfinished claim credentials, and settings. Store it offline and keep it private.
+              The file is vault ciphertext. Account keys are not readable in it. Restore it here
+              with the same vault password, and keep the file offline.
             </p>
-            <button type="button" disabled={busy} onClick={() => void onExport()}>
-              {busy ? "Working…" : "Download backup JSON"}
+            <button type="button" disabled={busy || !snapshotReady} onClick={() => void onExport()}>
+              {busy ? "Working…" : "Download encrypted backup"}
             </button>
+            <label className="hint">
+              Restore an encrypted backup
+              <input
+                type="file"
+                accept="application/json,.json"
+                disabled={busy}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (file) void onImportBackup(file);
+                }}
+              />
+            </label>
             <button type="button" className="ghost" onClick={backToOverview}>
               Cancel
             </button>

@@ -22,6 +22,16 @@ export interface ProgressState {
   stepIndex: number;
   runState: ProgressRunState;
   startedAt: number;
+  stepStartedAt: number;
+  finishedAt?: number;
+  /** Keep L1 and L2 visible as a single bridge-and-claim flow. */
+  combinedFlow?: boolean;
+  /** A server-side claim continues without this browser tab. */
+  serverClaim?: boolean;
+  /** Target account for claim confirmation and balance display. */
+  claimRecipient?: string;
+  /** No claim transaction was needed because the message was already consumed. */
+  alreadyClaimed?: boolean;
   /**
    * True once the L2 claim tx is on chain. From that point a reload only costs
    * the confirmation wait, not the proving work, so the unload guard can relax.
@@ -156,6 +166,7 @@ export function startProgress(
     stepIndex: indexOfStep(track, stepKey),
     runState: "running",
     startedAt: now,
+    stepStartedAt: now,
     txSubmitted: false,
   };
 }
@@ -234,10 +245,15 @@ export function advanceProgress(
     const fresh = startProgress(patch.track, patch.stepKey, now);
     return patch.txSubmitted ? { ...fresh, txSubmitted: true } : fresh;
   }
+  const stepIndex = Math.max(current.stepIndex, indexOfStep(patch.track, patch.stepKey));
   return {
     ...current,
     runState: "running",
-    stepIndex: Math.max(current.stepIndex, indexOfStep(patch.track, patch.stepKey)),
+    finishedAt: undefined,
+    stepIndex,
+    stepStartedAt: stepIndex !== current.stepIndex || current.runState !== "running"
+      ? now
+      : current.stepStartedAt,
     txSubmitted: current.txSubmitted || patch.txSubmitted === true,
   };
 }
@@ -251,8 +267,15 @@ export function finishProgress(
   return {
     ...current,
     runState,
+    finishedAt: Date.now(),
     stepIndex: runState === "succeeded" ? lastIndex : current.stepIndex,
   };
+}
+
+/** Finish without presenting unperformed proving or submission steps as completed. */
+export function finishAlreadyClaimed(current: ProgressState | null): ProgressState | null {
+  const finished = finishProgress(current, "succeeded");
+  return finished ? { ...finished, stepIndex: 0, alreadyClaimed: true } : null;
 }
 
 export function stepStateAt(index: number, progress: ProgressState): ProgressStepState {
@@ -286,6 +309,6 @@ const COSTLY_TRACKS: ReadonlySet<ProgressTrackId> = new Set(["bridge", "claim"])
  */
 export function shouldBlockUnload(progress: ProgressState | null): boolean {
   if (!progress || progress.runState !== "running") return false;
-  if (!COSTLY_TRACKS.has(progress.track)) return false;
+  if (!COSTLY_TRACKS.has(progress.track) || progress.serverClaim) return false;
   return !progress.txSubmitted;
 }

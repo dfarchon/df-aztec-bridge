@@ -19,9 +19,8 @@ export const OFFICIAL_HTTPS_HOST_ALLOWLIST = new Set([
   "aztecscan.xyz",
   "testnet.aztecscan.xyz",
   "devnet.aztecscan.xyz",
-  "v5.testnet.rpc.aztec-labs.com",
+  "aztec-testnet.drpc.org",
   "aztec-mainnet.drpc.org",
-  "lb.drpc.live",
   "ethereum-rpc.publicnode.com",
   "ethereum-sepolia-rpc.publicnode.com",
   "etherscan.io",
@@ -29,6 +28,58 @@ export const OFFICIAL_HTTPS_HOST_ALLOWLIST = new Set([
   "df-atlas.onchainreality.xyz",
   "aztec.dfpunk.xyz",
 ]);
+
+/**
+ * Public RPC endpoints the UI may select. Hostname alone is not enough:
+ * `lb.drpc.live/<path>` is a multi-tenant gateway, so a path can point at
+ * someone else's node. No path, query, userinfo, or `lb.drpc.live`.
+ */
+export const PINNED_PUBLIC_RPC_URLS = new Set([
+  "https://aztec-mainnet.drpc.org",
+  "https://aztec-testnet.drpc.org",
+  "https://ethereum-rpc.publicnode.com",
+  "https://ethereum-sepolia-rpc.publicnode.com",
+]);
+
+function rpcUrlParts(url: string): URL | null {
+  try {
+    const u = new URL(url.trim());
+    if (u.username || u.password || u.search || u.hash) return null;
+    if (u.pathname !== "/" && u.pathname !== "") return null;
+    return u;
+  } catch {
+    return null;
+  }
+}
+
+/** Exact public HTTPS RPC (no path key). */
+export function isPinnedPublicRpcUrl(url: string): boolean {
+  const u = rpcUrlParts(url);
+  if (!u || u.protocol !== "https:") return false;
+  return PINNED_PUBLIC_RPC_URLS.has(`${u.protocol}//${u.host}`);
+}
+
+/** Loopback RPC for `pnpm dev` / local sandbox. No credentials or query string. */
+export function isLoopbackRpcUrl(url: string): boolean {
+  const u = rpcUrlParts(url);
+  if (!u || (u.protocol !== "http:" && u.protocol !== "https:")) return false;
+  const host = u.hostname.toLowerCase();
+  return host === "localhost" || host === "127.0.0.1" || host === "::1";
+}
+
+/** Build-time and runtime RPC config: pinned public HTTPS, or loopback. */
+export function isSafeConfiguredRpcUrl(url: string): boolean {
+  return isPinnedPublicRpcUrl(url) || isLoopbackRpcUrl(url);
+}
+
+export function assertSafeConfiguredRpcUrl(url: string, label: string): void {
+  if (!isSafeConfiguredRpcUrl(url)) {
+    throw new Error(
+      `${label} must be a pinned public https RPC with no path, or http(s) loopback. ` +
+        "Keyed lb.drpc.live URLs are rejected in VITE_* (they would ship in the JS bundle).",
+    );
+  }
+}
 
 export function isOfficialHttpsUrl(url: string): boolean {
   try {
@@ -128,6 +179,19 @@ export function l1TxUrl(explorerOrigin: string | undefined, txHash: string): str
   }
 }
 
+/** L1 contract page. HTTPS explorer origins only (etherscan.io / sepolia.etherscan.io). */
+export function l1AddressUrl(explorerOrigin: string | undefined, address: string): string | null {
+  if (!explorerOrigin || !/^0x[0-9a-fA-F]{40}$/.test(address)) return null;
+  try {
+    const base = explorerOrigin.replace(/\/$/, "");
+    const u = new URL(`${base}/address/${address}`);
+    if (u.protocol !== "https:") return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
 /** Human label for L1 explorer toast / analysis links. */
 export function l1ExplorerLinkLabel(explorerOrigin: string | undefined): string {
   if (!explorerOrigin) return "L1 explorer";
@@ -156,7 +220,7 @@ export function l1TokenUrl(explorerOrigin: string | undefined, token: string): s
 /** Secondary official RPC used only for tip double-check (never for secrets). */
 export const OFFICIAL_TIP_CHECK_RPC: Record<string, string> = {
   mainnet: "https://aztec-mainnet.drpc.org",
-  testnet: "https://v5.testnet.rpc.aztec-labs.com",
+  testnet: "https://aztec-testnet.drpc.org",
 };
 
 /**

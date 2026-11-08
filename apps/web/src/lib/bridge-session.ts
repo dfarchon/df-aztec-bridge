@@ -1,5 +1,6 @@
 import type { ClaimCredentials, PendingBridge } from "@df-bridge/browser-sdk";
 import {
+  discardLegacyPlaintextSecrets,
   isVaultUnlocked,
   vaultGetJson,
   vaultSetJson,
@@ -419,23 +420,39 @@ export async function loadSessionStore(networkId: string): Promise<BridgeSession
       }
     }
 
-    // One-shot read of leftover plaintext LS (pre-migrate); do not write LS.
+    // Locked: never parse leftover plaintext into the page. Delete it.
+    if (!isVaultUnlocked()) {
+      discardLegacyPlaintextSecrets();
+      return emptyStore(networkId);
+    }
+
+    // Unlocked one-shot migrate of leftover plaintext, then delete that key.
     const stored = readLegacyLocalStore(networkId);
     if (!stored) return emptyStore(networkId);
-    const { raw } = stored;
+    const { raw, sourceKey } = stored;
+    const dropPlaintext = () => {
+      try {
+        localStorage.removeItem(sourceKey);
+      } catch {
+        /* ignore */
+      }
+    };
 
     if (isBridgeSessionV1(raw)) {
       const migrated = migrateV1(raw);
-      if (isVaultUnlocked()) await writeStore(migrated);
+      await writeStore(migrated);
+      dropPlaintext();
       return migrated;
     }
 
     try {
       const validated = validateStore(raw, networkId);
-      if (isVaultUnlocked()) await writeStore(validated);
+      await writeStore(validated);
+      dropPlaintext();
       return validated;
     } catch (error) {
       console.warn("[bridge] Ignoring invalid recovery store:", error);
+      dropPlaintext();
       return emptyStore(networkId);
     }
   } catch (error) {

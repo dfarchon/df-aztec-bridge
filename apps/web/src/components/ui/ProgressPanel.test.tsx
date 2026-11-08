@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ProgressPanel } from "./ProgressPanel.tsx";
-import { advanceProgress, finishProgress, startProgress } from "../../lib/progress-track.ts";
+import { advanceProgress, finishAlreadyClaimed, finishProgress, startProgress } from "../../lib/progress-track.ts";
 
 function render(progress: Parameters<typeof ProgressPanel>[0]["progress"], detail?: string) {
   return renderToStaticMarkup(
@@ -87,6 +87,30 @@ describe("ProgressPanel", () => {
     expect(html.indexOf("aztec-block-estimate")).toBeGreaterThan(html.indexOf("progress-steps"));
   });
 
+  it("shows L1 open and L2 waiting for an automatic bridge and claim", () => {
+    const html = renderToStaticMarkup(
+      <ProgressPanel progress={{ ...startProgress("bridge", "prepare"), combinedFlow: true }}
+        detail={null} onDismiss={() => {}} onClaimL2={() => {}} />,
+    );
+    expect(html).toContain("L1 · Bridge");
+    expect(html).toContain("L2 · Claim");
+    expect(html).toMatch(/aria-expanded="true"[^>]*><span>L1 · Bridge/);
+    expect(html).toMatch(/aria-expanded="false"[^>]*><span>L2 · Claim/);
+    expect(html).toContain("Waiting");
+    expect(html).not.toContain("Claim on L2</button>");
+  });
+
+  it("shows L1 completed and L2 open after the automatic handoff", () => {
+    const html = renderToStaticMarkup(
+      <ProgressPanel progress={{ ...startProgress("claim", "status"), combinedFlow: true }}
+        detail={null} onDismiss={() => {}} />,
+    );
+    expect(html).toMatch(/aria-expanded="false"[^>]*><span>L1 · Bridge/);
+    expect(html).toMatch(/aria-expanded="true"[^>]*><span>L2 · Claim/);
+    expect(html).toContain("Completed");
+    expect(html).toContain("Checking the L1→L2 message");
+  });
+
   it("offers Claim on L2 after a finished bridge", () => {
     const html = renderToStaticMarkup(
       <ProgressPanel
@@ -128,6 +152,24 @@ describe("ProgressPanel", () => {
     expect(html).toContain("progress-panel-rejected");
   });
 
+  it("does not show unperformed L2 steps when the message was already consumed", () => {
+    const progress = finishAlreadyClaimed({ ...startProgress("claim", "status"), combinedFlow: true })!;
+    const html = renderToStaticMarkup(<ProgressPanel progress={progress} detail={null} onDismiss={() => {}} />);
+    expect(html).toContain("Already claimed");
+    expect(html).toContain("No new L2 transaction was sent");
+    expect(html).not.toContain("Generating the proof and submitting the claim");
+    expect(html).not.toContain("Fee Juice is on this Aztec account.");
+  });
+
+  it("does not claim Fee Juice arrived when only the L1 bridge was recovered", () => {
+    const html = renderToStaticMarkup(
+      <ProgressPanel progress={finishProgress(startProgress("resume-l1", "receipt"), "succeeded")!}
+        detail="L1 bridge recovered. Claim credentials restored." onDismiss={() => {}} />,
+    );
+    expect(html).not.toContain("Fee Juice is on this Aztec account.");
+    expect(html).toContain(">OK</button>");
+  });
+
   it("ends a successful claim with a clear reminder", () => {
     const html = renderToStaticMarkup(
       <ProgressPanel
@@ -138,6 +180,21 @@ describe("ProgressPanel", () => {
     );
     expect(html).toContain("Fee Juice is on this Aztec account.");
     expect(html).toContain("progress-success-line");
+    expect(html).toContain(">OK</button>");
+  });
+
+  it("shows the claim recipient while its confirmed balance is loading", () => {
+    const html = renderToStaticMarkup(
+      <ProgressPanel
+        progress={finishProgress(startProgress("claim", "done"), "succeeded")!}
+        detail={null}
+        aztecNodeUrl="https://example.invalid"
+        claimRecipient="0x1234567890123456789012345678901234567890"
+        onDismiss={() => {}}
+      />,
+    );
+    expect(html).toContain("0x123456…567890");
+    expect(html).toContain("Loading balance…");
   });
 
   it("drops the overlay when embedded in Recover", () => {

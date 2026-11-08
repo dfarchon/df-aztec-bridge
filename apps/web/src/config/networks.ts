@@ -1,5 +1,6 @@
 import type { Hex } from "viem";
 import type { L1Addresses, L1BridgeBackend } from "@df-bridge/browser-sdk";
+import { isSafeConfiguredRpcUrl } from "../lib/official-links.ts";
 
 export interface WebNetworkConfig {
   id: string;
@@ -20,13 +21,13 @@ export interface WebNetworkConfig {
  * Static network presets for the web app (no API required for bridge).
  * L1 Fee Juice / Portal addresses are protocol contracts and rarely change.
  * Override URLs via VITE_*_AZTEC_NODE_URL / VITE_*_L1_RPC_URL at build time if needed.
- * Local `pnpm dev` also reads MAINNET_AZTEC_NODE_URL (keyed dRPC) as the mainnet default.
+ * Local `pnpm dev` also accepts MAINNET_AZTEC_NODE_URL. URLs are visible to the browser.
  */
 const NETWORKS_BASE: Record<string, WebNetworkConfig> = {
   testnet: {
     id: "testnet",
     name: "Aztec Testnet (Sepolia)",
-    aztecNodeUrl: "https://v5.testnet.rpc.aztec-labs.com",
+    aztecNodeUrl: "https://aztec-testnet.drpc.org",
     l1RpcUrl: "https://ethereum-sepolia-rpc.publicnode.com",
     l1ChainId: 11155111,
     bridgeTiming: "poll",
@@ -35,7 +36,7 @@ const NETWORKS_BASE: Record<string, WebNetworkConfig> = {
     aztecExplorerUrl: "https://testnet.aztecscan.xyz",
     l1Addresses: {
       l1ChainId: 11155111,
-      feeJuicePortal: "0xb4a9f8eadc8ca944729d61e59a9f491faff237a3" as Hex,
+      feeJuicePortal: "0xE59aCBA462a0324B1d619a7A1b219419f156f505" as Hex,
       feeJuice: "0x762c132040fda6183066fa3b14d985ee55aa3c18" as Hex,
       feeAssetHandler: "0x5602c39a6e9c5ace589f64f754927bcda4f4bfc9" as Hex,
     },
@@ -43,7 +44,7 @@ const NETWORKS_BASE: Record<string, WebNetworkConfig> = {
   mainnet: {
     id: "mainnet",
     name: "Aztec Alpha (Mainnet)",
-    // Public endpoint in source. Keyed lb.drpc.live URLs: MAINNET_AZTEC_NODE_URL in .env (pnpm dev only).
+    // Public endpoint in source. Keyed node URLs are not compiled into the client.
     aztecNodeUrl: "https://aztec-mainnet.drpc.org",
     l1RpcUrl: "https://ethereum-rpc.publicnode.com",
     l1ChainId: 1,
@@ -53,7 +54,7 @@ const NETWORKS_BASE: Record<string, WebNetworkConfig> = {
     aztecExplorerUrl: "https://aztecscan.xyz",
     l1Addresses: {
       l1ChainId: 1,
-      feeJuicePortal: "0xaf73dd51d1eb8a079bb097f39c832cdd00ac691c" as Hex,
+      feeJuicePortal: "0x534361be805CA30Bdb6404eC5E6cDAFFB3E9f3b3" as Hex,
       feeJuice: "0xa27ec0006e59f245217ff08cd52a7e8b169e62d2" as Hex,
       feeAssetHandler: null,
     },
@@ -79,8 +80,19 @@ const NETWORKS_BASE: Record<string, WebNetworkConfig> = {
 };
 
 function envOverride(key: string): string | undefined {
-  const v = (import.meta.env as Record<string, string | undefined>)[key]?.trim();
-  return v || undefined;
+  // Static reads only. Indexing the env object makes Vite inline every VITE_ variable.
+  const table: Record<string, string | undefined> = {
+    VITE_MAINNET_AZTEC_NODE_URL: import.meta.env.VITE_MAINNET_AZTEC_NODE_URL,
+    VITE_MAINNET_L1_RPC_URL: import.meta.env.VITE_MAINNET_L1_RPC_URL,
+    VITE_TESTNET_AZTEC_NODE_URL: import.meta.env.VITE_TESTNET_AZTEC_NODE_URL,
+    VITE_TESTNET_L1_RPC_URL: import.meta.env.VITE_TESTNET_L1_RPC_URL,
+    VITE_LOCAL_AZTEC_NODE_URL: import.meta.env.VITE_LOCAL_AZTEC_NODE_URL,
+    VITE_LOCAL_L1_RPC_URL: import.meta.env.VITE_LOCAL_L1_RPC_URL,
+    DEV_MAINNET_AZTEC_NODE_URL: import.meta.env.DEV_MAINNET_AZTEC_NODE_URL,
+  };
+  const v = table[key]?.trim();
+  if (!v) return undefined;
+  return isSafeConfiguredRpcUrl(v) ? v : undefined;
 }
 
 /** Apply optional build-time URL overrides from VITE_* env. */

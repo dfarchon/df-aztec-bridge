@@ -35,13 +35,14 @@ export {
 } from "./bridge.ts";
 export {
   computeBridgeFee,
+  predictBridgeReceipt,
+  ESTIMATED_CLAIM_FEE_WEI,
   BRIDGE_FEE_BPS,
   BRIDGE_ETH_FEE_CHAIN_ID,
   BRIDGE_ETH_SERVICE_FEE_GAS,
   isValidFeeRecipient,
   shouldChargeBridgeEthServiceFee,
   resolveBridgeEthServiceFee,
-  parseEthFeeWeiOverride,
 } from "./fee.ts";
 export {
   waitForTransactionReceiptWithRetry,

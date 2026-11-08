@@ -4,7 +4,6 @@ import { DAPP_LOG_ENABLED } from "../../lib/dapp-log.ts";
 import { AppErrorToaster } from "../ui/AppErrorToaster.tsx";
 import { DappLogToaster } from "../ui/DappLogToaster.tsx";
 import { useUi } from "../../providers/UiProvider.tsx";
-import { AsciiField } from "../../theme/AsciiField.tsx";
 import { SoundSystem } from "../../theme/ThemeSoundControls.tsx";
 import { ThemeTooltip } from "../../theme/ThemeTooltip.tsx";
 
@@ -14,7 +13,6 @@ export function AppShell(props: { children: ReactNode }) {
 
   return (
     <div className={`app-frame${!shellReady ? " session-locked" : ""}`}>
-      <AsciiField />
       <SoundSystem />
       <div className="app-main-column">
         {props.children}

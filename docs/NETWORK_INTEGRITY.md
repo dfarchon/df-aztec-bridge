@@ -23,7 +23,7 @@ Do **not** call `api.aztecscan.xyz` from the client (requires an API key). Tip /
 
 `NetworkIntegrityPanel` (on `/bridge`) verifies on load and every 60s:
 
-1. Client pin `5.2.0` vs node `nodeVersion`
+1. Client pin `6.0.0` vs node `nodeVersion`
 2. Fee Juice + portal addresses vs baked official addresses
 3. Primary tip vs secondary official RPC (warn if Δ > 32)
 4. Links to Aztec Scan current block + [docs.aztec.network/networks](https://docs.aztec.network/networks)
@@ -32,11 +32,11 @@ Network / L1 backend selectors live in the **wallet manager** drawer (locked to 
 
 ## Privacy / localization
 
-- No Google Fonts / third-party analytics (avoids IP + locale leakage to CDNs)
+- No third-party analytics. Fira Sans is self-hosted under `apps/web/public/fonts/` (SIL OFL), so the page does not call a Google Fonts CDN.
 - `privacyFetch`: omit credentials, `no-referrer`, force `Accept-Language: en`, strip client-IP headers
 - UI timestamps use ISO-8601 (not `toLocaleString`)
 - Logs redact hex secrets and IP literals
 
 ## Official allowlist
 
-See `apps/web/src/lib/official-links.ts` (`OFFICIAL_HTTPS_HOST_ALLOWLIST`). Custom RPC overrides must be localhost or on that allowlist (arbitrary `https://` / unlisted `*.drpc.*` hosts are rejected).
+See `apps/web/src/lib/official-links.ts` (`PINNED_PUBLIC_RPC_URLS`). Custom RPC overrides must be localhost or one of those exact URLs. Paths, query strings, and `lb.drpc.live` are rejected.

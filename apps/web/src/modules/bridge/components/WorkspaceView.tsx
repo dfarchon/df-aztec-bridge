@@ -44,7 +44,7 @@ wcUri, setWcUri, wallet, setWallet, ethSessionOk, setEthSessionOk, dfPxeAccount,
 gateImportingPxe, setGateImportingPxe, gateUnlockingVault, setGateUnlockingVault, gateImportError, setGateImportError,
 walletPickerRef,
 recipient, setRecipient, amountFj, setAmountFj, autoClaim, setAutoClaim, l2Secret, setL2Secret, l2Salt, setL2Salt,
-l2SigningKey, setL2SigningKey, legacyAccountStyles, setLegacyAccountStyles, showL2Secret, setShowL2Secret,
+l2SigningKey, setL2SigningKey, showL2Secret, setShowL2Secret,
 busy, setBusy, error, setError, ethServiceFeeWei, setEthServiceFeeWei, bridgePhase, setBridgePhase,
 progress, setProgress, l1TxHash, setL1TxHash, showBridgeResult, setShowBridgeResult,
 credentials, setCredentials, claimJobId, setClaimJobId, claimStatus, setClaimStatus, l2TxHash, setL2TxHash,
@@ -75,6 +75,10 @@ requestBridge,
       void onBridge();
       return;
     }
+    if (progress.track === "claim" && progress.combinedFlow) {
+      void claimAfterBridge();
+      return;
+    }
     if (!selectedSession) return;
     if (progress.track === "claim") void onResumeClaim(selectedSession);
     else if (progress.track === "resume-l1") void retryResumeL1(selectedSession);
@@ -94,6 +98,7 @@ requestBridge,
       detail={bridgePhase}
       aztecNodeUrl={networkMeta?.aztecNodeUrl}
       networkId={networkId}
+      claimRecipient={progress.claimRecipient ?? credentials?.recipient ?? selectedSession?.credentials?.recipient ?? selectedSession?.recipient}
       onDismiss={() => {
         setProgress(null);
         setBridgePhase(null);

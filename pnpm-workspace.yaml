@@ -46,22 +46,35 @@ overrides:
   "pino@10>slow-redact": "0.3.1"
   hono: "4.12.34"
   "@hono/node-server": "2.1.0"
-  systeminformation: "5.33.1"
+  # 5.33.1 is inside GHSA-3f7j-7jwc-fxfj (<5.33.16). Stay on 5.33.x.
+  systeminformation: "5.33.19"
   # 5.0.9 is inside GHSA-qhr7-859c-m2p7 (<5.0.11) and GHSA-6j4f-fj2g-mc7p (<5.0.10).
   brace-expansion: "5.0.12"
   ws: "8.21.3"
   # 1.19.0 is inside the axios 1.20.0 advisory set (ReDoS, prototype pollution, redirect SSRF).
   axios: "1.20.0"
-  # 1.16.0 is inside GHSA-8r9p-f939-6h3c and GHSA-q3jh-wrc6-jgq8 (<1.16.1).
-  follow-redirects: "1.16.1"
-  # 6.28.0 is inside GHSA-rfgv-xxqx-mfg5 (<6.28.1). Stay on 6.28.x.
-  undici: "6.28.1"
+  # 1.16.0–1.16.1 are inside the follow-redirects header advisories. 1.16.2 is the patched release.
+  follow-redirects: "1.16.2"
+  # 6.28.1 is inside GHSA-xjj6-f33q-929c / GHSA-2m5v-pch6-74hx / GHSA-qrxm-fqhp-jwvm (<6.29.1).
+  undici: "6.29.1"
+  # GHSA-mrhx-c7xc-m3w5 (<4.6.6). abitype 1.2 peers accept Zod 4, so Zod 3 copies move up too.
+  "zod@<4.6.6": "4.6.7"
   "@opentelemetry/propagator-jaeger": "2.10.0"
   "@opentelemetry/core": "2.10.0"
   uuid: "11.1.1"
-  # Vite toolchain (dev/build — Aug 2026 advisories; not in --prod)
+  # Vite toolchain (dev/build). vite@6.4.5 is the direct pin (GHSA range was <=6.4.3).
   postcss: "8.5.23"
   nanoid: "3.3.18"
+  browserslist: "4.29.5"
+  source-map-js: "1.2.2"
+  # qs GHSA-x5fp-wj9c-mxmx / GHSA-4mjr-xmp4-gh2g / GHSA-6pq8-jhm2-2vcw. Patched at 6.16.1.
+  qs: "6.16.1"
+  # fast-copy GHSA-jggr-w7fw-pc2j (<4.1.0). Stay on 4.x.
+  fast-copy: "4.3.1"
+  # glob GHSA-3g3m-2fjr-6pw4 (<=14.0.1). 14.0.4 pulls minimatch 11, which clears the nested advisory.
+  glob: "14.0.4"
+  # pbkdf2 GHSA-477h-4r7f-fvrx (<=3.1.6) via vite-plugin-node-polyfills → crypto-browserify.
+  pbkdf2: "3.1.7"
 
 # Only these packages may run install/build lifecycle scripts.
 allowBuilds:
@@ -76,3 +89,7 @@ minimumReleaseAgeExclude:
   - ws@8.21.3
   - "@hono/node-server@2.1.0"
   - nanoid@3.3.18
+  # Audit pins younger than minimumReleaseAge: glob 14.0.4 and the minimatch 11 it pulls.
+  - "@isaacs/nonrecursive-glob-match@1.1.0"
+  - glob@14.0.4
+  - minimatch@11.0.5

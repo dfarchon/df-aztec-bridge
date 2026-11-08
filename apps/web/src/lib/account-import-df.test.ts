@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  accountFromNulo,
+  accountFromV6Wallet,
   assertDfClientAccount,
+  isNuloWalletName,
   parseAccountUpload,
 } from "./account-import.ts";
+import {
+  isBridgeReadyDfPxeAccount,
+  isInspectableDfAccount,
+} from "./df-pxe-bridge-guard.ts";
 
 describe("DF client account import", () => {
   it("parses dfpunk-account JSON with signingKey", () => {
@@ -29,6 +36,53 @@ describe("DF client account import", () => {
     expect(a.label).toMatch(/Quick Join/i);
   });
 
+  it("marks a created DF Aztec account ready to bridge", () => {
+    const eth = "0x" + "ab".repeat(20);
+    const account = accountFromV6Wallet(
+      {
+        address: "0x" + "11".repeat(32),
+        secretKey: "0x" + "22".repeat(32),
+        salt: "0x" + "33".repeat(32),
+        signingKey: "0x" + "44".repeat(32),
+        createdAt: 1,
+        label: "DF Aztec account",
+      },
+      eth,
+    );
+    expect(account.label).toBe("DF Aztec account");
+    expect(account.pxeRegistered).toBe(true);
+    expect(account.walletCompat).toBe("v6-initializerless");
+    expect(isBridgeReadyDfPxeAccount(account, eth)).toBe(true);
+  });
+
+  it("defaults created-wallet label to DF Aztec account", () => {
+    const eth = "0x" + "ab".repeat(20);
+    const account = accountFromV6Wallet(
+      {
+        address: "0x" + "11".repeat(32),
+        secretKey: "0x" + "22".repeat(32),
+        salt: "0x" + "33".repeat(32),
+        signingKey: "0x" + "44".repeat(32),
+        createdAt: 1,
+      },
+      eth,
+    );
+    expect(account.label).toBe("DF Aztec account");
+    expect(account.walletCompat).toBe("v6-initializerless");
+  });
+
+  it("marks a Nulo session ready to bridge without a signing key", () => {
+    const eth = "0x" + "ab".repeat(20);
+    const account = accountFromNulo("0x" + "11".repeat(32), eth);
+    expect(isNuloWalletName("Nulo Wallet")).toBe(true);
+    expect(isNuloWalletName("MetaMask")).toBe(false);
+    expect(account.connector).toBe("nulo");
+    expect(account.signingKey).toBeUndefined();
+    expect(account.walletCompat).toBe("v6-external");
+    expect(isBridgeReadyDfPxeAccount(account, eth)).toBe(true);
+    expect(isBridgeReadyDfPxeAccount(account, "0x" + "00".repeat(20))).toBe(false);
+  });
+
   it("rejects DF import without signingKey", () => {
     const [a] = parseAccountUpload({
       address: "0x" + "11".repeat(32),
@@ -36,5 +90,21 @@ describe("DF client account import", () => {
       salt: "0x0",
     });
     expect(() => assertDfClientAccount(a)).toThrow(/signingKey/i);
+  });
+
+  it("lets a pre-v6 vault be inspected but not bridged", () => {
+    const eth = "0x" + "ab".repeat(20);
+    const account = {
+      address: "0x" + "11".repeat(32),
+      secretKey: "0x" + "22".repeat(32),
+      salt: "0x0",
+      signingKey: "0x" + "44".repeat(32),
+      fromDfClient: true,
+      pxeRegistered: false,
+      boundEthAddress: eth,
+      walletCompat: "pre-v6" as const,
+    };
+    expect(isInspectableDfAccount(account, eth)).toBe(true);
+    expect(isBridgeReadyDfPxeAccount(account, eth)).toBe(false);
   });
 });

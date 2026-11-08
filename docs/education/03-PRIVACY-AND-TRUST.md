@@ -47,7 +47,7 @@ That you visited the website         Unlocked browser session memory
 
 From [NETWORK_INTEGRITY.md](../NETWORK_INTEGRITY.md) and `privacy.ts`:
 
-- No third-party analytics / Google Fonts CDN in production posture.
+- No third-party analytics. Fira Sans is self-hosted (no Google Fonts CDN).
 - `privacyFetch`: no cookies, no-referrer, fixed `Accept-Language: en`, strip client-IP headers.
 - Logs / toasts: full 32-byte hex is **not** dumped to console; toasts show **short** ids + explorer links.
 ## CROPS-style snapshot (honest)
@@ -63,6 +63,6 @@ From [NETWORK_INTEGRITY.md](../NETWORK_INTEGRITY.md) and `privacy.ts`:
 
 - “Private bridge” in the sense of hiding that you deposited Fee Juice on L1.
 - Safety if you unlock the vault on a shared / infected PC.
-- DevGate alone protecting a public Netlify URL (it is only a soft gate; use Netlify visitor password).
+- A preview deploy that has no `DEV_GATE_PASSWORD` in the Netlify UI (the edge function then returns 503). Production is a separate host and is not behind that password.
 
 Next: [04 — Vault and keys](./04-VAULT-AND-KEYS.md).

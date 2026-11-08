@@ -4,12 +4,14 @@
 
 | Role | Chain | Env / constant | Purpose |
 |------|-------|----------------|---------|
-| **L1 protocol fee (5%)** | Ethereum | `BRIDGE_FEE_RECIPIENT` / `VITE_BRIDGE_FEE_RECIPIENT` | Anonymous Trezor treasury — skim on every bridge |
-| **DF Sponsored FPC** | Aztec L2 | `VITE_SPONSORED_FPC_ADDRESS` (default canonical) | Fee Juice *recipient* when funding DF sponsor mode |
+| **L1 protocol fee (5%)** | Ethereum | Pinned `0x33D5928E1c66E831Eb250D1250bf2CfF9eACa370` | Anonymous Trezor treasury — skim on every bridge |
+| **DF Sponsored FPC** | Aztec L2 | Pinned `0x1441491b59934ec64f8c98f17c91f23c01ca2a45dbb35caf123146ec76f9970c` | Fee Juice *recipient* when funding DF sponsor mode |
 
-Canonical Sponsored FPC (salt-derived, matches DF Aztec / `@aztec/constants`):
+Canonical Sponsored FPC (salt-derived, matches DF Aztec / `@aztec-labs/constants`):
 
 `0x1441491b59934ec64f8c98f17c91f23c01ca2a45dbb35caf123146ec76f9970c`
+
+The web build rejects any other `VITE_SPONSORED_FPC_ADDRESS` (same pinning model as the L1 treasury). Redeploying a custom FPC requires changing the committed canonical constant.
 
 In the web UI use **Fund DF Sponsored FPC** to set the L2 recipient to that address. That deposits Fee Juice *onto the FPC* so DF can sponsor txs — it does **not** replace the L1 5% Trezor fee.
 
@@ -18,14 +20,14 @@ In the web UI use **Fund DF Sponsored FPC** to set the L2 recipient to that addr
 Every bridge skims **5%** (`BRIDGE_FEE_BPS = 500`) of the gross Fee Juice / AZTEC amount:
 
 - **Net (95%)** → Aztec Fee Juice portal deposit for the L2 recipient (user account **or** Sponsored FPC)
-- **Fee (5%)** → `BRIDGE_FEE_RECIPIENT` / `VITE_BRIDGE_FEE_RECIPIENT` (your anonymous Trezor on Ethereum)
+- **Fee (5%)** → the pinned treasury `0x33D5928E1c66E831Eb250D1250bf2CfF9eACa370`. The web build rejects any other `VITE_BRIDGE_FEE_RECIPIENT`.
 
-**Mainnet extra:** a native **ETH service fee** (~1 L1 tx gas, or `VITE_BRIDGE_ETH_FEE_WEI`) goes to the **same** fee recipient. Wallets that support EIP-5792 `wallet_sendCalls` batch it with the AZTEC fee + approve + deposit into **one** confirm; otherwise the app falls back to sequential confirms.
+**Mainnet extra:** a native **ETH service fee** (~1 L1 tx gas: live `maxFeePerGas`/`gasPrice` × `BRIDGE_ETH_SERVICE_FEE_GAS`) goes to the **same** fee recipient. There is no env wei override — fee always tracks the L1 fee market. Wallets that support EIP-5792 `wallet_sendCalls` batch it with the AZTEC fee + approve + deposit into **one** confirm; otherwise the app falls back to sequential confirms.
 
 Portal path (preferred batch): ETH transfer + ERC-20 fee `transfer` + `approve` + `depositToAztecPublic(net)`.  
 GoBridge path: optional `msg.value` ETH fee is forwarded inside `bridge` / `mintAndBridge`; AZTEC fee is enforced onchain (`feeRecipient` immutable).
 
-Set both L1 env vars to the **same** checksummed address before Netlify build / `pnpm deploy-l1-bridge`.
+The web app only accepts that treasury address. `pnpm deploy-l1-bridge` must use the same address.
 
 ## Aztec-side collector (next)
 

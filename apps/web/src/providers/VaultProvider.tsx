@@ -20,7 +20,6 @@ import {
   lockVault,
   setupVault,
   subscribeVault,
-  unlockAndReplacePasskey,
   unlockVault,
   wipeVaultProfileWithPassword,
   attachVaultPasskey,
@@ -71,15 +70,22 @@ export function useVault(): VaultContextValue {
   return ctx;
 }
 
+function isUsableVaultAccount(account: ImportedAztecAccount | null | undefined): boolean {
+  if (!account?.address?.trim()) return false;
+  // Nulo stores address only — keys stay in the extension.
+  if (account.connector === "nulo") return true;
+  return !!account.signingKey?.trim();
+}
+
 async function loadAccountFromUnlockedVault(
   preferredAddress?: string | null,
 ): Promise<ImportedAztecAccount | null> {
   if (preferredAddress) {
     const one = await getStoredAztecWallet(preferredAddress);
-    if (one?.signingKey?.trim()) return one;
+    if (isUsableVaultAccount(one)) return one;
   }
   const all = await listStoredAztecWallets();
-  return all.find((a) => !!a.signingKey?.trim()) ?? all[0] ?? null;
+  return all.find((a) => isUsableVaultAccount(a)) ?? all[0] ?? null;
 }
 
 export function VaultProvider(props: { children: ReactNode }) {
@@ -110,10 +116,17 @@ export function VaultProvider(props: { children: ReactNode }) {
   }, [refreshVaultAvailability]);
 
   useEffect(() => {
+    let wasUnlocked = isVaultUnlocked();
     return subscribeVault(() => {
       const s = getVaultSession();
-      setUnlocked(!!s?.unlocked);
+      const nowUnlocked = !!s?.unlocked;
+      setUnlocked(nowUnlocked);
       setAddress(s?.address ?? null);
+      if (wasUnlocked && !nowUnlocked) {
+        pxeAccountRef.current = null;
+        setPxeAccountState(null);
+      }
+      wasUnlocked = nowUnlocked;
       void refreshVaultAvailability();
     });
   }, [refreshVaultAvailability]);
@@ -156,7 +169,7 @@ export function VaultProvider(props: { children: ReactNode }) {
           title: mode === "setup" ? "Set vault password + passkey" : "Unlock vault",
           detail:
             mode === "setup"
-              ? "Choose an admin password (min 8 chars) and register a device / phone passkey."
+              ? "Choose an admin password (at least 12 characters) and register a device / phone passkey."
               : "Enter your vault password — then approve passkey if one was registered.",
           ttlMs: 10_000,
         });
@@ -233,9 +246,9 @@ export function VaultProvider(props: { children: ReactNode }) {
       if (!ok) return null;
 
       const restored = await loadAccountFromUnlockedVault(address);
-      if (!restored?.signingKey?.trim()) {
+      if (!isUsableVaultAccount(restored)) {
         throw new VaultError(
-          "Vault unlocked, but no full DF Punk wallet JSON is stored. Import dfpunk-account-*.json from DF client “Download account info”.",
+          "Vault unlocked, but no usable Aztec account is stored. Import dfpunk-account-*.json from DF client “Download account info”, or create a Dark Forest Aztec 6.0 account.",
         );
       }
       setPxeAccount(restored);
@@ -267,28 +280,29 @@ export function VaultProvider(props: { children: ReactNode }) {
             setModalBusy(false);
             return;
           }
-          let passkey = null as Awaited<ReturnType<typeof registerVaultPasskey>> | null;
+          let registered = null as Awaited<ReturnType<typeof registerVaultPasskey>> | null;
           if (opts.registerPasskey) {
             pushDappLog({
               kind: "info",
               title: "Register passkey",
-              detail: "Approve Face ID / fingerprint / phone or security key…",
+              detail: "Approve the passkey twice: once to create it, once to wrap the vault key.",
               ttlMs: 20_000,
             });
-            passkey = await registerVaultPasskey({ aztecAddress: active.address });
+            registered = await registerVaultPasskey({ aztecAddress: active.address });
           }
           await setupVault({
             aztecAddress: active.address,
             password,
             signingKey: active.signingKey,
-            passkey,
+            passkey: registered?.meta,
+            prfSecret: registered?.prfSecret,
           });
           pushDappLog({
             kind: "announce",
-            title: passkey ? "Vault + passkey created" : "Vault created",
-            detail: passkey
-              ? "Password encrypts secrets; passkey is required on every unlock."
-              : "Password-locked IndexedDB vault is ready (no passkey).",
+            title: registered ? "Vault + passkey created" : "Vault created",
+            detail: registered
+              ? "The password and passkey together wrap the vault key. The password alone cannot decrypt it."
+              : "Password-locked IndexedDB vault is ready. The password is the encryption key.",
             ttlMs: 12_000,
           });
         } else {
@@ -357,20 +371,26 @@ export function VaultProvider(props: { children: ReactNode }) {
       setModalBusy(true);
       setModalError(null);
       try {
+        const profile = await getVaultProfile(unlockAddr);
         pushDappLog({
           kind: "info",
           title: "Replace passkey",
-          detail: "Password check, then register a new passkey for this host…",
+          detail: profile?.cekWrap
+            ? "Approve the current passkey, then register a new one. The new passkey wraps the vault key."
+            : "Password check, then register a new passkey for this host…",
           ttlMs: 20_000,
         });
         await unlockVault({
           aztecAddress: unlockAddr,
           password,
           signingKey: active?.signingKey,
-          skipPasskey: true,
+          skipPasskey: !profile?.cekWrap,
         });
-        const passkey = await registerVaultPasskey({ aztecAddress: unlockAddr });
-        await attachVaultPasskey(passkey);
+        const registered = await registerVaultPasskey({ aztecAddress: unlockAddr });
+        await attachVaultPasskey(registered.meta, {
+          password,
+          prfSecret: registered.prfSecret,
+        });
         const restored = await loadAccountFromUnlockedVault(unlockAddr);
         if (restored) setPxeAccount(restored);
         pushDappLog({

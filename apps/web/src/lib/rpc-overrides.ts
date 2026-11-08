@@ -3,11 +3,11 @@
  * Empty / missing fields fall back to baked-in network defaults.
  * L1 RPC is always the network preset (not user-overridable).
  *
- * Custom hosts must be loopback or on OFFICIAL_HTTPS_HOST_ALLOWLIST — arbitrary
- * https:// (including random *.drpc.* subdomains) is rejected.
+ * Overrides must be an exact pinned public RPC (no path or query) or loopback.
+ * `lb.drpc.live/<path>` is rejected: that host is multi-tenant.
  */
 
-import { isOfficialHttpsUrl } from "./official-links.ts";
+import { isLoopbackRpcUrl, isPinnedPublicRpcUrl } from "./official-links.ts";
 import { isVaultUnlocked, vaultGetJson, vaultSetJson, VaultLockedError } from "./vault.ts";
 
 export type RpcOverrides = {
@@ -53,21 +53,9 @@ export function isRpcUrlSchemeAllowed(url: string, { allowHttpLocal = true } = {
   }
 }
 
-function isLoopbackRpcUrl(url: string): boolean {
-  try {
-    const u = new URL(url);
-    const host = u.hostname.toLowerCase();
-    return host === "localhost" || host === "127.0.0.1" || host === "::1";
-  } catch {
-    return false;
-  }
-}
-
-/** Allowlisted official HTTPS or local http(s) loopback only. */
+/** Pinned public HTTPS RPC, or local http(s) loopback. No path keys. */
 export function isAllowedRpcOverrideUrl(url: string): boolean {
-  if (!isRpcUrlSchemeAllowed(url)) return false;
-  if (isLoopbackRpcUrl(url)) return true;
-  return isOfficialHttpsUrl(url);
+  return isPinnedPublicRpcUrl(url) || isLoopbackRpcUrl(url);
 }
 
 export function validateRpcOverrides(overrides: RpcOverrides): string | null {
@@ -80,7 +68,7 @@ export function validateRpcOverrides(overrides: RpcOverrides): string | null {
       return `${label} must use https:// (or http:// only for localhost).`;
     }
     if (!isAllowedRpcOverrideUrl(value)) {
-      return `${label} host is not on the official allowlist (or localhost). Arbitrary RPCs (including unlisted *.drpc.*) are blocked.`;
+      return `${label} must be a pinned public RPC with no path, or localhost. Multi-tenant hosts (lb.drpc.live) and arbitrary paths are blocked.`;
     }
   }
   return null;
@@ -89,9 +77,12 @@ export function validateRpcOverrides(overrides: RpcOverrides): string | null {
 export async function getRpcOverrides(networkId: string): Promise<RpcOverrides> {
   const row = (await loadAll())[networkId];
   if (!row) return {};
-  return {
+  const next: RpcOverrides = {
     aztecNodeUrl: clean(row.aztecNodeUrl),
   };
+  // Drop legacy / tampered vault blobs that no longer pass the allowlist.
+  if (validateRpcOverrides(next)) return {};
+  return next;
 }
 
 /** Persist Aztec node override for one network. Clears the network entry when empty. */
@@ -118,4 +109,4 @@ export function hasRpcOverrides(overrides: RpcOverrides): boolean {
 }
 
 export const RPC_OVERRIDE_WARNING =
-  "Custom RPC URLs must be localhost or on the official host allowlist. Prefer baked-in defaults; malicious RPCs can observe metadata.";
+  "Custom RPC URLs must be localhost or an exact public endpoint with no path. Prefer baked-in defaults; a different node can observe metadata.";

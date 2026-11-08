@@ -8,6 +8,7 @@ import {
 describe("dRPC JSON-RPC prefix rewrite", () => {
   it("detects public and keyed dRPC hosts", () => {
     expect(isDrpcRpcHost("https://aztec-mainnet.drpc.org")).toBe(true);
+    expect(isDrpcRpcHost("https://aztec-testnet.drpc.org")).toBe(true);
     expect(isDrpcRpcHost("https://lb.drpc.live/aztec-mainnet/key")).toBe(true);
     expect(isDrpcRpcHost("aztec-mainnet.drpc.org")).toBe(true);
   });

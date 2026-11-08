@@ -70,7 +70,14 @@ function LogCard(props: {
   const { entry, onDismiss } = props;
   const showDetail = entry.detail && !entry.txLink;
   return (
-    <article className={`dapp-log-card dapp-log-${entry.kind}`} role="status">
+    <article
+      className={`dapp-log-card dapp-log-${entry.kind}`}
+      role="status"
+      onClick={(event) => {
+        if (entry.kind !== "error" || (event.target as Element).closest("button, a")) return;
+        onDismiss(entry.id);
+      }}
+    >
       <header className="dapp-log-card-head">
         <span className="dapp-log-kind">{kindLabel(entry.kind)}</span>
         <time className="dapp-log-time" dateTime={new Date(entry.at).toISOString()}>

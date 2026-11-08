@@ -13,7 +13,7 @@ import {
   validateSessionEntry,
 } from "./bridge-session.ts";
 import { createMemoryVaultBackend } from "./vault-idb.ts";
-import { resetVaultSession, setVaultBackend, setupVault } from "./vault.ts";
+import { lockVault, resetVaultSession, setVaultBackend, setupVault } from "./vault.ts";
 
 const L1_A =
   "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -109,6 +109,25 @@ describe("bridge-session v2 store", () => {
     expect(store.version).toBe(2);
     expect(store.activeL1TxHash).toBe(normalizeL1TxHash(L1_A));
     expect(Object.keys(store.sessions)).toEqual([normalizeL1TxHash(L1_A)]);
+    expect(localStorage.getItem("df_aztec_bridge_session")).toBeNull();
+  });
+
+  it("drops leftover plaintext while the vault is locked", async () => {
+    lockVault();
+    localStorage.setItem(
+      "df_aztec_bridge_session",
+      JSON.stringify({
+        version: 1,
+        networkId: "mainnet",
+        timestamp: 1_700_000_000_000,
+        l1TxHash: L1_A,
+        claimPhase: "l1-pending",
+        pending: pending(),
+      }),
+    );
+    const store = await loadSessionStore("mainnet");
+    expect(store.sessions).toEqual({});
+    expect(localStorage.getItem("df_aztec_bridge_session")).toBeNull();
   });
 
   it("keeps multiple incomplete sessions and removes one", async () => {

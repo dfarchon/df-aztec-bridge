@@ -1,22 +1,19 @@
-import type { CSSProperties } from "react";
 import { formatEther } from "viem";
-import { BRIDGE_FEE_BPS, shouldChargeBridgeEthServiceFee } from "@df-bridge/browser-sdk";
+import { predictBridgeReceipt, shouldChargeBridgeEthServiceFee } from "@df-bridge/browser-sdk";
 import { hasRpcOverrides } from "../../../lib/rpc-overrides.ts";
 import {
-  amountFromSlider,
   amountPresets,
-  AMOUNT_SLIDER_MAX,
   formatFjAmount,
-  formatSliderAmount,
   isDraftAmountInput,
+  MAX_BRIDGE_FJ,
+  MAX_BRIDGE_WEI,
   MIN_BRIDGE_FJ,
-  parseAmountWeiLoose,
   sanitizeAmountInput,
-  sliderFromAmount,
 } from "../../../lib/bridge-amount.ts";
 import { isSponsoredFpcAddress } from "../../../lib/sponsored-fpc.ts";
 import { shortHash } from "../../../lib/claim-recovery.ts";
 import { ActionHintButton } from "../../../components/ui/ActionHintButton.tsx";
+import { MarqueeHint } from "../../../components/ui/MarqueeHint.tsx";
 import type { BridgeSession } from "../hooks/useBridgeSession.ts";
 import type { BridgeFlows } from "../hooks/useBridgeFlows.ts";
 
@@ -36,7 +33,7 @@ wcUri, setWcUri, wallet, setWallet, ethSessionOk, setEthSessionOk, dfPxeAccount,
 gateImportingPxe, setGateImportingPxe, gateUnlockingVault, setGateUnlockingVault, gateImportError, setGateImportError,
 walletPickerRef,
 recipient, setRecipient, amountFj, setAmountFj, autoClaim, setAutoClaim, l2Secret, setL2Secret, l2Salt, setL2Salt,
-l2SigningKey, setL2SigningKey, legacyAccountStyles, setLegacyAccountStyles, showL2Secret, setShowL2Secret,
+l2SigningKey, setL2SigningKey, showL2Secret, setShowL2Secret,
 busy, setBusy, error, setError, ethServiceFeeWei, setEthServiceFeeWei, bridgePhase, setBridgePhase,
 progress, setProgress, l1TxHash, setL1TxHash, showBridgeResult, setShowBridgeResult,
 credentials, setCredentials, claimJobId, setClaimJobId, claimStatus, setClaimStatus, l2TxHash, setL2TxHash,
@@ -61,31 +58,19 @@ requestBridge,
   const tokenSymbol = feeBalance?.symbol ?? "AZTEC";
   const amountDraft = isDraftAmountInput(amountFj);
   const amountInvalid = Boolean(amountFj.trim() && !amountDraft && (amountCheck.error || shortfall));
-  const sliderEnabled = Boolean(feeBalance && feeBalance.balance > 0n);
-  const sliderValue =
-    feeBalance && feeBalance.balance > 0n
-      ? sliderFromAmount(feeBalance.balance, parseAmountWeiLoose(amountFj))
-      : 0;
   const amountPresetActions = feeBalance ? amountPresets(feeBalance.balance) : [];
   const selectedPreset = amountPresetActions.find((row) => row.amountFj === amountFj.trim())?.percent ?? null;
-  const feeHint =
-    feeSplit && !amountCheck.error
-      ? `You receive ${formatFjAmount(feeSplit.net)} FJ · fee ${BRIDGE_FEE_BPS / 100}%${
-          ethServiceFeeWei != null && ethServiceFeeWei > 0n
-            ? ` · ETH ${formatEther(ethServiceFeeWei)}`
-            : networkMeta && shouldChargeBridgeEthServiceFee(networkMeta.l1ChainId)
-              ? " · ETH fee…"
-              : ""
-        }`
-      : null;
+  const receipt = feeSplit && !amountCheck.error && !amountDraft && !shortfall
+    ? predictBridgeReceipt(feeSplit.gross)
+    : null;
   const amountHelp =
     amountDraft
-      ? `Minimum ${MIN_BRIDGE_FJ} FJ per bridge.`
+      ? `Bridge ${MIN_BRIDGE_FJ}–${MAX_BRIDGE_FJ} ${tokenSymbol} per transaction.`
       : amountCheck.error
         ? amountCheck.error
         : shortfall
           ? `Insufficient ${tokenSymbol}`
-          : feeHint ?? `Minimum ${MIN_BRIDGE_FJ} FJ per bridge.`;
+          : `Bridge ${MIN_BRIDGE_FJ}–${MAX_BRIDGE_FJ} ${tokenSymbol} per transaction.`;
 
   const applyAmountFj = (next: string) => {
     setAmountFj(next);
@@ -100,12 +85,13 @@ requestBridge,
         </p>
       ) : null}
 
-      <section className="bridge-step">
-          <p className="wallet-manager-pane-title">From Ethereum</p>
+      <section className="bridge-step bridge-details">
+          <h2 className="bridge-route-title">Bridge</h2>
           {wallet ? (
             <div className="bridge-accounts">
+              <div className="bridge-account-col">
+              <p className="wallet-manager-pane-title">From Ethereum:</p>
               <div className="bridge-account">
-                <strong className="wallet-manager-account-kicker">L1 account</strong>
                 <div className="wallet-manager-address">
                   <span className="wallet-manager-address-text mono">
                     {shortHash(wallet.address)}
@@ -145,8 +131,120 @@ requestBridge,
                   <p className="hint error balance-error">{balanceError}</p>
                 ) : null}
               </div>
+              </div>
+              <div className="bridge-amount-section">
+              <p className="wallet-manager-pane-title">Amount to claim on Aztec:</p>
+              <div className="bridge-amount-card">
+                <div className="amount-field">
+                  <div className="dex-pay-head">
+                    <label htmlFor="bridge-amount-input">You pay</label>
+                  </div>
+                  <div className="bridge-amount-input-wrap">
+                    <input
+                      id="bridge-amount-input"
+                      autoFocus
+                      value={amountFj}
+                      onChange={(event) => applyAmountFj(sanitizeAmountInput(event.target.value))}
+                      inputMode="decimal"
+                      placeholder="0"
+                      autoComplete="off"
+                      className={amountInvalid ? "bridge-amount-input input-invalid" : "bridge-amount-input"}
+                      aria-invalid={amountInvalid ? true : undefined}
+                      aria-describedby="bridge-amount-help"
+                    />
+                    {amountFj ? (
+                      <button
+                        type="button"
+                        className="icon-btn bridge-amount-clear"
+                        aria-label="Clear amount"
+                        title="Clear amount"
+                        onClick={() => applyAmountFj("")}
+                      >
+                        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                          <path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                      </button>
+                    ) : null}
+                    <span className="bridge-amount-unit">{tokenSymbol}</span>
+                  </div>
+                  <div className="dex-pay-meta">
+                    {wallet && feeBalance ? (
+                      <span
+                        className="hint amount-balance"
+                        title={`${formatFjAmount(feeBalance.balance)} ${feeBalance.symbol}`}
+                      >
+                        {formatFjAmount(feeBalance.balance, 5)} {feeBalance.symbol}
+                      </span>
+                    ) : (
+                      <span className="hint amount-balance">Balance —</span>
+                    )}
+                    {amountPresetActions.length ? (
+                      <div className="bridge-amount-presets">
+                        {amountPresetActions.map((row) => (
+                          <button
+                            key={row.percent}
+                            type="button"
+                            className={`ghost bridge-amount-preset${selectedPreset === row.percent ? " is-active" : ""}`}
+                            disabled={busy || balanceRefreshing || row.disabled}
+                            onClick={() => applyAmountFj(row.amountFj)}
+                          >
+                            {row.label}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                  {feeBalance && feeBalance.balance > MAX_BRIDGE_WEI ? (
+                    <p className="hint bridge-preset-limit">Percentages are based on the {MAX_BRIDGE_FJ} {tokenSymbol} limit.</p>
+                  ) : null}
+                  {receipt ? (
+                    <div id="bridge-amount-help" className="bridge-fee-summary">
+                      <dl>
+                        <div><dt>Protocol fee (5%)</dt><dd>{formatFjAmount(receipt.protocolFee, 5)} FJ</dd></div>
+                        <div><dt>Estimated claim cost</dt><dd>≈ {formatFjAmount(receipt.claimFee, 5)} FJ</dd></div>
+                        {ethServiceFeeWei != null && ethServiceFeeWei > 0n ? (
+                          <div><dt>L1 service fee</dt><dd>{formatEther(ethServiceFeeWei)} ETH</dd></div>
+                        ) : networkMeta && shouldChargeBridgeEthServiceFee(networkMeta.l1ChainId) && ethServiceFeeWei == null ? (
+                          <div><dt>L1 service fee</dt><dd>Calculating…</dd></div>
+                        ) : null}
+                      </dl>
+                      {receipt.receive === 0n ? <p className="hint">The claim may use the whole deposit.</p> : null}
+                    </div>
+                  ) : (
+                    <MarqueeHint
+                      id="bridge-amount-help"
+                      className={amountInvalid ? "error" : "hint"}
+                      text={amountHelp}
+                    />
+                  )}
+                </div>
+              </div>
+
+              </div>
+              <div className="bridge-account-col">
+              <div className="bridge-account-col-header">
+                <p className="wallet-manager-pane-title">To Aztec:</p>
+                {recipient.trim() && dfPxeAccount ? (
+                  <p
+                    className={
+                      dfPxeAccount.walletCompat === "pre-v6" ||
+                      dfPxeAccount.walletCompat === "unknown" ||
+                      !dfPxeAccount.walletCompat
+                        ? "hint error aztec-wallet-compat"
+                        : "hint aztec-wallet-compat"
+                    }
+                  >
+                    {dfPxeAccount.walletCompat === "v6-initializerless" ||
+                    dfPxeAccount.walletCompat === "v6-schnorr" ||
+                    dfPxeAccount.walletCompat === "v6-external"
+                      ? "Aztec v6 - OK to bridge!"
+                      : dfPxeAccount.walletCompat === "pre-v6"
+                        ? "v5 / v5.1 — do not bridge"
+                        : "version unknown — verify before bridging"}
+                  </p>
+                ) : null}
+              </div>
               <div className="bridge-account">
-                <strong className="wallet-manager-account-kicker">Aztec account</strong>
                 {recipient.trim() ? (
                   <div className="wallet-manager-address">
                     <span className="wallet-manager-address-text mono">
@@ -156,8 +254,13 @@ requestBridge,
                 ) : (
                   <p className="hint">Import a DF Punk account.</p>
                 )}
+                <div className="bridge-destination-estimate">
+                  <span>Estimated received</span>
+                  <strong>{receipt ? `≈ ${formatFjAmount(receipt.receive, 5)} FJ` : "— FJ"}</strong>
+                </div>
                 {dfPxeReady ? (
-                  <div className="bridge-account-balance">
+                  <div className="bridge-account-balance bridge-destination-balance">
+                    <span className="bridge-destination-balance-label">Current balance</span>
                     <span
                       className="balance-amount"
                       title={l2FeeBalance != null ? `${formatFjAmount(l2FeeBalance)} FJ` : undefined}
@@ -188,10 +291,18 @@ requestBridge,
                   <p className="hint error balance-error">{l2BalanceError}</p>
                 ) : null}
               </div>
+              </div>
             </div>
           ) : null}
 
-          {dfPxeReady ? null : (
+          {dfPxeAccount?.walletCompat === "pre-v6" ? (
+            <p className="error">
+              This Aztec address is a <strong>v5 / v5.1</strong> wallet. The same Schnorr keys can
+              open an Aztec 6.0 account, but the address will be different. Bridging to this address
+              stays blocked. Open <strong>Wallets</strong> and choose{" "}
+              <strong>Verify Aztec 6.0 address</strong>. Fee Juice already sent here stays here.
+            </p>
+          ) : dfPxeReady ? null : (
             <p className="hint">
               Open <strong>Wallets</strong> (top right): validate MetaMask/WalletConnect, then{" "}
               <strong>Import from DF client → PXE</strong>. Generic file import does not unlock
@@ -212,81 +323,7 @@ requestBridge,
           )}
       </section>
 
-      <section className="bridge-step">
-          <p className="wallet-manager-pane-title">Amount and claim</p>
-          <div className="bridge-amount-card">
-            <div className="amount-field">
-              <div className="dex-pay-head">
-                <label htmlFor="bridge-amount-input">You pay</label>
-              </div>
-              <input
-                type="range"
-                className="bridge-amount-slider"
-                min={0}
-                max={AMOUNT_SLIDER_MAX}
-                step={1}
-                value={sliderValue}
-                disabled={busy || !sliderEnabled}
-                aria-label="Bridge amount"
-                aria-valuetext={amountFj.trim() ? `${amountFj} ${tokenSymbol}` : `0 ${tokenSymbol}`}
-                style={{ "--amount-slider-fill": `${(sliderValue / AMOUNT_SLIDER_MAX) * 100}%` } as CSSProperties}
-                onChange={(event) => {
-                  if (!feeBalance) return;
-                  const wei = amountFromSlider(feeBalance.balance, Number(event.target.value));
-                  applyAmountFj(wei === 0n ? "" : formatSliderAmount(wei));
-                }}
-              />
-              <div className="bridge-amount-input-wrap">
-                <input
-                  id="bridge-amount-input"
-                  value={amountFj}
-                  onChange={(event) => applyAmountFj(sanitizeAmountInput(event.target.value))}
-                  inputMode="decimal"
-                  placeholder="0"
-                  autoComplete="off"
-                  className={amountInvalid ? "bridge-amount-input input-invalid" : "bridge-amount-input"}
-                  aria-invalid={amountInvalid ? true : undefined}
-                  aria-describedby="bridge-amount-help"
-                />
-                <span className="bridge-amount-unit">{tokenSymbol}</span>
-              </div>
-              <div className="dex-pay-meta">
-                {wallet && feeBalance ? (
-                  <span
-                    className="hint amount-balance"
-                    title={`${formatFjAmount(feeBalance.balance)} ${feeBalance.symbol}`}
-                  >
-                    {formatFjAmount(feeBalance.balance, 5)} {feeBalance.symbol}
-                  </span>
-                ) : (
-                  <span className="hint amount-balance">Balance —</span>
-                )}
-                {amountPresetActions.length ? (
-                  <div className="bridge-amount-presets">
-                    {amountPresetActions.map((row) => (
-                      <button
-                        key={row.percent}
-                        type="button"
-                        className={`ghost bridge-amount-preset${selectedPreset === row.percent ? " is-active" : ""}`}
-                        disabled={busy || balanceRefreshing || row.disabled}
-                        onClick={() => applyAmountFj(row.amountFj)}
-                      >
-                        {row.label}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-              <p
-                id="bridge-amount-help"
-                className={amountInvalid ? "error" : "hint"}
-                title={amountHelp}
-              >
-                {amountHelp}
-              </p>
-            </div>
-          </div>
-
+      <section className="bridge-step bridge-actions">
           <label className="check bridge-autoclaim">
             <input
               type="checkbox"

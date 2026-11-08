@@ -1,6 +1,6 @@
 /**
  * dRPC public gateways whitelist the legacy `node_*` JSON-RPC names.
- * aztec.js 5.1 emits `aztec_*`; rewrite only for dRPC hosts.
+ * aztec.js emits `aztec_*`; rewrite only for dRPC hosts.
  */
 
 function hostnameOf(host: string): string | null {

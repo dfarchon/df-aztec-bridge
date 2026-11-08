@@ -12,6 +12,12 @@ describe("isDevGateHost", () => {
     expect(isDevGateHost("aztec-dfarchon-kit.netlify.app")).toBe(false);
     expect(isDevGateHost("localhost")).toBe(false);
   });
+
+  it("gates deploy previews and other branch hosts", () => {
+    expect(isDevGateHost("deploy-preview-12--aztec-dfarchon-kit.netlify.app")).toBe(true);
+    expect(isDevGateHost("feature--aztec-dfarchon-kit.netlify.app")).toBe(true);
+    expect(isDevGateHost("9stx6-dev--aztec-dfarchon-kit.netlify.app")).toBe(true);
+  });
 });
 
 describe("sha256Hex", () => {

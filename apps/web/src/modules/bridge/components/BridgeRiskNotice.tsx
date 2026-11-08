@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { BRIDGE_FEE_BPS } from "@df-bridge/browser-sdk";
 import { OFFICIAL_DOCS_FEE_JUICE } from "../../../lib/official-links.ts";
+import { formatBridgeReceiptHint, MIN_BRIDGE_WEI } from "../../../lib/bridge-amount.ts";
 
 const BRIDGE_RISK_SESSION_KEY = "df-bridge.risk-notice.accepted";
 
@@ -49,8 +49,8 @@ export function BridgeRiskNoticeBody() {
         </li>
       </ul>
       <p>
-        A {BRIDGE_FEE_BPS / 100}% AZTEC fee, plus a mainnet ETH service fee of about one
-        L1 transaction, goes to the DF Archon team.
+        For a bridge of 3 FJ: {formatBridgeReceiptHint(MIN_BRIDGE_WEI)} A mainnet ETH
+        service fee of about one L1 transaction is paid separately in ETH.
       </p>
       <a
         className="official-docs-link"

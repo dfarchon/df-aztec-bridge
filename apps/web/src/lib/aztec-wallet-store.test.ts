@@ -37,4 +37,15 @@ describe("single Aztec account policy", () => {
       }),
     ).not.toThrow();
   });
+
+  it("allows replace without backup when discarding a locked vault", () => {
+    expect(() =>
+      assertAztecReplaceBackupReady({
+        existingAddress: current,
+        incomingAddress: other,
+        backupReady: false,
+        discardLockedVault: true,
+      }),
+    ).not.toThrow();
+  });
 });

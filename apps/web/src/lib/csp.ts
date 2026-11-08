@@ -16,12 +16,11 @@ export const CSP_CONNECT_HOSTS = [
   "https://aztecscan.xyz",
   "https://testnet.aztecscan.xyz",
   "https://devnet.aztecscan.xyz",
-  "https://v5.testnet.rpc.aztec-labs.com",
+  "https://aztec-testnet.drpc.org",
   // Aztec proving CRS (bb / embedded PXE) — required for browser claim proofs.
   "https://crs.aztec-cdn.foundation",
   "https://crs.aztec-labs.com",
   "https://aztec-mainnet.drpc.org",
-  "https://lb.drpc.live",
   "https://ethereum-rpc.publicnode.com",
   "https://ethereum-sepolia-rpc.publicnode.com",
   "https://etherscan.io",
@@ -51,8 +50,10 @@ export const CSP_FRAME_HOSTS = [
   "https://secure.walletconnect.org",
 ] as const;
 
+// style-src keeps 'unsafe-inline': Vite HMR injects <style> tags in dev; production
+// also needs it for any runtime style sheets. CSSOM is preferred for dynamic values.
 const CSP_BASE =
-  "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; child-src 'self' blob:; manifest-src 'self'";
+  "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; child-src 'self' blob:; manifest-src 'self'";
 
 /** Netlify / production CSP (no localhost). */
 export function buildProductionCsp(): string {
@@ -71,5 +72,5 @@ export function buildDevCsp(opts: { unsafeInlineScripts?: boolean }): string {
     "ws://127.0.0.1:*",
     "ws://localhost:*",
   ].join(" ");
-  return `default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; ${script}; worker-src 'self' blob:; connect-src ${connect}; frame-src ${CSP_FRAME_HOSTS.join(" ")}; child-src 'self' blob:`;
+  return `default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; ${script}; worker-src 'self' blob:; connect-src ${connect}; frame-src ${CSP_FRAME_HOSTS.join(" ")}; child-src 'self' blob:`;
 }

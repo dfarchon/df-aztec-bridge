@@ -1,5 +1,6 @@
 /**
  * Auto-lock the vault after idle / tab hidden to shrink unlocked-session XSS window.
+ * Timers pause while a bridge/claim run is in progress so mid-proof unlocks are not wiped.
  */
 
 import {
@@ -18,6 +19,8 @@ const HIDDEN_MS = 5 * 60 * 1000;
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
 let hiddenTimer: ReturnType<typeof setTimeout> | null = null;
 let started = false;
+/** When true, idle / tab-hidden timers do not fire (active bridge or claim). */
+let paused = false;
 
 function clearIdle() {
   if (idleTimer) clearTimeout(idleTimer);
@@ -30,6 +33,7 @@ function clearHidden() {
 }
 
 function lockIfUnlocked(reason: VaultAutoLockReason) {
+  if (paused) return;
   if (!isVaultUnlocked()) return;
   lockVault(reason);
   try {
@@ -41,7 +45,7 @@ function lockIfUnlocked(reason: VaultAutoLockReason) {
 
 function bumpIdle() {
   clearIdle();
-  if (!isVaultUnlocked()) return;
+  if (paused || !isVaultUnlocked()) return;
   idleTimer = setTimeout(() => lockIfUnlocked("idle"), IDLE_MS);
 }
 
@@ -49,7 +53,7 @@ function onVisibility() {
   if (typeof document === "undefined") return;
   if (document.visibilityState === "hidden") {
     clearHidden();
-    if (!isVaultUnlocked()) return;
+    if (paused || !isVaultUnlocked()) return;
     hiddenTimer = setTimeout(() => lockIfUnlocked("tab-hidden"), HIDDEN_MS);
   } else {
     clearHidden();
@@ -58,6 +62,25 @@ function onVisibility() {
 }
 
 const ACTIVITY_EVENTS = ["pointerdown", "keydown", "touchstart"] as const;
+
+/**
+ * Pause idle / tab-hidden auto-lock while bridge or claim progress is running.
+ * Safe to call with the same value repeatedly.
+ */
+export function setVaultIdleLockPaused(next: boolean): void {
+  if (paused === next) return;
+  paused = next;
+  if (paused) {
+    clearIdle();
+    clearHidden();
+    return;
+  }
+  if (isVaultUnlocked()) bumpIdle();
+}
+
+export function isVaultIdleLockPaused(): boolean {
+  return paused;
+}
 
 /** Call once from VaultProvider. Safe to call multiple times. */
 export function startVaultIdleLock(): () => void {
@@ -83,6 +106,7 @@ export function startVaultIdleLock(): () => void {
 
   return () => {
     started = false;
+    paused = false;
     unsub();
     clearIdle();
     clearHidden();
