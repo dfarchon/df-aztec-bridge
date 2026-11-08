@@ -62,12 +62,11 @@
         width: min(29rem, calc(100vw - 2rem));
         max-width: calc(100vw - 2rem);
         padding: 1rem 1.15rem;
-        border: 1px solid rgba(255, 255, 255, 0.22);
-        border-radius: 12px;
-        background: rgba(95, 95, 100, 0.28);
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.32);
-        -webkit-backdrop-filter: blur(2px);
-        backdrop-filter: blur(2px);
+        /* Match dark dapp panels (--surface / --line) before styles.css loads. */
+        border: 1px solid #2b1f26;
+        border-radius: 0;
+        background: #181215;
+        box-shadow: none;
         text-align: center;
       }
 
