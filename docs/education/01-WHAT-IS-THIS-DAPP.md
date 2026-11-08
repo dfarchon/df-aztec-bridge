@@ -68,7 +68,7 @@ Losing either can lose funds or leave Fee Juice stuck. Treat both like passwords
 |---------|---------|
 | **local** | Your machine (`pnpm dev`). Fast, for learning. |
 | **testnet** | Public Aztec testnet + Sepolia. Practice without mainnet money. |
-| **mainnet** | Real Ethereum + Aztec Alpha. **Do not use production funds until SECURITY.md gates are clear.** |
+| **mainnet** | Real Ethereum + Aztec Alpha. **Do not use production funds until Critical/High findings are remediated.** |
 
 ## Honest limits
 

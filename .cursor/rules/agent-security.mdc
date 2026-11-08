@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Security agent
 
-- Treat `SECURITY.md` as binding: not production-funds-ready until Critical/High findings are remediated and re-tested.
+- Not production-funds-ready until Critical/High findings are remediated and re-tested.
 - Never commit `.env`, `account*.json`, claim dumps, or private keys. Deleting a leaked secret does not revoke it — rotate.
 - Do not write exploits, exploit PoCs, malware, or attack tooling. Local vulnerability fixes only.
 - Prefer browser claim for Netlify; never POST L2 secrets to a remote API base without explicit user approval and auth.

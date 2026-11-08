@@ -1,6 +1,6 @@
 /**
  * Single wipe path for in-memory bridge / claim secrets when the vault locks.
- * Call from every unlock → lock transition so UI state cannot diverge from SECURITY.md.
+ * Call from every unlock → lock transition so UI state cannot diverge from vault lock policy.
  */
 
 export type BridgeSensitiveUiClearers = {

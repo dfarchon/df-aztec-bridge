@@ -2,7 +2,7 @@
 
 These pages explain **how this dapp works**, what is **private vs public**, and how **hardening** protects you — without assuming you already know Aztec jargon.
 
-Start here if you are new. Use [SECURITY.md](../../SECURITY.md) when you need the production control checklist.
+Start here if you are new.
 
 | Guide | What you learn |
 |-------|----------------|
@@ -16,7 +16,6 @@ Start here if you are new. Use [SECURITY.md](../../SECURITY.md) when you need th
 
 ## Related ops / reference docs
 
-- [SECURITY.md](../../SECURITY.md) — secrets policy, production posture, C-01
 - [PNPM_HARDENING.md](../PNPM_HARDENING.md) — install / supply-chain pins
 - [NETWORK_INTEGRITY.md](../NETWORK_INTEGRITY.md) — explorers, tip checks, privacyFetch
 - [AZTEC_FEE_COLLECTOR.md](../AZTEC_FEE_COLLECTOR.md) — L1 fee skim vs Sponsored FPC

@@ -86,6 +86,6 @@ Users may override node URLs only with **localhost** or an **exact public RPC** 
 
 ## 6) Production funds gate
 
-[SECURITY.md](../../SECURITY.md) still says: do **not** use production funds until Critical/High findings + **C-01** key rotation are confirmed. Hardening helps; process gates still apply.
+Do **not** use production funds until Critical/High findings are remediated and re-tested. Hardening helps; process gates still apply.
 
 Next: [06 — Recovery](./06-RECOVERY.md).

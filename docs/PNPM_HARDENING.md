@@ -66,4 +66,4 @@ pnpm audit --prod        # advisory scan (transitive Aztec stack may still repor
 - Runtime compromise after install
 - New direct dependencies (require explicit approval + lockfile PR)
 
-See also [SECURITY.md](../SECURITY.md) and [Mondoo / pnpm consumer defenses](https://mondoo.com/blog/npm-supply-chain-security-package-manager-defenses-2026).
+See also [Mondoo / pnpm consumer defenses](https://mondoo.com/blog/npm-supply-chain-security-package-manager-defenses-2026).
