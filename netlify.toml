@@ -1,4 +1,4 @@
-# Netlify — static web app (apps/web)
+# Netlify — static web app (apps/web).
 # Production: GitHub dfarchon/df-aztec-bridge (PRIVATE) → branch `main`.
 #
 # Env source of truth for ALL build contexts (production, deploy-preview, branch):
