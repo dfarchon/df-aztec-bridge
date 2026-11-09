@@ -36,7 +36,8 @@ import {
 import { useUi } from "./UiProvider.tsx";
 import { pushDappLog } from "../lib/dapp-log.ts";
 import { PasskeyError, registerVaultPasskey } from "../lib/vault-passkey.ts";
-import { startVaultIdleLock } from "../lib/vault-idle-lock.ts";
+import { startVaultIdleLock, subscribeVaultLockReset, subscribeVaultLockWarning } from "../lib/vault-idle-lock.ts";
+import "../components/vault/vault-lock-notice.css";
 
 type EnsureReason = "setup" | "unlock" | "secrets" | "vault-page";
 
@@ -93,6 +94,11 @@ export function VaultProvider(props: { children: ReactNode }) {
   const [pxeAccount, setPxeAccountState] = useState<ImportedAztecAccount | null>(null);
   const pxeAccountRef = useRef<ImportedAztecAccount | null>(null);
   const [unlocked, setUnlocked] = useState(() => isVaultUnlocked());
+  const [lockDeadline, setLockDeadline] = useState<number | null>(null);
+  const [lockSeconds, setLockSeconds] = useState(60);
+  const [lockResetNotice, setLockResetNotice] = useState(false);
+  const [warningClosing, setWarningClosing] = useState(false);
+  const [noticeSeconds, setNoticeSeconds] = useState(5);
   const [address, setAddress] = useState<string | null>(() => getVaultSession()?.address ?? null);
   const [vaultAvailable, setVaultAvailable] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -132,6 +138,35 @@ export function VaultProvider(props: { children: ReactNode }) {
   }, [refreshVaultAvailability]);
 
   useEffect(() => startVaultIdleLock(), []);
+  useEffect(() => subscribeVaultLockWarning(setLockDeadline), []);
+  useEffect(() => {
+    if (lockDeadline === null) return;
+    const tick = () => setLockSeconds(Math.max(0, Math.ceil((lockDeadline - Date.now()) / 1000)));
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, [lockDeadline]);
+  useEffect(() => subscribeVaultLockReset(() => {
+      setWarningClosing(true);
+      setLockResetNotice(true);
+  }), []);
+  useEffect(() => {
+    if (!warningClosing) return;
+    const timer = window.setTimeout(() => setWarningClosing(false), 800);
+    return () => window.clearTimeout(timer);
+  }, [warningClosing]);
+  useEffect(() => {
+    if (!lockResetNotice) return;
+    const deadline = Date.now() + 5000;
+    setNoticeSeconds(5);
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      if (remaining === 0) setLockResetNotice(false);
+      else setNoticeSeconds(remaining);
+    };
+    const timer = window.setInterval(tick, 250);
+    return () => window.clearInterval(timer);
+  }, [lockResetNotice]);
 
   const finishModal = useCallback((ok: boolean) => {
     setModalOpen(false);
@@ -486,6 +521,26 @@ export function VaultProvider(props: { children: ReactNode }) {
   return (
     <VaultContext.Provider value={value}>
       {props.children}
+      <div className="vault-lock-notifications">
+      {(warningClosing || (!lockResetNotice && lockDeadline !== null)) && (
+        <div className={`vault-lock-warning${warningClosing ? " is-closing" : ""}`} role="status" aria-live="polite">
+          <span className="vault-lock-warning-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+          </span>
+          <div className="vault-lock-warning-copy">
+            <><strong>Vault locks in {lockSeconds}s</strong><span>Click or press any key to stay unlocked.</span></>
+          </div>
+        </div>
+      )}
+      {lockResetNotice && (
+        <div className="vault-lock-warning is-reset" role="status" aria-live="polite">
+          <button type="button" className="icon-btn vault-lock-notice-dismiss" aria-label="Dismiss auto-lock reset notification" onClick={() => setLockResetNotice(false)} />
+          <span className="vault-lock-warning-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="m8 12 2.7 2.7L16 9.5" /></svg></span>
+          <div className="vault-lock-warning-copy"><strong>Auto-lock timer reset</strong><span>Your vault stays unlocked.</span></div>
+          <span className="vault-lock-notice-countdown" aria-label={`Closes in ${noticeSeconds} seconds`}>{noticeSeconds}s</span>
+        </div>
+      )}
+      </div>
       <VaultUnlockModal
         open={modalOpen}
         mode={modalMode}
