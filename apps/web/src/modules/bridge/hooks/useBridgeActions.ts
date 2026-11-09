@@ -903,7 +903,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
           if (!decision.shouldSave) {
             if (duplicate) await refreshSessions();
             setCredentialsImportNotice(decision.message);
-            return;
+            return status;
           }
 
           const entry = await upsertSession(networkId, {
@@ -922,6 +922,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
             recipient: entry.recipient,
             l1TxHash: entry.l1TxHash,
           });
+          return status;
         } finally {
           setBusy(false);
         }

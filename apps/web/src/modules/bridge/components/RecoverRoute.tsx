@@ -47,7 +47,14 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
 
   const [removeOpen, setRemoveOpen] = useState(false);
   const [accountMissing, setAccountMissing] = useState(false);
+  const [retryClaimStatus, setRetryClaimStatus] = useState(false);
   const claimFileRef = useRef<HTMLInputElement>(null);
+  const importedFileRef = useRef<File | null>(null);
+
+  useEffect(() => {
+    importedFileRef.current = null;
+    setRetryClaimStatus(false);
+  }, [networkId]);
 
   const selectedKey = selectedRecoveryHash ? normalizeL1TxHash(selectedRecoveryHash) : null;
   const showDetail =
@@ -68,7 +75,14 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
   };
 
   const pickClaimFile = (file: File | null) => {
-    void onClaimCredentialsFile(file);
+    if (!file) return;
+    importedFileRef.current = file;
+    setRetryClaimStatus(false);
+    void onClaimCredentialsFile(file).then((status) => {
+      if (importedFileRef.current !== file) return;
+      setRetryClaimStatus(status === "unavailable");
+      if (status !== "unavailable") importedFileRef.current = null;
+    });
   };
 
   const backToList = () => {
@@ -173,6 +187,11 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
           <>
             <p className="wallet-manager-pane-title">Which claim</p>
             <ImportFeedback error={null} notice={credentialsImportNotice} />
+            {retryClaimStatus && importedFileRef.current ? (
+              <button type="button" className="ghost" disabled={busy} onClick={() => pickClaimFile(importedFileRef.current)}>
+                Retry status check
+              </button>
+            ) : null}
             {storageReady === false ? (
               <p className="error">{storageError ?? "Browser storage is unavailable."}</p>
             ) : null}

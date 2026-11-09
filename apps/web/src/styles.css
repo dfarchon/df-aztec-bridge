@@ -6161,8 +6161,26 @@ html[data-theme="light"] #recovery-remove-confirm button.recovery-confirm-delete
 .progress-success-copy .progress-success-line {
   margin: 0;
 }
+.progress-success-address {
+  display: inline-block;
+  margin-left: 0.25rem;
+  color: #ff9fbe;
+  font-family: inherit;
+  font-size: inherit;
+  white-space: nowrap;
+}
+html[data-theme="light"] .progress-success-address { color: #9c3857; }
 
 .progress-claim-balance {
   margin: 0.25rem 0 0;
+  padding-left: 1.35rem;
   overflow-wrap: anywhere;
+}
+@media (max-width: 480px) {
+  .progress-panel-backdrop { padding: 0.75rem; }
+  .progress-panel { padding: 1rem; }
+  .progress-panel-success-actions { flex-wrap: wrap; row-gap: 0.75rem; }
+  .progress-panel-success-actions .progress-success-copy { flex-basis: 100%; }
+  .progress-panel-success-actions > button:last-child { margin-left: auto; }
+  .progress-claim-balance a { display: inline-block; padding-block: 0.35rem; }
 }
