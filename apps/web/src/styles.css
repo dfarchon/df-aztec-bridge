@@ -5871,6 +5871,14 @@ html[data-theme="light"] .progress-stage-status.is-completed {
   color: var(--text-heading) !important;
 }
 
+.recovery-detail-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.recovery-detail-top .bridge-refresh-btn { flex: 0 0 auto; }
+
 #recovery-session-guide button.recovery-remove,
 #recovery-remove-confirm button.recovery-confirm-delete {
   border: 1px solid #d75c68 !important;

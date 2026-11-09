@@ -56,7 +56,7 @@ import {
   parseBridgeAmount,
 } from "../../../lib/bridge-amount.ts";
 import { parseClaimCredentialsFile } from "../../../lib/claim-credentials-import.ts";
-import { describeClaimImport, type ImportedClaimStatus } from "../../../lib/claim-import-status.ts";
+import { checkImportedClaimStatus, describeClaimImport } from "../../../lib/claim-import-status.ts";
 import { recordHistory } from "../../../lib/operation-history.ts";
 import {
   downloadClaimCredentials,
@@ -876,34 +876,12 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
             (session) => normalizeL1TxHash(session.l1TxHash) === parsed.l1TxHash,
           );
           setCredentialsImportNotice("Checking claim status on Aztec…");
-          let status: ImportedClaimStatus = "unavailable";
-          if (networkMeta?.aztecNodeUrl) {
-            try {
-              const { loadBrowserClaim } = await import("@df-bridge/browser-sdk/claim-lazy");
-              const { getClaimMessageStatus } = await loadBrowserClaim();
-              let timer: ReturnType<typeof setTimeout> | undefined;
-              try {
-                status = await Promise.race([
-                  getClaimMessageStatus({
-                    aztecNodeUrl: networkMeta.aztecNodeUrl,
-                    credentials: parsed.credentials,
-                  }),
-                  new Promise<never>((_, reject) => {
-                    timer = setTimeout(() => reject(new Error("Claim status check timed out")), 15_000);
-                  }),
-                ]);
-              } finally {
-                if (timer) clearTimeout(timer);
-              }
-            } catch {
-              // A node error is not evidence that a claim was or was not consumed.
-            }
-          }
+          const status = await checkImportedClaimStatus(networkMeta?.aztecNodeUrl, parsed.credentials);
           const decision = describeClaimImport(status, !!duplicate, parsed.l1TxHash);
           if (!decision.shouldSave) {
             if (duplicate) await refreshSessions();
             setCredentialsImportNotice(decision.message);
-            return status;
+            return { status, l1TxHash: parsed.l1TxHash };
           }
 
           const entry = await upsertSession(networkId, {
@@ -922,7 +900,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
             recipient: entry.recipient,
             l1TxHash: entry.l1TxHash,
           });
-          return status;
+          return { status, l1TxHash: parsed.l1TxHash };
         } finally {
           setBusy(false);
         }
