@@ -1,5 +1,6 @@
 /**
  * Preview-host checks and cookie crypto shared by the Netlify edge gate and unit tests.
+ * Lives outside netlify/edge-functions/ so Netlify does not treat this file as an edge entrypoint.
  * The password never goes into the client bundle. Netlify injects DEV_GATE_PASSWORD at the edge.
  */
 

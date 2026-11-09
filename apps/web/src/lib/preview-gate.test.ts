@@ -7,7 +7,7 @@ import {
   readCookie,
   signPreviewCookie,
   verifyPreviewCookie,
-} from "../../../../netlify/edge-functions/preview-gate-logic.js";
+} from "../../../../netlify/edge-shared/preview-gate-logic.js";
 
 const HOST = "deploy-preview-12--aztec-dfarchon-kit-v6.netlify.app";
 const PASS = "preview-password";

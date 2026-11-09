@@ -14,7 +14,7 @@ import {
   readCookie,
   signPreviewCookie,
   verifyPreviewCookie,
-} from "./preview-gate-logic.js";
+} from "../edge-shared/preview-gate-logic.js";
 
 const HEADERS = {
   "content-type": "text/html; charset=utf-8",
