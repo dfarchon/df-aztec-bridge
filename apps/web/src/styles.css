@@ -5310,12 +5310,22 @@ label {
 }
 
 .progress-panel-failed,
-.progress-panel-rejected,
+.progress-panel-rejected {
+  border-color: var(--pink-400) !important;
+  background: var(--surface) !important;
+  color: var(--text-heading) !important;
+}
+
 .progress-step-failed .progress-step-marker,
-.dapp-log-error::before,
-.app-error-toast {
+.dapp-log-error::before {
   border-color: var(--pink-400) !important;
   background: var(--accent-tint) !important;
+  color: var(--text-heading) !important;
+}
+
+.app-error-toast {
+  border-color: var(--pink-400) !important;
+  background: var(--surface) !important;
   color: var(--text-heading) !important;
 }
 

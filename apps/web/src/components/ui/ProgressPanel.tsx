@@ -11,6 +11,7 @@ import {
   type ProgressStepState,
 } from "../../lib/progress-track.ts";
 import { WALLET_TX_REJECTED_DETAIL, WALLET_TX_REJECTED_TITLE } from "../../lib/app-error-toast.ts";
+import { WALLET_LOCKED_DETAIL, WALLET_LOCKED_TITLE } from "../../lib/wallet-error.ts";
 import { AztecBlockEstimate } from "./AztecBlockEstimate.tsx";
 import { formatFjAmount } from "../../lib/bridge-amount.ts";
 import { shortHash } from "../../lib/claim-recovery.ts";
@@ -120,6 +121,7 @@ export function ProgressPanel({
   const running = progress.runState === "running";
   const rejected = progress.runState === "rejected";
   const failed = progress.runState === "failed";
+  const walletLocked = detail === WALLET_LOCKED_DETAIL;
   const [elapsed, setElapsed] = useState(() => elapsedFor(liveProgress, Date.now()));
   const [openStage, setOpenStage] = useState<"bridge" | "claim">(
     progress.track === "claim" ? "claim" : "bridge",
@@ -168,7 +170,7 @@ export function ProgressPanel({
   const panel = (
       <section
         className={`progress-panel progress-panel-${progress.runState}${embedded ? " progress-panel-embedded" : ""}`}
-        aria-label={rejected ? WALLET_TX_REJECTED_TITLE : progress.combinedFlow ? "Bridge and claim Fee Juice" : track.title}
+        aria-label={walletLocked ? WALLET_LOCKED_TITLE : rejected ? WALLET_TX_REJECTED_TITLE : progress.combinedFlow ? "Bridge and claim Fee Juice" : track.title}
       >
         {running ? <span className="progress-panel-bar" aria-hidden="true" /> : null}
 
@@ -182,14 +184,22 @@ export function ProgressPanel({
           )}
           <div className="progress-panel-title">
             <strong className="wallet-manager-pane-title">
-              {rejected ? WALLET_TX_REJECTED_TITLE : progress.combinedFlow ? "Bridge and claim Fee Juice" : track.title}
+              {walletLocked
+                ? WALLET_LOCKED_TITLE
+                : rejected
+                  ? WALLET_TX_REJECTED_TITLE
+                  : progress.combinedFlow
+                    ? "Bridge and claim Fee Juice"
+                    : track.title}
             </strong>
             <p className="hint progress-panel-step" role="status" aria-live="polite">
-              {rejected
-                ? WALLET_TX_REJECTED_DETAIL
-                : progress.alreadyClaimed
-                  ? "Already claimed · no new transaction needed"
-                  : `Step ${progress.stepIndex + 1} of ${track.steps.length} · ${activeStep?.label}`}
+              {walletLocked
+                ? WALLET_LOCKED_DETAIL
+                : rejected
+                  ? WALLET_TX_REJECTED_DETAIL
+                  : progress.alreadyClaimed
+                    ? "Already claimed · no new transaction needed"
+                    : `Step ${progress.stepIndex + 1} of ${track.steps.length} · ${activeStep?.label}`}
             </p>
           </div>
           <span className="hint progress-elapsed" title={liveProgress.runState === "running" ? "Current step time" : "Total elapsed time"}>
@@ -282,7 +292,7 @@ export function ProgressPanel({
 
         {estimate}
 
-        {detail && (!rejected || detail !== WALLET_TX_REJECTED_DETAIL) ? (
+        {detail && !walletLocked && (!rejected || detail !== WALLET_TX_REJECTED_DETAIL) ? (
           <p className="hint progress-detail">{stripProgressDashes(detail)}</p>
         ) : null}
 

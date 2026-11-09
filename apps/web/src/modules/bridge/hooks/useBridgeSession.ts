@@ -67,6 +67,11 @@ import {
 } from "../../../lib/rpc-overrides.ts";
 import { formatDappError, logDappError, pushDappLog, pushL1TxDappLog, pushL2TxDappLog } from "../../../lib/dapp-log.ts";
 import { pushAppError } from "../../../lib/app-error-toast.ts";
+import {
+  presentWalletError,
+  WALLET_LOCKED_DETAIL,
+  WALLET_LOCKED_TITLE,
+} from "../../../lib/wallet-error.ts";
 import { importDfPunkFileIntoPxe, registerDfPunkAccountIntoPxe } from "../../../lib/df-pxe-import.ts";
 import { listStoredAztecWallets, saveAztecWallet } from "../../../lib/aztec-wallet-store.ts";
 import { recordHistory } from "../../../lib/operation-history.ts";
@@ -170,8 +175,17 @@ export function useBridgeSession(initialWallet: ConnectedWallet | null = null) {
   const busyRef = useRef(false);
   const [error, setErrorState] = useState<string | null>(null);
   const setError = useCallback((next: string | null) => {
-    setErrorState(next);
-    if (next) pushAppError({ title: next });
+    if (!next) {
+      setErrorState(null);
+      return;
+    }
+    const message = presentWalletError(next);
+    setErrorState(message);
+    if (message === WALLET_LOCKED_DETAIL) {
+      pushAppError({ title: WALLET_LOCKED_TITLE, detail: WALLET_LOCKED_DETAIL });
+      return;
+    }
+    pushAppError({ title: message });
   }, []);
   const [ethServiceFeeWei, setEthServiceFeeWei] = useState<bigint | null>(null);
   const [bridgePhase, setBridgePhase] = useState<string | null>(null);
