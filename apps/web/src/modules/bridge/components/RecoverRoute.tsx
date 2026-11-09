@@ -7,6 +7,7 @@ import { getStoredAztecWallet } from "../../../lib/aztec-wallet-store.ts";
 import { TxAnalysisLinks } from "../../../components/ui/TxAnalysisLinks.tsx";
 import { ProgressPanel } from "../../../components/ui/ProgressPanel.tsx";
 import { normalizeL1TxHash, type BridgeSessionEntry } from "../../../lib/bridge-session.ts";
+import { checkImportedClaimStatus, type ImportedClaimStatus } from "../../../lib/claim-import-status.ts";
 import type { BridgeSession } from "../hooks/useBridgeSession.ts";
 import type { BridgeFlows } from "../hooks/useBridgeFlows.ts";
 
@@ -47,7 +48,11 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
 
   const [removeOpen, setRemoveOpen] = useState(false);
   const [accountMissing, setAccountMissing] = useState(false);
+  const [lastImportStatus, setLastImportStatus] = useState<{ status: ImportedClaimStatus; l1TxHash: string } | null>(null);
   const claimFileRef = useRef<HTMLInputElement>(null);
+  const importRequest = useRef(0);
+
+  useEffect(() => { importRequest.current += 1; setLastImportStatus(null); }, [networkId]);
 
   const selectedKey = selectedRecoveryHash ? normalizeL1TxHash(selectedRecoveryHash) : null;
   const showDetail =
@@ -68,7 +73,10 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
   };
 
   const pickClaimFile = (file: File | null) => {
-    void onClaimCredentialsFile(file);
+    if (!file) return;
+    const request = ++importRequest.current;
+    setLastImportStatus(null);
+    void onClaimCredentialsFile(file).then((result) => { if (result && request === importRequest.current) setLastImportStatus(result); });
   };
 
   const backToList = () => {
@@ -145,7 +153,10 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
 
         {pane === "detail" && selectedSession ? (
           <DetailStep
+            key={`${networkId}:${selectedSession.l1TxHash}`}
             networkId={networkId}
+            aztecNodeUrl={networkMeta?.aztecNodeUrl}
+            initialStatus={lastImportStatus?.l1TxHash === normalizeL1TxHash(selectedSession.l1TxHash) ? lastImportStatus.status : null}
             l1ExplorerUrl={networkMeta?.l1ExplorerUrl}
             aztecExplorerUrl={networkMeta?.aztecExplorerUrl}
             selectedSession={selectedSession}
@@ -340,6 +351,8 @@ function ImportFeedback({ error, notice }: { error: string | null; notice: strin
 
 function DetailStep({
   networkId,
+  aztecNodeUrl,
+  initialStatus,
   l1ExplorerUrl,
   aztecExplorerUrl,
   selectedSession,
@@ -355,6 +368,8 @@ function DetailStep({
   onBackToList,
 }: {
   networkId: string;
+  aztecNodeUrl?: string;
+  initialStatus: ImportedClaimStatus | null;
   l1ExplorerUrl?: string;
   aztecExplorerUrl?: string;
   selectedSession: BridgeSessionEntry;
@@ -369,6 +384,18 @@ function DetailStep({
   onRemove: () => void;
   onBackToList: () => void;
 }) {
+  const [checkingStatus, setCheckingStatus] = useState(false);
+  const [checkedStatus, setCheckedStatus] = useState<ImportedClaimStatus | null>(initialStatus);
+  const checkStatus = async () => {
+    if (!selectedSession.credentials || checkingStatus) return;
+    setCheckingStatus(true);
+    try {
+      const status = await checkImportedClaimStatus(aztecNodeUrl, selectedSession.credentials);
+      setCheckedStatus((previous) => previous === "consumed" && status === "unavailable" ? previous : status);
+    } finally {
+      setCheckingStatus(false);
+    }
+  };
   const needsAccount =
     selectedSession.phase === "ready-to-claim" ||
     selectedSession.phase === "claiming" ||
@@ -377,15 +404,23 @@ function DetailStep({
   const amount = sessionAmountFj(
     selectedSession.credentials?.claimAmount ?? selectedSession.claimAmount,
   );
+  const statusMessage = checkedStatus === "ready" ? "Claim status: available to claim." : checkedStatus === "consumed" ? "Claim status: already claimed. No new claim is needed." : checkedStatus === "l2-sync-pending" ? "Claim status: not yet available on Aztec." : checkedStatus === "unavailable" ? "Claim status unavailable. Use refresh to try again." : "Use refresh to check claim status on Aztec.";
 
   return (
     <>
+      <div className="recovery-detail-top">
       <button type="button" className="recovery-back" onClick={onBackToList}>
         <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
           <path d="M12.5 4.5 7 10l5.5 5.5M7 10h9" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         Back to list
       </button>
+      {selectedSession.credentials ? (
+        <button type="button" className={`icon-btn utility-control bridge-refresh-btn${checkingStatus ? " spinning" : ""}`} disabled={busy || checkingStatus} aria-label="Refresh claim status" title="Refresh claim status" onClick={() => void checkStatus()}>
+          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.1A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35Z" /></svg>
+        </button>
+      ) : null}
+      </div>
       <p className="wallet-manager-pane-title">{detailTitle(selectedSession)}</p>
       <p className="hint">
         {amount} FJ → {shortHash(recipient)}
@@ -402,6 +437,7 @@ function DetailStep({
       />
       {selectedSession.lastError ? <p className="error">{selectedSession.lastError}</p> : null}
       {error ? <p className="error">{error}</p> : null}
+      {selectedSession.credentials ? <p className="hint" role="status">{checkingStatus ? "Checking claim status…" : statusMessage}</p> : null}
       {needsAccount && accountMissing ? (
         <p className="error">
           This claim is not for the Aztec account in this browser, so it will not be processed.
@@ -414,13 +450,13 @@ function DetailStep({
 
       <div className="recovery-actions">
         {selectedSession.phase === "l1-pending" ? (
-          <button type="button" disabled={busy} onClick={onRetry}>
+          <button type="button" disabled={busy || checkingStatus} onClick={onRetry}>
             {busy ? "Working…" : "Retry"}
           </button>
         ) : null}
 
         {selectedSession.phase === "claim-sent" ? (
-          <button type="button" disabled={busy} onClick={onWait}>
+          <button type="button" disabled={busy || checkingStatus} onClick={onWait}>
             {busy ? "Working…" : "Wait for confirmation"}
           </button>
         ) : null}
@@ -429,7 +465,7 @@ function DetailStep({
           <button
             type="button"
             className="recovery-resume"
-            disabled={busy}
+            disabled={busy || checkingStatus || checkedStatus === "consumed"}
             onClick={onResume}
           >
             {busy ? "Working…" : "Resume claim"}

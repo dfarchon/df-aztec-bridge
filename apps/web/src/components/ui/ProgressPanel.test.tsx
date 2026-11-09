@@ -158,7 +158,7 @@ describe("ProgressPanel", () => {
     expect(html).toContain("Already claimed");
     expect(html).toContain("No new L2 transaction was sent");
     expect(html).not.toContain("Generating the proof and submitting the claim");
-    expect(html).not.toContain("Fee Juice is on this Aztec account.");
+    expect(html).not.toContain("🎉 Fee Juice claimed");
   });
 
   it("does not claim Fee Juice arrived when only the L1 bridge was recovered", () => {
@@ -178,7 +178,7 @@ describe("ProgressPanel", () => {
         onDismiss={() => {}}
       />,
     );
-    expect(html).toContain("Fee Juice is on this Aztec account.");
+    expect(html).toContain("🎉 Fee Juice claimed");
     expect(html).toContain("progress-success-line");
     expect(html).toContain(">OK</button>");
   });

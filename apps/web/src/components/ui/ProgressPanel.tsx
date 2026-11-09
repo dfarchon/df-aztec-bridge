@@ -14,6 +14,8 @@ import { WALLET_TX_REJECTED_DETAIL, WALLET_TX_REJECTED_TITLE } from "../../lib/a
 import { AztecBlockEstimate } from "./AztecBlockEstimate.tsx";
 import { formatFjAmount } from "../../lib/bridge-amount.ts";
 import { shortHash } from "../../lib/claim-recovery.ts";
+import { getNetwork } from "../../config/networks.ts";
+import { aztecExplorerLinkLabel, aztecScanAddressUrl } from "../../lib/official-links.ts";
 
 interface ProgressPanelProps {
   progress: ProgressState;
@@ -288,9 +290,9 @@ export function ProgressPanel({
           <div className="progress-panel-actions progress-panel-success-actions">
             {progress.track === "claim" || progress.track === "wait-l2" ? (
               <div className="progress-success-copy">
-                <p className="progress-success-line">{progress.alreadyClaimed ? "🎉 Claim was already completed." : "🎉 Fee Juice is on this Aztec account."}</p>
+                <p className="progress-success-line">{progress.alreadyClaimed ? "🎉 Fee Juice already claimed" : "🎉 Fee Juice claimed"}{claimRecipient ? <> for <span className="progress-success-address" title={claimRecipient}>{shortHash(claimRecipient)}</span></> : null}</p>
                 {claimRecipient && aztecNodeUrl ? (
-                  <ClaimBalance recipient={claimRecipient} aztecNodeUrl={aztecNodeUrl} />
+                  <ClaimBalance recipient={claimRecipient} aztecNodeUrl={aztecNodeUrl} networkId={networkId} />
                 ) : null}
               </div>
             ) : null}
@@ -322,7 +324,7 @@ export function ProgressPanel({
   return <div className="progress-panel-backdrop">{panel}</div>;
 }
 
-function ClaimBalance({ recipient, aztecNodeUrl }: { recipient: string; aztecNodeUrl: string }) {
+function ClaimBalance({ recipient, aztecNodeUrl, networkId }: { recipient: string; aztecNodeUrl: string; networkId?: string }) {
   const [result, setResult] = useState<{ key: string; balance: bigint | null; error: boolean } | null>(null);
   const key = `${aztecNodeUrl}\n${recipient.toLowerCase()}`;
 
@@ -344,12 +346,13 @@ function ClaimBalance({ recipient, aztecNodeUrl }: { recipient: string; aztecNod
 
   const current = result?.key === key ? result : null;
   return (
-    <p className="hint progress-claim-balance" role="status">
-      <span title={recipient}>Account {shortHash(recipient)}</span>
-      {" · "}
+    <div className="hint progress-claim-balance" role="status">
       {current?.error ? "Balance unavailable" : current?.balance != null
         ? `Balance ${formatFjAmount(current.balance, 5)} FJ`
         : "Loading balance…"}
-    </p>
+      {current?.error && networkId ? (
+        <> · <a href={aztecScanAddressUrl(networkId, recipient, getNetwork(networkId).aztecExplorerUrl)} target="_blank" rel="noopener noreferrer">View on {aztecExplorerLinkLabel(getNetwork(networkId).aztecExplorerUrl)} ↗</a></>
+      ) : null}
+    </div>
   );
 }

@@ -18,18 +18,41 @@ const HIDDEN_MS = 5 * 60 * 1000;
 
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
 let hiddenTimer: ReturnType<typeof setTimeout> | null = null;
+let warningTimer: ReturnType<typeof setTimeout> | null = null;
+let idleDeadline: number | null = null;
+let hiddenDeadline: number | null = null;
+let warningVisible = false;
+const warningListeners = new Set<(deadline: number | null) => void>();
+const resetListeners = new Set<() => void>();
+function notifyWarning(deadline: number | null) {
+  warningVisible = deadline !== null;
+  for (const listener of warningListeners) listener(deadline);
+}
+export function subscribeVaultLockWarning(listener: (deadline: number | null) => void): () => void {
+  warningListeners.add(listener);
+  return () => { warningListeners.delete(listener); };
+}
+export function subscribeVaultLockReset(listener: () => void): () => void {
+  resetListeners.add(listener);
+  return () => { resetListeners.delete(listener); };
+}
 let started = false;
 /** When true, idle / tab-hidden timers do not fire (active bridge or claim). */
 let paused = false;
 
 function clearIdle() {
   if (idleTimer) clearTimeout(idleTimer);
+  if (warningTimer) clearTimeout(warningTimer);
   idleTimer = null;
+  warningTimer = null;
+  idleDeadline = null;
+  notifyWarning(null);
 }
 
 function clearHidden() {
   if (hiddenTimer) clearTimeout(hiddenTimer);
   hiddenTimer = null;
+  hiddenDeadline = null;
 }
 
 function lockIfUnlocked(reason: VaultAutoLockReason) {
@@ -46,14 +69,25 @@ function lockIfUnlocked(reason: VaultAutoLockReason) {
 function bumpIdle() {
   clearIdle();
   if (paused || !isVaultUnlocked()) return;
+  const deadline = Date.now() + IDLE_MS;
+  idleDeadline = deadline;
+  warningTimer = setTimeout(() => {
+    if (!paused && isVaultUnlocked() && document.visibilityState === "visible") notifyWarning(deadline);
+  }, IDLE_MS - 60_000);
   idleTimer = setTimeout(() => lockIfUnlocked("idle"), IDLE_MS);
 }
 
 function onVisibility() {
   if (typeof document === "undefined") return;
+  if (!paused && isVaultUnlocked() && ((hiddenDeadline !== null && Date.now() >= hiddenDeadline) || (idleDeadline !== null && Date.now() >= idleDeadline))) {
+    lockIfUnlocked(hiddenDeadline !== null && Date.now() >= hiddenDeadline ? "tab-hidden" : "idle");
+    return;
+  }
   if (document.visibilityState === "hidden") {
+    notifyWarning(null);
     clearHidden();
     if (paused || !isVaultUnlocked()) return;
+    hiddenDeadline = Date.now() + HIDDEN_MS;
     hiddenTimer = setTimeout(() => lockIfUnlocked("tab-hidden"), HIDDEN_MS);
   } else {
     clearHidden();
@@ -75,7 +109,10 @@ export function setVaultIdleLockPaused(next: boolean): void {
     clearHidden();
     return;
   }
-  if (isVaultUnlocked()) bumpIdle();
+  if (isVaultUnlocked()) {
+    bumpIdle();
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") onVisibility();
+  }
 }
 
 export function isVaultIdleLockPaused(): boolean {
@@ -88,7 +125,15 @@ export function startVaultIdleLock(): () => void {
   if (started) return () => {};
   started = true;
 
-  const onActivity = () => bumpIdle();
+  const onActivity = () => {
+    if (idleDeadline !== null && Date.now() >= idleDeadline) {
+      lockIfUnlocked("idle");
+      return;
+    }
+    const shouldNotify = warningVisible && !paused && isVaultUnlocked();
+    bumpIdle();
+    if (shouldNotify) for (const listener of resetListeners) listener();
+  };
   for (const ev of ACTIVITY_EVENTS) {
     window.addEventListener(ev, onActivity, { passive: true });
   }
