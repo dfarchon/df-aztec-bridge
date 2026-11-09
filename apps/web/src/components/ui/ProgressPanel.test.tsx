@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ProgressPanel } from "./ProgressPanel.tsx";
 import { advanceProgress, finishAlreadyClaimed, finishProgress, startProgress } from "../../lib/progress-track.ts";
+import { WALLET_LOCKED_DETAIL, WALLET_LOCKED_TITLE } from "../../lib/wallet-error.ts";
 
 function render(progress: Parameters<typeof ProgressPanel>[0]["progress"], detail?: string) {
   return renderToStaticMarkup(
@@ -40,6 +41,17 @@ describe("ProgressPanel", () => {
     );
     expect(html).toContain("Safe to leave now");
     expect(html).not.toContain("Do not refresh or close this tab");
+  });
+
+  it("names a locked wallet instead of the raw keyring error", () => {
+    const html = render(
+      finishProgress(startProgress("bridge", "approve", Date.now()), "failed")!,
+      WALLET_LOCKED_DETAIL,
+    );
+    expect(html).toContain(WALLET_LOCKED_TITLE);
+    expect(html).toContain(WALLET_LOCKED_DETAIL);
+    expect(html).not.toContain("KeyringController");
+    expect(html).not.toContain("progress-detail");
   });
 
   it("drops the warning and the spinner once the flow ends", () => {

@@ -6,7 +6,6 @@ import {
   connectWalletConnect,
   disconnectWalletConnect,
   discoverWallets,
-  formatWalletError,
   getFeeJuiceBalance,
   getL1PublicClient,
   isWalletUserRejection,
@@ -81,6 +80,7 @@ import {
   WALLET_TX_REJECTED_DETAIL,
   WALLET_TX_REJECTED_TITLE,
 } from "../../../lib/app-error-toast.ts";
+import { presentWalletError, WALLET_LOCKED_DETAIL } from "../../../lib/wallet-error.ts";
 import { importDfPunkFileIntoPxe, registerDfPunkAccountIntoPxe } from "../../../lib/df-pxe-import.ts";
 import { listStoredAztecWallets, saveAztecWallet } from "../../../lib/aztec-wallet-store.ts";
 import {
@@ -165,7 +165,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
       setProgress((prev) => finishProgress(prev, "rejected"));
       return;
     }
-    const message = cause instanceof Error && cause.message ? cause.message : formatWalletError(cause);
+    const message = presentWalletError(cause);
     setBridgePhase(message);
     setProgress((prev) => finishProgress(prev, "failed"));
     setError(message);
@@ -795,8 +795,8 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
           if (!BROWSER_CLAIM) setBridgePhase("L2 claim job queued. Polling status.");
         } catch (claimError: unknown) {
           endFlowFromError(claimError);
-          if (!isWalletUserRejection(claimError)) {
-            const detail = claimError instanceof Error ? claimError.message : String(claimError);
+          const detail = presentWalletError(claimError);
+          if (!isWalletUserRejection(claimError) && detail !== WALLET_LOCKED_DETAIL) {
             setError(`L1 bridge completed, but auto-claim did not finish: ${detail}. Open Recover to continue.`);
           }
         }
