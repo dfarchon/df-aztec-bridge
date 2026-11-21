@@ -1,6 +1,8 @@
 import type { ClaimCredentials, PendingBridge } from "@df-bridge/browser-sdk";
 import {
   discardLegacyPlaintextSecrets,
+  getVaultSession,
+  vaultListDocs,
   isVaultUnlocked,
   vaultGetJson,
   vaultSetJson,
@@ -296,7 +298,7 @@ function migrateV1(session: BridgeSessionV1): BridgeSessionStoreV2 {
   };
 }
 
-function validateStore(value: unknown, networkId: string): BridgeSessionStoreV2 {
+function validateStore(value: unknown, networkId: string, strict = false): BridgeSessionStoreV2 {
   if (!value || typeof value !== "object") {
     throw new BridgeStorageError("Invalid recovery store.");
   }
@@ -326,6 +328,7 @@ function validateStore(value: unknown, networkId: string): BridgeSessionStoreV2 
       const entry = validateSessionEntry(rawEntry);
       sessions[normalizeL1TxHash(key)] = entry;
     } catch (error) {
+      if (strict) throw error;
       console.warn("[bridge] Dropping corrupt recovery session", key, error);
     }
   }
@@ -459,6 +462,37 @@ export async function loadSessionStore(networkId: string): Promise<BridgeSession
     console.warn("[bridge] Failed to load recovery store:", error);
     return emptyStore(networkId);
   }
+}
+
+/** The account JSON recovery key can decrypt only these allowlisted export fields. */
+export function claimCopiesForDocument(id: string, raw: unknown) {
+  const store = isBridgeSessionV1(raw) ? migrateV1(raw) : validateStore(raw, id.slice("bridge:".length), true);
+  return Object.values(store.sessions).map(({ networkId, l1TxHash, credentials, pending }) => ({
+    networkId, l1TxHash, ...(credentials && { credentials }), ...(pending && { pending }),
+  }));
+}
+
+/** Read every saved network without migrating or discarding invalid claim records. */
+export async function readVaultClaimsForExport(address: string): Promise<BridgeSessionEntry[]> {
+  const assertAddress = () => {
+    if (!isVaultUnlocked() || getVaultSession()?.address.toLowerCase() !== address.toLowerCase()) {
+      throw new BridgeStorageError("Unlock this wallet to export claims.");
+    }
+  };
+  assertAddress();
+  const entries = new Map<string, BridgeSessionEntry>();
+  for (const id of await vaultListDocs()) {
+    if (!id.startsWith("bridge:")) continue;
+    assertAddress();
+    const raw = await vaultGetJson<unknown>(id);
+    const store = isBridgeSessionV1(raw) ? migrateV1(raw) : validateStore(raw, id.slice("bridge:".length), true);
+    for (const entry of Object.values(store.sessions)) {
+      const key = entry.networkId + ":" + normalizeL1TxHash(entry.l1TxHash);
+      if (!entries.has(key) || entry.credentials) entries.set(key, entry);
+    }
+  }
+  assertAddress();
+  return [...entries.values()];
 }
 
 export async function listIncompleteSessions(networkId: string): Promise<BridgeSessionEntry[]> {

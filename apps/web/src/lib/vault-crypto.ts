@@ -18,6 +18,7 @@ export type VaultEnvelope = {
   v: 1;
   iv: string;
   ct: string;
+  claimCopy?: { v: 1; iv: string; ct: string; hasClaims?: boolean };
 };
 
 export type VaultPasskeyMeta = {

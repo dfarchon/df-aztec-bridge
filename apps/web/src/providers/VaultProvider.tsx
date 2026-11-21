@@ -1,3 +1,4 @@
+import { AccountImportVaultModal } from "../components/vault/AccountImportVaultModal.tsx";
 import {
   createContext,
   useCallback,
@@ -49,6 +50,7 @@ type VaultContextValue = {
   vaultAvailable: boolean;
   refreshVaultAvailability: () => Promise<boolean>;
   setPxeAccount: (account: ImportedAztecAccount | null) => void;
+  importAccountVault: (account: ImportedAztecAccount) => Promise<void>;
   requireVaultAfterPxeImport: (account: ImportedAztecAccount) => Promise<void>;
   /**
    * Unlock IndexedDB vault with password (+ passkey) and restore stored DF Punk account.
@@ -217,6 +219,26 @@ export function VaultProvider(props: { children: ReactNode }) {
     setPxeAccountState(account);
     bindVaultAddress(account?.address ?? null);
   }, []);
+
+  const [importRequest, setImportRequest] = useState<{
+    account: ImportedAztecAccount;
+    existing: Awaited<ReturnType<typeof getVaultProfile>>;
+    finish: (saved: boolean) => void;
+  } | null>(null);
+  const importInProgress = useRef(false);
+  const importAccountVault = useCallback(async (account: ImportedAztecAccount) => {
+    if (importInProgress.current) throw new VaultError("Another account import is in progress.");
+    importInProgress.current = true;
+    try {
+      const existing = await getVaultProfile(account.address);
+      const saved = await new Promise<boolean>(finish => setImportRequest({ account, existing, finish }));
+      if (!saved) throw new VaultError("Account import canceled.");
+      setPxeAccount(account);
+      await refreshVaultAvailability();
+    } finally {
+      importInProgress.current = false;
+    }
+  }, [refreshVaultAvailability, setPxeAccount]);
 
   const requireVaultAfterPxeImport = useCallback(
     async (account: ImportedAztecAccount) => {
@@ -496,6 +518,7 @@ export function VaultProvider(props: { children: ReactNode }) {
       vaultAvailable,
       refreshVaultAvailability,
       setPxeAccount,
+      importAccountVault,
       requireVaultAfterPxeImport,
       unlockExistingVault,
       ensureUnlocked,
@@ -510,6 +533,7 @@ export function VaultProvider(props: { children: ReactNode }) {
       vaultAvailable,
       refreshVaultAvailability,
       setPxeAccount,
+      importAccountVault,
       requireVaultAfterPxeImport,
       unlockExistingVault,
       ensureUnlocked,
@@ -541,6 +565,10 @@ export function VaultProvider(props: { children: ReactNode }) {
         </div>
       )}
       </div>
+      {importRequest && <AccountImportVaultModal
+        account={importRequest.account} existing={importRequest.existing}
+        onFinish={saved => { setImportRequest(null); importRequest.finish(saved); }}
+      />}
       <VaultUnlockModal
         open={modalOpen}
         mode={modalMode}

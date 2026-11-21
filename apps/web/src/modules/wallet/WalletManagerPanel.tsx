@@ -1,4 +1,5 @@
-import { useCallback, useContext, useEffect, useRef, useState, type DragEvent } from "react";
+import { DfAccountDropZone } from "../../components/ui/DfAccountDropZone.tsx";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ConnectedWallet } from "@df-bridge/browser-sdk";
 import type { ImportedAztecAccount } from "../../lib/account-import.ts";
@@ -44,53 +45,6 @@ import {
 import { ConnectNoticeHostContext } from "../../components/ui/ConnectSessionGate.tsx";
 import { useUi } from "../../providers/UiProvider.tsx";
 
-function DfAccountDropZone({ disabled, importing, onChoose, onFiles }: {
-  disabled: boolean;
-  importing: boolean;
-  onChoose: () => void;
-  onFiles: (files: FileList) => void;
-}) {
-  const [dragging, setDragging] = useState(false);
-  const dragDepth = useRef(0);
-  const isFileDrag = (event: DragEvent) => Array.from(event.dataTransfer.types).includes("Files");
-  return (
-    <div
-      className={`df-account-drop-wrap${dragging && !disabled ? " is-dragging" : ""}${disabled ? " is-disabled" : ""}`}
-      onDragEnter={(event) => {
-        if (!isFileDrag(event)) return;
-        event.preventDefault();
-        dragDepth.current += 1;
-        if (!disabled) setDragging(true);
-      }}
-      onDragOver={(event) => {
-        if (!isFileDrag(event)) return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = disabled ? "none" : "copy";
-      }}
-      onDragLeave={(event) => {
-        if (!isFileDrag(event)) return;
-        event.preventDefault();
-        dragDepth.current = Math.max(0, dragDepth.current - 1);
-        if (!dragDepth.current) setDragging(false);
-      }}
-      onDrop={(event) => {
-        event.preventDefault();
-        dragDepth.current = 0;
-        setDragging(false);
-        if (!disabled && event.dataTransfer.files.length) onFiles(event.dataTransfer.files);
-      }}
-    >
-      <button type="button" className="df-account-drop" disabled={disabled} onClick={onChoose}>
-        <span className="df-account-drop-icon" aria-hidden="true">↑</span>
-        <span className="df-account-drop-copy">
-          <strong>{importing ? "Importing…" : dragging ? "Drop your DF account file" : "Import DF account"}</strong>
-          <span>Drag and drop a JSON file here, or click to choose</span>
-        </span>
-      </button>
-    </div>
-  );
-}
-
 export function WalletManagerPanel(props: {
   networkId: string;
   rpcOverrides: RpcOverrides;
@@ -130,6 +84,7 @@ export function WalletManagerPanel(props: {
   } = props;
 
   const {
+    importAccountVault,
     requireVaultAfterPxeImport,
     ensureUnlocked,
     unlockExistingVault,
@@ -360,23 +315,24 @@ export function WalletManagerPanel(props: {
     historyKind: "account-imported" | "account-created",
     opts?: { discardLockedVault?: boolean },
   ) => {
-    assertAztecReplaceBackupReady({
-      existingAddress,
-      incomingAddress: stored.address,
-      backupReady: replaceBackedUpRef.current,
-      discardLockedVault: opts?.discardLockedVault,
-    });
-    await requireVaultAfterPxeImport(stored);
-    if (!live()) return;
-    const ok = await ensureUnlocked("secrets", stored);
-    if (!live()) return;
-    if (!ok) throw new Error("Vault password required after the Aztec account is ready.");
-    await saveAztecWallet(stored);
-    if (!live()) return;
-    const profiles = await listVaultProfiles();
-    for (const profile of profiles) {
-      if (profile.aztecAddress.toLowerCase() !== stored.address.toLowerCase()) {
-        await deleteVaultProfile(profile.aztecAddress);
+    if (historyKind === "account-imported") {
+      await importAccountVault(stored);
+    } else {
+      assertAztecReplaceBackupReady({
+        existingAddress,
+        incomingAddress: stored.address,
+        backupReady: replaceBackedUpRef.current,
+        discardLockedVault: opts?.discardLockedVault,
+      });
+      await requireVaultAfterPxeImport(stored);
+      if (!live()) return;
+      const ok = await ensureUnlocked("secrets", stored);
+      if (!live()) return;
+      if (!ok) throw new Error("Vault password required after the Aztec account is ready.");
+      await saveAztecWallet(stored);
+      if (!live()) return;
+      if (existingAddress && existingAddress.toLowerCase() !== stored.address.toLowerCase()) {
+        await deleteVaultProfile(existingAddress);
       }
     }
     if (!live()) return;
@@ -420,8 +376,7 @@ export function WalletManagerPanel(props: {
     }
 
     const existingAddress = await resolveExistingAztecAddress();
-    // Locked leftover vault (e.g. 5.1) — allow replace without a JSON backup download.
-    const discardLockedVault = vaultAvailable && !secretsVisible;
+
     const epoch = noticeEpoch.current;
     const live = () => noticeEpoch.current === epoch;
     setImportingPxe(true);
@@ -438,9 +393,7 @@ export function WalletManagerPanel(props: {
         },
       });
       if (!live()) return;
-      await storePxeAccount(stored, existingAddress, live, "account-imported", {
-        discardLockedVault,
-      });
+      await storePxeAccount(stored, existingAddress, live, "account-imported");
     } catch (e: unknown) {
       if (!live()) return;
       const message = e instanceof Error ? e.message : String(e);
@@ -620,15 +573,12 @@ export function WalletManagerPanel(props: {
       return;
     }
     const existingAddress = await resolveExistingAztecAddress();
-    const discardLockedVault = vaultAvailable && !secretsVisible;
     const epoch = noticeEpoch.current;
     const live = () => noticeEpoch.current === epoch;
     setRebaseChecking(true);
     setError(null);
     try {
-      await storePxeAccount(rebaseVerified, existingAddress, live, "account-imported", {
-        discardLockedVault,
-      });
+      await storePxeAccount(rebaseVerified, existingAddress, live, "account-imported");
       if (!live()) return;
       setRebaseOpen(false);
       setRebaseSource(null);
@@ -1052,22 +1002,13 @@ export function WalletManagerPanel(props: {
                 <p className="wallet-manager-pane-title">Replace DF Aztec account</p>
                 <ol className="wallet-replace-steps">
                   <li>
-                    This browser keeps one DF Aztec account. Current account:{" "}
-                    <span className="mono">{shortHash(currentAccount.address)}</span>.
+                    Current wallet: <span className="mono">{shortHash(currentAccount.address)}</span>.
                   </li>
                   <li>
-                    Download a JSON backup first. The file uses the same{" "}
-                    <span className="mono">dfpunk-account-*.json</span> fields as Dark Forest
-                    (Schnorr initializerless).
+                    Import a DF account JSON to set a new vault password. If this browser already
+                    has a vault for that address, you can export claims before replacing it.
                   </li>
-                  <li>
-                    After the backup downloads, create a new DF account or import a dfpunk account
-                    JSON.
-                  </li>
-                  <li>
-                    Importing another address replaces this account and deletes its password vault
-                    from this browser.
-                  </li>
+                  <li>To create a different account, first download the current account backup.</li>
                 </ol>
                 <button
                   type="button"
@@ -1078,9 +1019,9 @@ export function WalletManagerPanel(props: {
                   Download JSON backup
                 </button>
                 {replaceBackedUp ? (
-                  <p className="hint">Backup saved. You can import the next account.</p>
+                  <p className="hint">Backup downloaded. You can create a new account.</p>
                 ) : (
-                  <p className="hint">The next import stays locked until this backup downloads.</p>
+                  <p className="hint">Keep your account backup offline.</p>
                 )}
                 <button
                   type="button"
@@ -1091,8 +1032,8 @@ export function WalletManagerPanel(props: {
                   {creatingPxe ? "Creating…" : "Create DF account"}
                 </button>
                 <DfAccountDropZone
-                  disabled={l2ActionsDisabled || !replaceBackedUp}
-                  importing={importingPxe}
+                  disabled={l2ActionsDisabled}
+                  label={importingPxe ? "Importing…" : "Import DF account"}
                   onChoose={() => dfImportInputRef.current?.click()}
                   onFiles={importDroppedFiles}
                 />
@@ -1352,7 +1293,7 @@ export function WalletManagerPanel(props: {
                 ) : null}
                 <DfAccountDropZone
                   disabled={l2ActionsDisabled}
-                  importing={importingPxe}
+                  label={importingPxe ? "Importing…" : "Import DF account"}
                   onChoose={() => dfImportInputRef.current?.click()}
                   onFiles={importDroppedFiles}
                 />
@@ -1384,7 +1325,7 @@ export function WalletManagerPanel(props: {
               type="file"
               className="sr-only"
               accept=".json,application/json"
-              disabled={l2ActionsDisabled || (replaceOpen && !replaceBackedUp)}
+              disabled={l2ActionsDisabled}
               aria-label="Import dfpunk-account JSON from DF client into PXE"
               onChange={(e) => {
                 const f = e.target.files?.[0] ?? null;

@@ -1,4 +1,6 @@
+import { ClaimJsonExport } from "./ClaimJsonExport.tsx";
 import { useEffect, useId, useState } from "react";
+import { shouldSuggestVaultReimport } from "../../lib/vault.ts";
 import { VAULT_PASSWORD_MIN_LENGTH } from "../../lib/vault-crypto.ts";
 import {
   currentPasskeyRpId,
@@ -13,6 +15,7 @@ export function VaultUnlockModal(props: {
   mode: VaultModalMode;
   aztecAddress: string | null;
   busy?: boolean;
+  replacingVault?: boolean;
   error?: string | null;
   /** When unlocking a vault that already has a passkey registered. */
   passkeyRequired?: boolean;
@@ -120,6 +123,8 @@ export function VaultUnlockModal(props: {
               ? "Enter your password, then approve the device passkey (Face ID / fingerprint / phone)."
               : "Enter your vault password. PXE wallet info is restored from IndexedDB."}
         </p>
+        {mode === "setup" && <p className="hint">Keep your account JSON private. Anyone with that file and this browser’s vault data can export saved claims.</p>}
+        {props.replacingVault && <p role="note">Saving this new vault erases the old local vault and any claims you have not exported.</p>}
         {aztecAddress ? (
           <p className="mono small vault-modal-addr">{aztecAddress}</p>
         ) : null}
@@ -192,6 +197,13 @@ export function VaultUnlockModal(props: {
         ) : null}
         {mismatch ? <p className="error small">Passwords do not match.</p> : null}
         {error ? <p className="error small">{error}</p> : null}
+        {mode === "unlock" && aztecAddress && shouldSuggestVaultReimport(aztecAddress) && <>
+          <p className="hint" role="alert">
+            You can keep trying your password or re-import this wallet’s account JSON to set a new
+            password. You can export claims with the original account JSON if recovery copies are available. Replacing the old vault permanently deletes any claim credentials you haven’t exported.
+          </p>
+          <ClaimJsonExport key={aztecAddress} address={aztecAddress} disabled={busy} />
+        </>}
         {busy ? (
           <div className="vault-loading" role="status" aria-live="polite">
             <span>{mode === "unlock" ? "Unlocking vault…" : "Creating vault…"}</span>
@@ -244,6 +256,8 @@ export function VaultUnlockModal(props: {
           >
             {busy
               ? "…"
+              : props.replacingVault
+                ? "Save and replace vault"
               : mode === "setup"
                 ? registerPasskey && webAuthnOk
                   ? "Create vault + passkey"

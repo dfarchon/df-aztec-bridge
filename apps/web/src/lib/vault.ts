@@ -33,6 +33,8 @@ import {
   createIdbVaultBackend,
   type VaultBackend,
 } from "./vault-idb.ts";
+import { exportableClaimId, accountClaimKey, type ExportableClaim } from "./claim-copy.ts";
+import type { ImportedAztecAccount } from "./account-import.ts";
 import { evalVaultPasskeyPrf } from "./vault-passkey.ts";
 export class VaultError extends Error {
   constructor(message: string) {
@@ -70,12 +72,18 @@ let activeAddress: string | null = null;
 let unlocked = false;
 let lastLockReason: VaultAutoLockReason | null = null;
 const listeners = new Set<Listener>();
+const passwordFailures = new Map<string, number>();
+
+export function shouldSuggestVaultReimport(address: string | null): boolean {
+  return (passwordFailures.get(address?.trim().toLowerCase() ?? "") ?? 0) >= 3;
+}
 
 export function setVaultBackend(next: VaultBackend): void {
   backend = next;
 }
 
 export function resetVaultSession(): void {
+  passwordFailures.clear();
   cek = null;
   activeAddress = null;
   unlocked = false;
@@ -152,8 +160,110 @@ async function reencryptDocs(
   const next: Record<string, VaultEnvelope> = {};
   for (const [id, env] of Object.entries(docs)) {
     next[id] = await encryptJson(newKey, await decryptJson(oldKey, env));
+    if (env.claimCopy) next[id]!.claimCopy = env.claimCopy;
   }
   return next;
+}
+
+async function keyFromWallets(address: string, value: unknown) {
+  const accounts = (value as Partial<VaultWalletsDoc> | null)?.accounts;
+  if (!Array.isArray(accounts)) return null;
+  const account = accounts.find((a): a is Pick<ImportedAztecAccount, "address" | "secretKey"> =>
+    !!a && typeof a === "object" && "address" in a && typeof a.address === "string" &&
+    a.address.toLowerCase() === address.toLowerCase() && "secretKey" in a && typeof a.secretKey === "string",
+  );
+  return accountClaimKey(address, account);
+}
+
+async function storedClaimKey(address: string, key: CryptoKey) {
+  const wallets = await backend.getDoc(address, "wallets");
+  return wallets ? keyFromWallets(address, await decryptJson(key, wallets)) : null;
+}
+
+async function addClaimCopy(env: VaultEnvelope, id: string, value: unknown, recoveryKey: CryptoKey) {
+  // The wallets envelope carries only a key check, never a second copy of the account.
+  let claims: ExportableClaim[] = [];
+  if (id.startsWith("deposit:")) {
+    const prepared = (await import("./prepared-deposit.ts")).parsePreparedDeposit(value);
+    claims = [{ networkId: prepared.networkId, prepared }];
+  } else if (id !== "wallets") {
+    claims = (await import("./bridge-session.ts")).claimCopiesForDocument(id, value);
+  }
+  env.claimCopy = {
+    ...await encryptJson(recoveryKey, { id, claims }),
+    hasClaims: claims.length > 0,
+  };
+}
+
+async function backfillClaimCopies(address: string, key: CryptoKey, salt: string) {
+  const recoveryKey = await storedClaimKey(address, key);
+  if (!recoveryKey) return;
+  for (const id of await backend.listDocIds(address)) {
+    if (id !== "wallets" && !isClaimStore(id)) continue;
+    const env = await backend.getDoc(address, id);
+    if (!env || env.claimCopy?.hasClaims !== undefined) continue;
+    const updated = { ...env };
+    await addClaimCopy(updated, id, await decryptJson(key, env), recoveryKey);
+    // A concurrent claim update already carries its own copy. Never overwrite it.
+    await backend.putDoc(address, id, updated, salt, env.iv);
+  }
+}
+
+function isClaimStore(id: string) {
+  return id.startsWith("deposit:") || (id.startsWith("bridge:") && id !== "bridge:__probe__");
+}
+
+export async function claimExportAvailability(address: string, account?: ImportedAztecAccount) {
+  const ids = (await backend.listDocIds(address)).filter(isClaimStore);
+  if (!ids.length) return "empty";
+  const wallet = await backend.getDoc(address, "wallets");
+  if (!wallet?.claimCopy) return "needs-unlock";
+
+  let hasClaims = false;
+  let unmarked = false;
+  for (const id of ids) {
+    const env = await backend.getDoc(address, id);
+    if (!env) continue;
+    if (!env.claimCopy) return "needs-unlock";
+    if (env.claimCopy.hasClaims === undefined) unmarked = true;
+    if (env.claimCopy.hasClaims) hasClaims = true;
+  }
+  if (hasClaims) return "available";
+  if (!unmarked) return "empty";
+  if (!account) return "unknown";
+  return (await recoverClaimsWithAccount(address, account)).length ? "available" : "empty";
+}
+
+export async function recoverClaimsWithAccount(address: string, account: ImportedAztecAccount): Promise<ExportableClaim[]> {
+  const key = await accountClaimKey(address, account);
+  if (!key) throw new VaultError("Choose the original account JSON for this wallet.");
+  const wallet = await backend.getDoc(address, "wallets");
+  if (!wallet?.claimCopy) throw new VaultError("Account JSON recovery is unavailable. Unlock this vault once to enable it.");
+  async function readCopy(id: string, env: VaultEnvelope) {
+    if (!env.claimCopy) throw new VaultError("A claim recovery copy is missing. Unlock the vault to update it.");
+    try {
+      const payload = await decryptJson<{ id: string; claims: ExportableClaim[] }>(key!, env.claimCopy);
+      if (payload.id !== id || !Array.isArray(payload.claims)) throw new Error();
+      return payload.claims;
+    } catch {
+      throw new VaultError("Could not recover claims. Check that this is the original account JSON.");
+    }
+  }
+  await readCopy("wallets", wallet);
+  const entries = new Map<string, ExportableClaim>();
+  for (const id of await backend.listDocIds(address)) {
+    if (!isClaimStore(id)) continue;
+    const env = await backend.getDoc(address, id);
+    if (!env) continue;
+    for (const entry of await readCopy(id, env)) {
+      const hash = exportableClaimId(entry);
+      if (!entries.has(hash) || entry.credentials) entries.set(hash, entry);
+    }
+  }
+  if ((await backend.getDoc(address, "wallets"))?.iv !== wallet.iv) {
+    throw new VaultError("Wallet changed during export. Try again.");
+  }
+  return [...entries.values()];
 }
 
 /** New salt, 600k PBKDF2, and optional passkey wrap. Writes meta + docs together. */
@@ -204,6 +314,7 @@ async function upgradeVault(opts: {
 export async function setupVault(opts: {
   aztecAddress: string;
   password: string;
+  imported?: { wallets: VaultWalletsDoc; expectedSalt: string | null };
   /** Kept for API compat; not used by the v2 password verifier. */
   signingKey?: string;
   passkey?: VaultPasskeyMeta | null;
@@ -218,7 +329,7 @@ export async function setupVault(opts: {
   }
 
   const existing = await backend.getMeta(address);
-  if (existing) {
+  if (existing && !opts.imported) {
     throw new VaultError("Vault already exists for this account. Unlock instead.");
   }
 
@@ -250,15 +361,24 @@ export async function setupVault(opts: {
     ...(opts.passkey ? { passkey: opts.passkey } : {}),
     ...(cekWrap ? { cekWrap } : {}),
   };
-  await backend.putMeta(meta);
+  if (opts.imported) {
+    const wallets = await encryptJson(key, opts.imported.wallets);
+    const recoveryKey = await keyFromWallets(address, opts.imported.wallets);
+    if (recoveryKey) await addClaimCopy(wallets, "wallets", opts.imported.wallets, recoveryKey);
+    await backend.commitProfile(meta, { wallets }, opts.imported.expectedSalt);
+    if (isVaultUnlocked()) lockVault();
+  } else {
+    await backend.putMeta(meta);
+  }
 
+  passwordFailures.delete(address.toLowerCase());
   sessionSalt = meta.salt;
   cek = key;
   activeAddress = meta.aztecAddress;
   unlocked = true;
   lastLockReason = null;
 
-  await migrateLocalStorageIntoVault();
+  if (!opts.imported) await migrateLocalStorageIntoVault();
   notify();
 }
 
@@ -269,7 +389,7 @@ export async function attachVaultPasskey(
 ): Promise<void> {
   const { address, key } = requireUnlocked();
   const meta = await backend.getMeta(address);
-  if (!meta) throw new VaultError("No vault profile to attach passkey.");
+  if (!meta || meta.salt !== sessionSalt) throw new VaultError("Unlock the current vault to attach a passkey.");
   if (opts?.prfSecret && opts.prfSecret.length > 0 && opts.password) {
     const upgraded = await upgradeVault({
       meta: { ...meta, passkey },
@@ -347,6 +467,7 @@ export async function deleteVaultProfile(aztecAddress: string): Promise<void> {
   const address = aztecAddress.trim();
   if (!address) throw new VaultError("Missing Aztec address.");
   await backend.deleteProfile(address);
+  passwordFailures.delete(address.toLowerCase());
   if (activeAddress?.toLowerCase() === address.toLowerCase()) {
     cek = null;
     unlocked = false;
@@ -414,9 +535,13 @@ export async function unlockVault(opts: {
     }
   }
 
+  const profileKey = address.toLowerCase();
   if (!ok) {
+    passwordFailures.set(profileKey, (passwordFailures.get(profileKey) ?? 0) + 1);
     throw new VaultError("Invalid password.");
   }
+  passwordFailures.delete(profileKey);
+
 
   let key: CryptoKey;
   let nextMeta = meta;
@@ -469,6 +594,12 @@ export async function unlockVault(opts: {
   unlocked = true;
   lastLockReason = null;
   await migrateLocalStorageIntoVault();
+  try {
+    await backfillClaimCopies(address, key, nextMeta.salt);
+  } catch {
+    // The authenticated wallet stays usable. Missing copies are reported on export and retried on unlock.
+    console.warn("[vault] Claim recovery setup was incomplete. Unlock again to retry.");
+  }
   notify();
 }
 
@@ -508,6 +639,10 @@ export async function vaultSetJson(docId: string, value: unknown): Promise<void>
   // Ensure JSON-only
   JSON.parse(JSON.stringify(value));
   const env = await encryptJson(key, value);
+  if (docId === "wallets" || isClaimStore(docId)) {
+    const recoveryKey = docId === "wallets" ? await keyFromWallets(address, value) : await storedClaimKey(address, key);
+    if (recoveryKey) await addClaimCopy(env, docId, value, recoveryKey);
+  }
   await backend.putDoc(address, docId, env, salt);
 }
 
@@ -564,7 +699,7 @@ export async function vaultExportAllJson(): Promise<VaultEncryptedBackup> {
 
 /** Restore a ciphertext backup into the unlocked profile. Same password must still unlock it. */
 export async function vaultImportEncryptedBackup(raw: unknown): Promise<number> {
-  const { address } = requireUnlocked();
+  const { address, key, salt } = requireUnlocked();
   if (!raw || typeof raw !== "object") {
     throw new VaultError("Backup file is not a vault backup.");
   }
@@ -579,13 +714,30 @@ export async function vaultImportEncryptedBackup(raw: unknown): Promise<number> 
     throw new VaultError("Backup file has no documents.");
   }
   const entries = Object.entries(file.docs);
+  const plaintext = new Map<string, unknown>();
   for (const [id, env] of entries) {
     if ((!VAULT_DOC_ID.test(id) && !/^deposit:[0-9a-f]{64}$/.test(id)) || !isVaultEnvelope(env)) {
       throw new VaultError("Backup file contains an invalid document.");
     }
+    try {
+      plaintext.set(id, await decryptJson(key, env));
+    } catch {
+      throw new VaultError("Backup could not be decrypted with this vault key.");
+    }
   }
-  for (const [id, env] of entries) {
-    await backend.putDoc(address, id, { v: 1, iv: env.iv, ct: env.ct });
+  const recoveryKey = plaintext.has("wallets")
+    ? await keyFromWallets(address, plaintext.get("wallets"))
+    : await storedClaimKey(address, key);
+  const restoredDocs = new Map<string, VaultEnvelope>();
+  for (const [id, { v, iv, ct }] of entries) {
+    const restored: VaultEnvelope = { v, iv, ct };
+    if (recoveryKey && (id === "wallets" || isClaimStore(id))) {
+      await addClaimCopy(restored, id, plaintext.get(id), recoveryKey);
+    }
+    restoredDocs.set(id, restored);
+  }
+  for (const [id, env] of restoredDocs) {
+    await backend.putDoc(address, id, env, salt);
   }
   return entries.length;
 }
