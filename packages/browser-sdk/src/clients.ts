@@ -152,7 +152,7 @@ export async function waitForTransactionReceiptWithRetry(
     : new Error(`Timed out while waiting for transaction receipt: ${hash}`);
 }
 
-const depositEventAbi = parseAbi([
+export const depositEventAbi = parseAbi([
   "event DepositToAztecPublic(bytes32 indexed to, uint256 amount, bytes32 secretHash, bytes32 key, uint256 index)",
 ]);
 

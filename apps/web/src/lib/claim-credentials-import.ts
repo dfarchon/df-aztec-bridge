@@ -1,5 +1,9 @@
 import type { ClaimCredentials } from "@df-bridge/browser-sdk";
-import { normalizeL1TxHash, validateClaimCredentials } from "./bridge-session.ts";
+import type { WebNetworkConfig } from "../config/networks.ts";
+import { getStoredAztecWallet } from "./aztec-wallet-store.ts";
+import { normalizeL1TxHash, upsertSession, validateClaimCredentials, validatePendingBridge } from "./bridge-session.ts";
+import { unknownAccountClaimMessage } from "./claim-recovery.ts";
+import { currentVaultGuard } from "./vault.ts";
 
 const HEX64 = /^0x[0-9a-fA-F]{64}$/;
 
@@ -27,6 +31,36 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 function pickString(source: Record<string, unknown>, key: string): string | undefined {
   const value = source[key];
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+/** Restore the v1 backup written by both the bridge and the vault export dialog. */
+export async function importPendingClaimFile(raw: unknown, network: WebNetworkConfig) {
+  const file = asRecord(raw);
+  if (file?.version !== 1 || typeof file.networkId !== "string") {
+    throw new ClaimCredentialsImportError("Invalid pending claim backup.");
+  }
+  if (file.networkId !== network.id) {
+    throw new ClaimCredentialsImportError(`Select the original deposit network "${file.networkId}" to import this claim.`);
+  }
+  const pending = validatePendingBridge(file.pending);
+  const portal = network.l1Addresses.feeJuicePortal;
+  const savedPortal = asRecord(file.pending)?.portal;
+  if (savedPortal !== undefined && pending.portal?.toLowerCase() !== portal.toLowerCase()) {
+    throw new ClaimCredentialsImportError("The pending claim portal does not match the selected network.");
+  }
+  const guard = currentVaultGuard();
+  const account = await getStoredAztecWallet(pending.recipient);
+  guard();
+  if (!account) throw new ClaimCredentialsImportError(unknownAccountClaimMessage(pending.recipient));
+  return upsertSession(network.id, {
+    l1TxHash: pending.l1TxHash,
+    phase: "l1-pending",
+    recipient: pending.recipient,
+    claimAmount: pending.claimAmount,
+    pending: { ...pending, portal },
+    preserveExisting: true,
+    makeActive: false,
+  });
 }
 
 /**

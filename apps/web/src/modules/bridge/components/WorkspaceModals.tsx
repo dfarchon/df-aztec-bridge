@@ -157,7 +157,7 @@ requestBridge,
         </div>
       ) : null}
 
-      {recoveryPromptOpen && shellReady && selectedSession ? (
+      {recoveryPromptOpen && shellReady ? (
         <div className="modal-backdrop" role="presentation">
           <div
             className="modal recovery-modal"
@@ -169,11 +169,11 @@ requestBridge,
               <strong id="claim-recovery-title">Unfinished claim found</strong>
             </div>
             <p className="hint">
-              {phaseLabel(selectedSession.phase)} —{" "}
+              {selectedSession ? <>{phaseLabel(selectedSession.phase)} —{" "}
               <span className="mono">
                 {formatFjAmount(BigInt(selectedSession.claimAmount), 5)} FJ
               </span>{" "}
-              is still waiting.
+              is still waiting.</> : "A deposit was prepared in this browser. Open Recover to check Ethereum for its receipt."}
             </p>
             <div className="modal-actions">
               <button
@@ -189,7 +189,7 @@ requestBridge,
                 type="button"
                 onClick={() => {
                   setRecoveryPromptOpen(false);
-                  void selectRecoverySession(selectedSession);
+                  if (selectedSession) void selectRecoverySession(selectedSession);
                   navigate(ROUTES.recover);
                   window.setTimeout(() => {
                     document

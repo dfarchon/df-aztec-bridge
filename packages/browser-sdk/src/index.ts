@@ -31,6 +31,7 @@ export {
 export {
   bridgeFromConnectedWallet,
   resumePendingBridge,
+  findPreparedDeposit,
   type BridgeProgressPhase,
   type L1BridgeBackend,
 } from "./bridge.ts";
@@ -67,3 +68,5 @@ export {
 } from "./claim-lazy.ts";
 export { getBridgeAddress, DEFAULT_RESCUE_BENEFICIARY, ZERO_ADDRESS } from "./vendor/gobridge/deterministic.ts";
 export type { GoBridgeDeployConfig } from "./vendor/gobridge/deterministic.ts";
+
+export { resumePortalSequence, type PortalSequence, type PortalSequencePlan } from "./portal-sequence.ts";

@@ -10,6 +10,7 @@ import {
   normalizeL1TxHash,
   removeSession,
   saveBridgeSession,
+  setActiveSession,
   upsertSession,
   validateSessionEntry,
 } from "./bridge-session.ts";
@@ -80,9 +81,12 @@ function credentials() {
 }
 
 describe("bridge-session v2 store", () => {
+  let storage: ReturnType<typeof createMemoryVaultBackend>;
+
   beforeEach(async () => {
     vi.stubGlobal("localStorage", memoryStorage());
-    setVaultBackend(createMemoryVaultBackend());
+    storage = createMemoryVaultBackend();
+    setVaultBackend(storage);
     resetVaultSession();
     await setupVault({
       aztecAddress: VAULT_ADDR,
@@ -221,6 +225,22 @@ describe("bridge-session v2 store", () => {
     expect(localStorage.getItem("df_aztec_bridge_session")).toBeNull();
   });
 
+  it("keeps the legacy source when writing its migrated copy fails", async () => {
+    const entry = await saveBridgeSession({ networkId: "testnet", l1TxHash: L1_A, pending: pending() });
+    const legacy = JSON.stringify({
+      version: 2, networkId: "mainnet", updatedAt: entry.updatedAt, activeL1TxHash: L1_A,
+      sessions: { [L1_A]: { ...entry, networkId: "mainnet" } },
+    });
+    const key = "df_aztec_bridge_sessions:mainnet";
+    localStorage.setItem(key, legacy);
+    vi.spyOn(storage, "putDoc").mockRejectedValueOnce(new Error("Vault write failed"));
+
+    await expect(setActiveSession("mainnet", L1_A)).rejects.toThrow("Vault write failed");
+    expect(localStorage.getItem(key)).toBe(legacy);
+    expect((await loadSessionStore("mainnet")).sessions[L1_A].pending).toEqual(pending());
+    expect(localStorage.getItem(key)).toBeNull();
+  });
+
   it("drops leftover plaintext while the vault is locked", async () => {
     lockVault();
     localStorage.setItem(
@@ -260,6 +280,30 @@ describe("bridge-session v2 store", () => {
     await removeSession("mainnet", L1_A);
     const remaining = await listIncompleteSessions("mainnet");
     expect(remaining.map((s) => s.l1TxHash)).toEqual([normalizeL1TxHash(L1_B)]);
+  });
+
+  it("preserves the existing claim on a transient read failure and saves both on retry", async () => {
+    const save = (l1TxHash: string) => saveBridgeSession({
+      networkId: "mainnet", l1TxHash, pending: pending(l1TxHash),
+    });
+    await save(L1_A);
+    const id = "bridge:mainnet";
+    const before = await storage.getDoc(VAULT_ADDR, id);
+    const getDoc = storage.getDoc.bind(storage);
+    const read = vi.spyOn(storage, "getDoc").mockImplementation(async (address, docId) => {
+      if (docId === id) {
+        read.mockRestore();
+        throw new Error("Temporary vault read failure");
+      }
+      return getDoc(address, docId);
+    });
+
+    await expect(save(L1_B)).rejects.toThrow("Temporary vault read failure");
+    expect(await storage.getDoc(VAULT_ADDR, id)).toEqual(before);
+    await save(L1_B);
+    const store = await loadSessionStore("mainnet");
+    expect(store.sessions[L1_A].pending).toEqual(pending(L1_A));
+    expect(store.sessions[L1_B].pending).toEqual(pending(L1_B));
   });
 
   it("preserves createdAt across upserts", async () => {
@@ -312,17 +356,19 @@ describe("bridge-session v2 store", () => {
     ).toThrow(BridgeStorageError);
   });
 
-  it("drops corrupt session entries but keeps valid ones", async () => {
-    await upsertSession("mainnet", {
-      l1TxHash: L1_A,
-      phase: "ready-to-claim",
-      recipient: RECIPIENT,
-      claimAmount: "1",
-      credentials: credentials(),
-    });
-    // Corrupt via re-write is hard through vault; load empty when invalid doc
-    const sessions = await listIncompleteSessions("mainnet");
-    expect(sessions.length).toBeGreaterThanOrEqual(1);
+  it("shows readable claims but refuses to rewrite a partially corrupt store", async () => {
+    const entry = await saveBridgeSession({ networkId: "mainnet", l1TxHash: L1_A, pending: pending() });
+    const id = "bridge:mainnet";
+    const store = await loadSessionStore("mainnet");
+    const damaged = { ...store, sessions: { ...store.sessions, [L1_B]: { phase: "l1-pending" } } };
+    await vaultSetJson(id, damaged);
+
+    expect(await listIncompleteSessions("mainnet")).toEqual([entry]);
+    await expect(setActiveSession("mainnet", null)).rejects.toThrow(BridgeStorageError);
+    await expect(removeSession("mainnet", L1_A)).rejects.toThrow(BridgeStorageError);
+    await expect(saveBridgeSession({ networkId: "mainnet", l1TxHash: L1_B, pending: pending(L1_B) }))
+      .rejects.toThrow(BridgeStorageError);
+    expect(await vaultGetJson(id)).toEqual(damaged);
   });
 
   it("assertBridgeStorageReady succeeds when vault unlocked", async () => {

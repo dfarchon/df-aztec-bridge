@@ -1,3 +1,4 @@
+import { PreparedDepositRecovery } from "./PreparedDepositRecovery.tsx";
 import { useEffect, useRef, useState, type DragEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { phaseLabel, shortHash } from "../../../lib/claim-recovery.ts";
@@ -49,6 +50,7 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
   const [removeOpen, setRemoveOpen] = useState(false);
   const [accountMissing, setAccountMissing] = useState(false);
   const [lastImportStatus, setLastImportStatus] = useState<{ status: ImportedClaimStatus; l1TxHash: string } | null>(null);
+  const [importRevision, setImportRevision] = useState(0);
   const claimFileRef = useRef<HTMLInputElement>(null);
   const importRequest = useRef(0);
 
@@ -76,7 +78,7 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
     if (!file) return;
     const request = ++importRequest.current;
     setLastImportStatus(null);
-    void onClaimCredentialsFile(file).then((result) => { if (result && request === importRequest.current) setLastImportStatus(result); });
+    void onClaimCredentialsFile(file).then((result) => { if (request === importRequest.current) { setImportRevision(i => i + 1); if (result) setLastImportStatus(result); } });
   };
 
   const backToList = () => {
@@ -183,13 +185,16 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
         {pane === "list" ? (
           <>
             <p className="wallet-manager-pane-title">Which claim</p>
+            {networkMeta && session.secretsVisible && <PreparedDepositRecovery
+              key={networkId + session.dfPxeAccount?.address} network={networkMeta} wallet={session.wallet}
+              onRecovered={session.refreshSessions} importRequest={importRevision} />}
             <ImportFeedback error={null} notice={credentialsImportNotice} />
             {storageReady === false ? (
               <p className="error">{storageError ?? "Browser storage is unavailable."}</p>
             ) : null}
             {recoverySessions.length === 0 ? (
               <p className="hint">
-                No unfinished claim for the Aztec account in this browser.
+                No saved claim with a transaction hash for this account.
               </p>
             ) : (
               <ul className="recovery-session-list scrollable-list" tabIndex={0} aria-label="Unfinished claims">
@@ -223,8 +228,8 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
         <section className="bridge-layout recovery-import-card" aria-labelledby="recovery-import-title">
           <p id="recovery-import-title" className="wallet-manager-pane-title">Import claim</p>
           <p className="hint">
-            Choose the claim-*.json downloaded after the L1 deposit. It must be for an Aztec
-            account already in this browser; a file for another account is not saved.
+            Choose a claim JSON or a pending deposit backup (claim-pending-*.json)
+            for an Aztec account in this browser. Select the original deposit network before importing.
           </p>
           <ClaimFileButton inputRef={claimFileRef} busy={busy} label="Import claim" onFile={pickClaimFile} />
           <ImportFeedback error={credentialsImportError} notice={null} />

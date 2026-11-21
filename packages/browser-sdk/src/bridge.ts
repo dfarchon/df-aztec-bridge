@@ -11,10 +11,12 @@ import type {
   ClaimCredentials,
   L1Addresses,
   PendingBridge,
+  PreparedDeposit,
 } from "./types.ts";
 import {
   aztecRecipientToBytes32,
   extractDepositEvent,
+  depositEventAbi,
   generateClaimSecret,
   getL1Clients,
   getL1PublicClient,
@@ -25,6 +27,8 @@ import {
   waitForTransactionReceiptWithRetry,
 } from "./clients.ts";
 import { computeBridgeFee, isValidFeeRecipient, resolveBridgeEthServiceFee } from "./fee.ts";
+
+import { feeJuicePortalAbi, sendPortalSteps, type PortalSequencePlan } from "./portal-sequence.ts";
 
 export type L1BridgeBackend = "portal" | "gobridge";
 
@@ -41,21 +45,22 @@ export type BridgeProgressPhase =
   | "bridge_wait"
   | "parse_receipt";
 
-const feeJuicePortalAbi = parseAbi([
-  "function depositToAztecPublic(bytes32 _to, uint256 _amount, bytes32 _secretHash) returns (bytes32, uint256)",
-]);
+type SequentialExecutor = (
+  plan: PortalSequencePlan,
+  progress: (phase: BridgeProgressPhase, detail: string) => void,
+) => Promise<Hex>;
 
 const feeAssetHandlerAbi = parseAbi([
   "function mint(address _recipient)",
   "function mintAmount() view returns (uint256)",
 ]);
 
-function notifyPending(
+async function notifyPending(
   callback: ((pending: PendingBridge) => void) | undefined,
   pending: PendingBridge,
 ) {
   try {
-    callback?.(pending);
+    await callback?.(pending);
   } catch (error) {
     // The deposit is already broadcast. Consumer persistence/UI failures must
     // not stop receipt parsing and credential generation.
@@ -81,18 +86,20 @@ export function describePortalBatchConfirm(parts: {
 }
 
 function isSendCallsUnsupported(error: unknown): boolean {
-  const err = error as { name?: string; shortMessage?: string; details?: string; message?: string };
+  if (!error || typeof error !== "object") return false;
+  const err = error as { cause?: unknown; code?: number; name?: string; shortMessage?: string; details?: string; message?: string };
   const text = `${err.name ?? ""} ${err.shortMessage ?? ""} ${err.details ?? ""} ${err.message ?? ""}`.toLowerCase();
   return (
+    [-32601, -32004, 4200, 5760].includes(err.code ?? 0) ||
     err.name === "MethodNotFoundRpcError" ||
     err.name === "MethodNotSupportedRpcError" ||
     err.name === "AtomicityNotSupportedError" ||
-    text.includes("wallet_sendcalls") ||
+    err.name === "UnsupportedProviderMethodError" ||
     text.includes("does not exist / is not available") ||
     text.includes("unsupported method") ||
     text.includes("method not found") ||
-    text.includes("forceatomic") ||
-    text.includes("atomicity")
+    /(?:forceatomic|atomicity|atomic).*(?:not supported|unsupported)/.test(text) ||
+    (err.cause !== error && isSendCallsUnsupported(err.cause))
   );
 }
 
@@ -111,6 +118,10 @@ export async function bridgeFromConnectedWallet(params: {
   /** L1 fee recipient (Trezor). Required — 5% of gross AZTEC + mainnet ETH service fee. */
   feeRecipient: Hex;
   onProgress?: (phase: BridgeProgressPhase, detail?: string) => void;
+  /** A rejection stops the bridge before mint, fees, approvals, batches or deposits. */
+  onPrepared?: (deposit: PreparedDeposit) => Promise<void>;
+  /** Persist and execute individual wallet requests if an atomic portal batch is unavailable. */
+  executeSequential?: SequentialExecutor;
   /** Called as soon as the deposit tx is submitted, before waiting for its receipt. */
   onPending?: (pending: PendingBridge) => void;
 }): Promise<BridgeFromWalletResult> {
@@ -128,12 +139,6 @@ export async function bridgeFromConnectedWallet(params: {
   }
 
   progress("prepare", `Preparing L1 clients (${backend})`);
-  const { publicClient, walletClient, account, chain } = await getL1Clients(
-    params.provider,
-    params.chainId,
-    { l1RpcUrl: params.l1RpcUrl },
-  );
-
   const secret = await generateClaimSecret();
   const secretHashHex = toHex64(secret.secretHash);
   const recipientHex = aztecRecipientToBytes32(params.aztecRecipient);
@@ -141,6 +146,23 @@ export async function bridgeFromConnectedWallet(params: {
   if (net <= 0n) {
     throw new Error("Bridge amount too small after 5% protocol fee.");
   }
+
+  if (params.onPrepared) {
+    const reader = getL1PublicClient(params.l1RpcUrl ?? "", params.chainId, params.l1RpcUrl ? null : params.provider);
+    const [rpcChain, fromBlock] = await Promise.all([reader.getChainId(), reader.getBlockNumber({ cacheTime: 0 })]);
+    if (rpcChain !== params.chainId) throw new Error("The recovery RPC is on a different chain.");
+    await params.onPrepared({
+      chainId: params.chainId, fromBlock: fromBlock.toString(), portal: params.addresses.feeJuicePortal,
+      recipient: params.aztecRecipient, claimAmount: net.toString(),
+      claimSecret: toHex64(secret.secret), claimSecretHash: secretHashHex,
+    });
+  }
+
+  const { publicClient, walletClient, account, chain } = await getL1Clients(
+    params.provider,
+    params.chainId,
+    { l1RpcUrl: params.l1RpcUrl },
+  );
 
   // Mainnet ETH service fee (~1 L1 tx) — live fee market × gas units only (no env wei override).
   const ethServiceFee = await resolveBridgeEthServiceFee({
@@ -174,6 +196,7 @@ export async function bridgeFromConnectedWallet(params: {
       claimSecret: toHex64(secret.secret),
       aztecRecipient: params.aztecRecipient,
       progress,
+      executeSequential: params.executeSequential,
       onPending: params.onPending,
     });
   }
@@ -248,6 +271,7 @@ async function bridgeViaPortal(params: {
   claimSecret: Hex;
   aztecRecipient: string;
   progress: (phase: BridgeProgressPhase, detail?: string) => void;
+  executeSequential?: SequentialExecutor;
   onPending?: (pending: PendingBridge) => void;
 }): Promise<BridgeFromWalletResult> {
   const {
@@ -341,21 +365,16 @@ async function bridgeViaPortal(params: {
         approve: needsApprove,
       }),
     );
-    let bundleId =
-      (await tryWalletSendCalls({
-        walletClient,
-        account,
-        chain,
-        calls: batchCalls,
-        forceAtomic: true,
-      })) ??
-      (await tryWalletSendCalls({
+    let bundleId = await tryWalletSendCalls({ walletClient, account, chain, calls: batchCalls, forceAtomic: true });
+    if (!bundleId && !params.executeSequential) {
+      bundleId = await tryWalletSendCalls({
         walletClient,
         account,
         chain,
         calls: batchCalls,
         forceAtomic: false,
-      }));
+      });
+    }
 
     if (bundleId) {
       progress("bridge_wait", `Waiting for batched bridge ${bundleId}`);
@@ -371,7 +390,7 @@ async function bridgeViaPortal(params: {
         throw new Error("Batched bridge completed without a deposit transaction hash.");
       }
       hash = depositHash;
-      notifyPending(onPending, {
+      await notifyPending(onPending, {
         l1TxHash: hash,
         claimSecret,
         claimSecretHash: secretHashHex,
@@ -399,61 +418,15 @@ async function bridgeViaPortal(params: {
     }
   }
 
-  // Fallback: sequential confirms (wallets without EIP-5792).
-  if (ethServiceFee > 0n) {
-    progress(
-      "eth_fee_wallet",
-      `Confirm mainnet ETH service fee (~1 L1 tx) → treasury (${ethServiceFee} wei)`,
-    );
-    const ethHash = await walletClient.sendTransaction({
-      account,
-      chain,
-      to: feeRecipient,
-      value: ethServiceFee,
-    });
-    progress("eth_fee_wait", `Waiting for ETH fee tx ${ethHash}`);
-    await waitForTransactionReceiptWithRetry(publicClient, ethHash);
-  }
-
-  if (fee > 0n) {
-    progress("bridge_wallet", "Confirm 5% protocol fee transfer");
-    const feeHash = await walletClient.writeContract({
-      address: token,
-      abi: erc20WriteAbi,
-      functionName: "transfer",
-      args: [feeRecipient, fee],
-      account,
-      chain,
-    });
-    progress("approve_wait", `Waiting for fee tx ${feeHash}`);
-    await waitForTransactionReceiptWithRetry(publicClient, feeHash);
-  }
-
-  if (needsApprove) {
-    progress("approve_wallet", "Confirm token approve (portal) in wallet");
-    const approveHash = await walletClient.writeContract({
-      address: token,
-      abi: erc20WriteAbi,
-      functionName: "approve",
-      args: [portal, net],
-      account,
-      chain,
-    });
-    progress("approve_wait", `Waiting for approve tx ${approveHash}`);
-    await waitForTransactionReceiptWithRetry(publicClient, approveHash);
-  }
-
-  progress("bridge_wallet", "Confirm depositToAztecPublic in wallet");
-  hash = await walletClient.writeContract({
-    address: portal,
-    abi: feeJuicePortalAbi,
-    functionName: "depositToAztecPublic",
-    args: [recipientHex, net, secretHashHex],
-    account,
-    chain,
+  // Without an atomic batch, checkpoint each individual confirmation when supported.
+  const plan = { sender: account, grossAmount: amount.toString(), ethServiceFee: ethServiceFee.toString(), claimSecretHash: secretHashHex };
+  hash = params.executeSequential ? await params.executeSequential(plan, progress) : await sendPortalSteps({
+    clients: { publicClient, walletClient, account, chain }, sequence: { plan, attempts: {} },
+    deposit: { portal, recipient: aztecRecipient, claimAmount: net.toString(), claimSecretHash: secretHashHex },
+    token, feeRecipient, progress,
   });
 
-  notifyPending(onPending, {
+  await notifyPending(onPending, {
     l1TxHash: hash,
     claimSecret,
     claimSecretHash: secretHashHex,
@@ -596,7 +569,7 @@ async function bridgeViaGoBridge(params: {
     });
   }
 
-  notifyPending(onPending, {
+  await notifyPending(onPending, {
     l1TxHash: hash,
     claimSecret,
     claimSecretHash: secretHashHex,
@@ -624,6 +597,28 @@ async function bridgeViaGoBridge(params: {
   };
 
   return { l1TxHash: hash, credentials, sender: account };
+}
+
+/** Locate a mined deposit without revealing its secret to the RPC or submitting another transaction. */
+export async function findPreparedDeposit(
+  deposit: PreparedDeposit, chainId: number, l1RpcUrl: string, signal?: AbortSignal,
+): Promise<{ hash: Hex | null; throughBlock: bigint }> {
+  if (chainId !== deposit.chainId) throw new Error("Select the original Ethereum network.");
+  const client = getL1PublicClient(l1RpcUrl, chainId);
+  const [rpcChain, head] = await Promise.all([client.getChainId(), client.getBlockNumber({ cacheTime: 0 })]);
+  if (rpcChain !== chainId) throw new Error("The recovery RPC is on a different chain.");
+  const to = aztecRecipientToBytes32(deposit.recipient);
+  for (let start = BigInt(deposit.fromBlock); start <= head; start += 1000n) {
+    signal?.throwIfAborted();
+    const logs = await client.getLogs({
+      address: deposit.portal, event: depositEventAbi[0], args: { to }, strict: true,
+      fromBlock: start, toBlock: start + 999n < head ? start + 999n : head,
+    });
+    const match = logs.find(log => !log.removed && log.args.amount === BigInt(deposit.claimAmount) &&
+      log.args.secretHash.toLowerCase() === deposit.claimSecretHash.toLowerCase());
+    if (match) return { hash: match.transactionHash, throughBlock: head };
+  }
+  return { hash: null, throughBlock: head };
 }
 
 /**

@@ -1,5 +1,6 @@
 import type { ClaimCredentials, PendingBridge } from "@df-bridge/browser-sdk";
 import {
+  currentVaultGuard,
   discardLegacyPlaintextSecrets,
   getVaultSession,
   vaultListDocs,
@@ -103,6 +104,8 @@ export function validatePendingBridge(value: unknown, expectedL1?: string): Pend
     throw new BridgeStorageError("Pending bridge L1 tx hash mismatch.");
   }
   return {
+    ...(typeof pending.portal === "string" && /^0x[0-9a-f]{40}$/i.test(pending.portal)
+      ? { portal: pending.portal as PendingBridge["portal"] } : {}),
     l1TxHash: pending.l1TxHash as PendingBridge["l1TxHash"],
     claimSecret: pending.claimSecret as PendingBridge["claimSecret"],
     claimSecretHash: pending.claimSecretHash as PendingBridge["claimSecretHash"],
@@ -318,7 +321,7 @@ function validateStore(value: unknown, networkId: string, strict = false): Bridg
   ) {
     throw new BridgeStorageError("Recovery store active session pointer is invalid.");
   }
-  if (!store.sessions || typeof store.sessions !== "object") {
+  if (!store.sessions || typeof store.sessions !== "object" || Array.isArray(store.sessions)) {
     throw new BridgeStorageError("Recovery store sessions map is invalid.");
   }
 
@@ -404,60 +407,45 @@ export async function assertBridgeStorageReady(): Promise<void> {
   }
 }
 
-export async function loadSessionStore(networkId: string): Promise<BridgeSessionStoreV2> {
-  try {
-    if (isVaultUnlocked()) {
-      const fromVault = await vaultGetJson<unknown>(vaultDocId(networkId));
-      if (fromVault) {
-        if (isBridgeSessionV1(fromVault)) {
-          const migrated = migrateV1(fromVault);
-          await writeStore(migrated);
-          return migrated;
-        }
-        try {
-          return validateStore(fromVault, networkId);
-        } catch (error) {
-          console.warn("[bridge] Clearing invalid vault recovery store:", error);
-          return emptyStore(networkId);
-        }
+// Only the display path may omit unreadable entries. Every read-modify-write
+// must start from a complete store or propagate the failure to its caller.
+async function readSessionStore(
+  networkId: string,
+  guard: () => void,
+  mode: "display" | "update",
+): Promise<BridgeSessionStoreV2> {
+  guard();
+  const saved = await vaultGetJson<unknown>(vaultDocId(networkId));
+  guard();
+  const legacy = saved === null ? readLegacyLocalStore(networkId) : null;
+  if (saved === null && !legacy) return emptyStore(networkId);
+
+  const raw = legacy ? legacy.raw : saved;
+  const v1 = isBridgeSessionV1(raw);
+  if (v1 && raw.networkId !== networkId) throw new BridgeStorageError("Recovery store network mismatch.");
+  const store = v1 ? migrateV1(raw) : validateStore(raw, networkId, mode === "update" || !!legacy);
+
+  if (v1 || legacy) {
+    await writeStore(store);
+    guard();
+    if (legacy) {
+      try {
+        localStorage.removeItem(legacy.sourceKey);
+      } catch {
+        // The encrypted store was saved and takes precedence on the next read.
       }
     }
+  }
+  return store;
+}
 
-    // Locked: never parse leftover plaintext into the page. Delete it.
+export async function loadSessionStore(networkId: string): Promise<BridgeSessionStoreV2> {
+  try {
     if (!isVaultUnlocked()) {
       discardLegacyPlaintextSecrets();
       return emptyStore(networkId);
     }
-
-    // Unlocked one-shot migrate of leftover plaintext, then delete that key.
-    const stored = readLegacyLocalStore(networkId);
-    if (!stored) return emptyStore(networkId);
-    const { raw, sourceKey } = stored;
-    const dropPlaintext = () => {
-      try {
-        localStorage.removeItem(sourceKey);
-      } catch {
-        /* ignore */
-      }
-    };
-
-    if (isBridgeSessionV1(raw)) {
-      const migrated = migrateV1(raw);
-      await writeStore(migrated);
-      dropPlaintext();
-      return migrated;
-    }
-
-    try {
-      const validated = validateStore(raw, networkId);
-      await writeStore(validated);
-      dropPlaintext();
-      return validated;
-    } catch (error) {
-      console.warn("[bridge] Ignoring invalid recovery store:", error);
-      dropPlaintext();
-      return emptyStore(networkId);
-    }
+    return await withSessionLock(networkId, guard => readSessionStore(networkId, guard, "display"));
   } catch (error) {
     console.warn("[bridge] Failed to load recovery store:", error);
     return emptyStore(networkId);
@@ -508,18 +496,32 @@ export async function getActiveSession(networkId: string): Promise<BridgeSession
   return store.sessions[store.activeL1TxHash] ?? null;
 }
 
+// A receipt lookup and the original wallet flow can update the same network in different tabs.
+async function withSessionLock<T>(networkId: string, mutate: (guard: () => void) => Promise<T>): Promise<T> {
+  const guard = currentVaultGuard();
+  const update = () => {
+    guard();
+    return mutate(guard);
+  };
+  const locks = globalThis.navigator?.locks;
+  return locks ? locks.request("df-bridge-session:" + networkId, update) : update();
+}
+
 export async function setActiveSession(
   networkId: string,
   l1TxHash: string | null,
 ): Promise<BridgeSessionStoreV2> {
-  const store = await loadSessionStore(networkId);
-  const next = {
-    ...store,
-    updatedAt: Date.now(),
-    activeL1TxHash: l1TxHash ? normalizeL1TxHash(l1TxHash) : null,
-  };
-  await writeStore(next);
-  return next;
+  return withSessionLock(networkId, async guard => {
+    const store = await readSessionStore(networkId, guard, "update");
+    const next = {
+      ...store,
+      updatedAt: Date.now(),
+      activeL1TxHash: l1TxHash ? normalizeL1TxHash(l1TxHash) : null,
+    };
+    guard();
+    await writeStore(next);
+    return next;
+  });
 }
 
 export async function upsertSession(
@@ -536,62 +538,71 @@ export async function upsertSession(
     l2TxHash?: string;
     lastError?: string;
     makeActive?: boolean;
+    preserveExisting?: boolean;
   },
 ): Promise<BridgeSessionEntry> {
-  await assertBridgeStorageReady();
-  const store = await loadSessionStore(networkId);
-  const key = normalizeL1TxHash(patch.l1TxHash);
-  const existing = store.sessions[key];
-  const now = Date.now();
-  const nextEntry = validateSessionEntry({
-    l1TxHash: normalizeL1TxHash(patch.l1TxHash),
-    createdAt: existing?.createdAt ?? now,
-    updatedAt: now,
-    phase: patch.phase,
-    networkId,
-    recipient: patch.recipient,
-    claimAmount: patch.claimAmount,
-    ...(patch.pending ? { pending: patch.pending } : {}),
-    ...(patch.credentials ? { credentials: patch.credentials } : {}),
-    ...(patch.claimJobId ? { claimJobId: patch.claimJobId } : {}),
-    ...(patch.claimChannel ? { claimChannel: patch.claimChannel } : {}),
-    ...(patch.l2TxHash ? { l2TxHash: patch.l2TxHash } : {}),
-    ...(patch.lastError ? { lastError: patch.lastError } : {}),
+  return withSessionLock(networkId, async guard => {
+    await assertBridgeStorageReady();
+    const store = await readSessionStore(networkId, guard, "update");
+    const key = normalizeL1TxHash(patch.l1TxHash);
+    const existing = store.sessions[key];
+    if (existing && patch.phase === "l1-pending" && (patch.preserveExisting || existing.phase !== "l1-pending")) return existing;
+    if (patch.preserveExisting && existing && existing.phase !== "l1-pending") return existing;
+    const now = Date.now();
+    const nextEntry = validateSessionEntry({
+      l1TxHash: normalizeL1TxHash(patch.l1TxHash),
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+      phase: patch.phase,
+      networkId,
+      recipient: patch.recipient,
+      claimAmount: patch.claimAmount,
+      ...(patch.pending ? { pending: patch.pending } : {}),
+      ...(patch.credentials ? { credentials: patch.credentials } : {}),
+      ...(patch.claimJobId ? { claimJobId: patch.claimJobId } : {}),
+      ...(patch.claimChannel ? { claimChannel: patch.claimChannel } : {}),
+      ...(patch.l2TxHash ? { l2TxHash: patch.l2TxHash } : {}),
+      ...(patch.lastError ? { lastError: patch.lastError } : {}),
+    });
+
+    const nextStore: BridgeSessionStoreV2 = {
+      ...store,
+      updatedAt: now,
+      activeL1TxHash:
+        patch.makeActive === false
+          ? store.activeL1TxHash
+          : key,
+      sessions: {
+        ...store.sessions,
+        [key]: nextEntry,
+      },
+    };
+    guard();
+    await writeStore(nextStore);
+
+    const verified = (await readSessionStore(networkId, guard, "update")).sessions[key];
+    if (!verified) {
+      throw new BridgeStorageError("Failed to verify recovery session after save.");
+    }
+    return verified;
   });
-
-  const nextStore: BridgeSessionStoreV2 = {
-    ...store,
-    updatedAt: now,
-    activeL1TxHash:
-      patch.makeActive === false
-        ? store.activeL1TxHash
-        : key,
-    sessions: {
-      ...store.sessions,
-      [key]: nextEntry,
-    },
-  };
-  await writeStore(nextStore);
-
-  const verified = (await loadSessionStore(networkId)).sessions[key];
-  if (!verified) {
-    throw new BridgeStorageError("Failed to verify recovery session after save.");
-  }
-  return verified;
 }
 
 export async function removeSession(networkId: string, l1TxHash: string): Promise<void> {
-  const store = await loadSessionStore(networkId);
-  const key = normalizeL1TxHash(l1TxHash);
-  if (!store.sessions[key]) return;
-  const { [key]: _removed, ...sessions } = store.sessions;
-  const next: BridgeSessionStoreV2 = {
-    ...store,
-    updatedAt: Date.now(),
-    activeL1TxHash: store.activeL1TxHash === key ? Object.keys(sessions)[0] ?? null : store.activeL1TxHash,
-    sessions,
-  };
-  await writeStore(next);
+  return withSessionLock(networkId, async guard => {
+    const store = await readSessionStore(networkId, guard, "update");
+    const key = normalizeL1TxHash(l1TxHash);
+    if (!store.sessions[key]) return;
+    const { [key]: _removed, ...sessions } = store.sessions;
+    const next: BridgeSessionStoreV2 = {
+      ...store,
+      updatedAt: Date.now(),
+      activeL1TxHash: store.activeL1TxHash === key ? Object.keys(sessions)[0] ?? null : store.activeL1TxHash,
+      sessions,
+    };
+    guard();
+    await writeStore(next);
+  });
 }
 
 export async function clearAllSessions(networkId?: string): Promise<void> {
@@ -605,7 +616,7 @@ export async function clearAllSessions(networkId?: string): Promise<void> {
     wipeLegacyLocalSessions();
     return;
   }
-  await vaultSetJson(vaultDocId(networkId), emptyStore(networkId));
+  await withSessionLock(networkId, () => vaultSetJson(vaultDocId(networkId), emptyStore(networkId)));
   wipeLegacyLocalSessions(networkId);
 }
 
