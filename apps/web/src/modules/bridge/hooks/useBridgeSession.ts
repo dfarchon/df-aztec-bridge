@@ -134,6 +134,7 @@ export function useBridgeSession(initialWallet: ConnectedWallet | null = null) {
   } = networkApi;
 
   const {
+    importAccountVault,
     setPxeAccount: setVaultPxeAccount,
     requireVaultAfterPxeImport,
     ensureUnlocked,
@@ -414,13 +415,10 @@ export function useBridgeSession(initialWallet: ConnectedWallet | null = null) {
           aztecNodeUrl: networkMeta.aztecNodeUrl,
           onProgress: (detail) => setBridgePhase(detail),
         });
-        await requireVaultAfterPxeImport(stored);
-        const ok = await ensureUnlocked("secrets", stored);
-        if (!ok) throw new Error("Vault password required after PXE import.");
+        await importAccountVault(stored);
         const replaced =
           !!dfPxeAccount &&
           dfPxeAccount.address.toLowerCase() !== stored.address.toLowerCase();
-        await saveAztecWallet(stored);
         await refreshVaultAvailability();
         applyImportedAccount(stored);
         pushDappLog({
@@ -446,8 +444,7 @@ export function useBridgeSession(initialWallet: ConnectedWallet | null = null) {
       wallet,
       networkMeta?.aztecNodeUrl,
       networkId,
-      requireVaultAfterPxeImport,
-      ensureUnlocked,
+      importAccountVault,
       refreshVaultAvailability,
       applyImportedAccount,
       dfPxeAccount,
@@ -545,6 +542,7 @@ export function useBridgeSession(initialWallet: ConnectedWallet | null = null) {
             );
           }
         }
+        await importAccountVault(accounts[accountIndex]!);
         setImportedAccounts(accounts);
         setImportedIndex(accountIndex);
         setImportName(file.name);
@@ -555,7 +553,7 @@ export function useBridgeSession(initialWallet: ConnectedWallet | null = null) {
         setError(e instanceof Error ? e.message : String(e));
       }
     },
-    [applyImportedAccount],
+    [applyImportedAccount, importAccountVault],
   );
 
   const refreshFeeBalance = useCallback(

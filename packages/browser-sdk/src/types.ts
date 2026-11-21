@@ -30,6 +30,13 @@ export interface PendingBridge {
   portal?: Hex;
 }
 
+/** Durable before any spending prompt. The portal event supplies the transaction hash later. */
+export interface PreparedDeposit extends Omit<PendingBridge, "l1TxHash" | "portal"> {
+  portal: Hex;
+  chainId: number;
+  fromBlock: string;
+}
+
 export interface BridgeFromWalletResult {
   l1TxHash: Hex;
   credentials: ClaimCredentials;

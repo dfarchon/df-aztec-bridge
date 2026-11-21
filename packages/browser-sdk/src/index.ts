@@ -3,6 +3,7 @@ export type {
   L1Addresses,
   BridgeFromWalletResult,
   PendingBridge,
+  PreparedDeposit,
 } from "./types.ts";
 export {
   connectEvmWallet,

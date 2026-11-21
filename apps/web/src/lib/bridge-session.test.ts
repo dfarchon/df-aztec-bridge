@@ -5,6 +5,7 @@ import {
   clearAllSessions,
   getActiveSession,
   listIncompleteSessions,
+  readVaultClaimsForExport,
   loadSessionStore,
   normalizeL1TxHash,
   removeSession,
@@ -13,7 +14,10 @@ import {
   validateSessionEntry,
 } from "./bridge-session.ts";
 import { createMemoryVaultBackend } from "./vault-idb.ts";
-import { lockVault, resetVaultSession, setVaultBackend, setupVault } from "./vault.ts";
+import { listPreparedDeposits, savePreparedDeposit, removePreparedDeposit } from "./prepared-deposit.ts";
+import { accountClaimKey } from "./claim-copy.ts";
+import { decryptJson } from "./vault-crypto.ts";
+import { claimExportAvailability, isVaultUnlocked, lockVault, recoverClaimsWithAccount, resetVaultSession, setVaultBackend, setupVault, unlockVault, vaultGetJson, vaultSetJson } from "./vault.ts";
 
 const L1_A =
   "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -90,6 +94,111 @@ describe("bridge-session v2 store", () => {
   afterEach(() => {
     resetVaultSession();
     vi.unstubAllGlobals();
+  });
+
+  it("keeps independent pre-signature deposits across lock and reload, including JSON-only recovery", async () => {
+    const account = { address: VAULT_ADDR, secretKey: SECRET_HASH, salt: "0x0" };
+    await vaultSetJson("wallets", { accounts: [account], activeAddress: VAULT_ADDR });
+    const deposit = {
+      recipient: VAULT_ADDR, claimAmount: "95", portal: RECIPIENT, fromBlock: "10", chainId: 31337,
+      claimSecret: SECRET, claimSecretHash: SECRET_HASH,
+    } as const;
+    await Promise.all([
+      savePreparedDeposit("local", deposit),
+      savePreparedDeposit("local", { ...deposit, claimSecretHash: L1_B }),
+    ]);
+    resetVaultSession();
+    expect(await claimExportAvailability(VAULT_ADDR)).toBe("available");
+    expect(await recoverClaimsWithAccount(VAULT_ADDR, account)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ prepared: expect.objectContaining({ deposit }) }),
+    ]));
+    expect(isVaultUnlocked()).toBe(false);
+    await unlockVault({ aztecAddress: VAULT_ADDR, password: "test-password-ok" });
+    expect(await listPreparedDeposits("mainnet")).toHaveLength(0);
+    expect(await listPreparedDeposits("local")).toHaveLength(2);
+    await removePreparedDeposit(SECRET_HASH);
+    expect((await listPreparedDeposits("local"))[0]?.deposit.claimSecretHash).toBe(L1_B);
+  });
+
+  it("uses the original JSON to export only current claim data while the vault stays locked", async () => {
+    const storage = createMemoryVaultBackend();
+    setVaultBackend(storage);
+    const account = { address: VAULT_ADDR, secretKey: SECRET_HASH, salt: "0x00", signingKey: L1_B };
+    const wallets = { accounts: [account], activeAddress: VAULT_ADDR };
+    const password = "test-password-ok";
+    await setupVault({ aztecAddress: VAULT_ADDR, password, imported: { wallets, expectedSalt: null } });
+    expect(await claimExportAvailability(VAULT_ADDR)).toBe("empty");
+    await assertBridgeStorageReady();
+    expect(await claimExportAvailability(VAULT_ADDR)).toBe("empty");
+    await vaultSetJson("rpc", { privateValue: "secret RPC" });
+    await upsertSession("test-a", {
+      l1TxHash: L1_A, recipient: RECIPIENT, claimAmount: "1000000000000000000",
+      phase: "l1-pending", pending: pending(),
+    });
+    lockVault();
+    expect(await claimExportAvailability(VAULT_ADDR)).toBe("available");
+    expect(await recoverClaimsWithAccount(VAULT_ADDR, account)).toEqual([
+      { networkId: "test-a", l1TxHash: L1_A, pending: pending() },
+    ]);
+    await expect(recoverClaimsWithAccount(VAULT_ADDR, { ...account, secretKey: L1_A })).rejects.toThrow("original");
+    await expect(recoverClaimsWithAccount(VAULT_ADDR, { ...account, address: L1_A })).rejects.toThrow("original");
+    expect(isVaultUnlocked()).toBe(false);
+    await expect(vaultGetJson("wallets")).rejects.toThrow("locked");
+    const recoveryKey = (await accountClaimKey(VAULT_ADDR, account))!;
+    await expect(decryptJson(recoveryKey, (await storage.getDoc(VAULT_ADDR, "wallets"))!)).rejects.toThrow();
+    expect((await storage.getDoc(VAULT_ADDR, "rpc"))!.claimCopy).toBeUndefined();
+    const envelope = (await storage.getDoc(VAULT_ADDR, "bridge:test-a"))!;
+    expect(JSON.stringify(envelope)).not.toContain(SECRET);
+    const { hasClaims, ...unmarkedCopy } = envelope.claimCopy!;
+    expect(hasClaims).toBe(true);
+    await storage.putDoc(VAULT_ADDR, "bridge:test-a", { ...envelope, claimCopy: unmarkedCopy });
+    expect(await claimExportAvailability(VAULT_ADDR)).toBe("unknown");
+    expect(await claimExportAvailability(VAULT_ADDR, account)).toBe("available");
+    // Simulate a profile from an older release. Unlock must backfill without changing its documents.
+    for (const id of ["wallets", "bridge:test-a"]) {
+      const original = (await storage.getDoc(VAULT_ADDR, id))!;
+      const { claimCopy, ...legacy } = original;
+      expect(claimCopy).toBeDefined();
+      await storage.putDoc(VAULT_ADDR, id, legacy);
+    }
+    expect(await claimExportAvailability(VAULT_ADDR)).toBe("needs-unlock");
+    await expect(recoverClaimsWithAccount(VAULT_ADDR, account)).rejects.toThrow("Unlock this vault once");
+    await unlockVault({ aztecAddress: VAULT_ADDR, password });
+    lockVault();
+    expect(await recoverClaimsWithAccount(VAULT_ADDR, account)).toHaveLength(1);
+    expect((await storage.getDoc(VAULT_ADDR, "bridge:test-a"))!.ct).toEqual(envelope.ct);
+    await unlockVault({ aztecAddress: VAULT_ADDR, password });
+    await upsertSession("test-a", {
+      l1TxHash: L1_A, recipient: RECIPIENT, claimAmount: "1000000000000000000",
+      phase: "ready-to-claim", credentials: credentials(), lastError: "private diagnostic",
+    });
+    lockVault();
+    const recovered = await recoverClaimsWithAccount(VAULT_ADDR, account);
+    expect(recovered[0]?.credentials).toEqual(credentials());
+    expect(JSON.stringify(recovered)).not.toContain("private diagnostic");
+    await unlockVault({ aztecAddress: VAULT_ADDR, password });
+    await clearAllSessions("test-a");
+    lockVault();
+    expect(await claimExportAvailability(VAULT_ADDR)).toBe("empty");
+    expect(await recoverClaimsWithAccount(VAULT_ADDR, account)).toEqual([]);
+  });
+
+  it("exports pending and ready claims across networks only from the selected unlocked vault", async () => {
+    for (const networkId of ["test-a", "test-b"]) {
+      await upsertSession(networkId, {
+        l1TxHash: L1_A, recipient: RECIPIENT, claimAmount: "1000000000000000000",
+        ...(networkId === "test-a"
+          ? { phase: "ready-to-claim", credentials: credentials() }
+          : { phase: "l1-pending", pending: pending() }),
+      });
+    }
+    expect(await readVaultClaimsForExport(VAULT_ADDR)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ networkId: "test-a", credentials: credentials() }),
+      expect.objectContaining({ networkId: "test-b", pending: pending() }),
+    ]));
+    await expect(readVaultClaimsForExport("0x1234")).rejects.toThrow("Unlock");
+    lockVault();
+    await expect(readVaultClaimsForExport(VAULT_ADDR)).rejects.toThrow("Unlock");
   });
 
   it("migrates v1 single session to v2 multi-session store", async () => {

@@ -4262,6 +4262,69 @@ html[data-theme="light"] .wallet-float-close {
   backdrop-filter: blur(16px);
 }
 
+.vault-replace-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  /* Reserve the backdrop gap, modal vertical padding and borders. */
+  max-height: calc(100dvh - 4.15rem - 2px);
+}
+
+.vault-replace-modal h2,
+.vault-replace-body > p {
+  margin: 0;
+}
+
+.vault-replace-body,
+.vault-claim-export {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+.vault-replace-body {
+  overflow: auto;
+  overflow-wrap: anywhere;
+  overscroll-behavior: contain;
+}
+
+.vault-replace-body > .vault-claim-export {
+  min-height: min-content;
+}
+
+.vault-claim-export > button {
+  align-self: flex-start;
+}
+
+.vault-claim-downloads {
+  display: grid;
+  gap: 0.25rem;
+  max-height: min(12rem, 28dvh);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.2rem;
+}
+
+.vault-claim-downloads button {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.vault-replace-actions {
+  flex: none;
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 0.5rem;
+}
+
+.vault-replace-actions > button {
+  min-width: 0;
+  margin: 0;
+  white-space: normal;
+}
+
 html[data-theme="light"] .modal.vault-modal {
   border-color: rgba(60, 60, 65, 0.22);
   background: rgba(235, 235, 238, 0.96);

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryVaultBackend } from "./vault-idb.ts";
 import {
   computePasswordVerifier,
@@ -23,6 +23,7 @@ import {
   resetVaultSession,
   setVaultBackend,
   setupVault,
+  shouldSuggestVaultReimport,
   unlockVault,
   vaultExportAllJson,
   vaultImportEncryptedBackup,
@@ -40,6 +41,50 @@ describe("vault", () => {
   beforeEach(() => {
     setVaultBackend(createMemoryVaultBackend());
     resetVaultSession();
+  });
+
+  it("suggests re-import after three wrong passwords for the same wallet and clears on success", async () => {
+    await setupVault({ aztecAddress: ADDR, password: PASS });
+    lockVault();
+    for (const expected of [false, false, true, true]) {
+      await expect(unlockVault({ aztecAddress: ADDR, password: "wrong" })).rejects.toThrow("Invalid password");
+      expect(shouldSuggestVaultReimport(ADDR.toUpperCase())).toBe(expected);
+      expect(shouldSuggestVaultReimport("0x2222")).toBe(false);
+    }
+    await unlockVault({ aztecAddress: ADDR, password: PASS });
+    expect(shouldSuggestVaultReimport(ADDR)).toBe(false);
+  });
+
+  it("replaces only the imported wallet after its encrypted account can be committed", async () => {
+    const storage = createMemoryVaultBackend();
+    setVaultBackend(storage);
+    const other = "0x2222";
+    await setupVault({ aztecAddress: other, password: PASS });
+    await vaultSetJson("bridge:test", { retain: true });
+    await setupVault({ aztecAddress: ADDR, password: PASS });
+    const expectedSalt = (await getVaultProfile(ADDR))!.salt;
+    await vaultSetJson("bridge:test", { secret: "old claim" });
+    const oldBackup = await vaultExportAllJson();
+    lockVault();
+    const wallets = { accounts: [{ address: ADDR, signingKey: SIGNING }], activeAddress: ADDR };
+    const options = { aztecAddress: ADDR, password: "replacement password", imported: { wallets, expectedSalt } };
+
+    vi.spyOn(storage, "commitProfile").mockRejectedValueOnce(new Error("Storage full"));
+    await expect(setupVault(options)).rejects.toThrow("Storage full");
+    await unlockVault({ aztecAddress: ADDR, password: PASS });
+    expect(await vaultGetJson("bridge:test")).toEqual({ secret: "old claim" });
+
+    await setupVault(options);
+    await expect(setupVault(options)).rejects.toThrow("Vault changed");
+    lockVault();
+    await expect(unlockVault({ aztecAddress: ADDR, password: PASS })).rejects.toThrow("Invalid password");
+    await unlockVault({ aztecAddress: ADDR, password: options.password });
+    await expect(vaultImportEncryptedBackup(oldBackup)).rejects.toThrow("vault key");
+    await expect(storage.putDoc(ADDR, "wallets", oldBackup.docs["bridge:test"]!, expectedSalt)).rejects.toThrow("Vault changed");
+    expect(await vaultGetJson("wallets")).toEqual(wallets);
+    expect(await vaultGetJson("bridge:test")).toBeNull();
+    await unlockVault({ aztecAddress: other, password: PASS });
+    expect(await vaultGetJson("bridge:test")).toEqual({ retain: true });
   });
 
   it("setup + unlock with password only (no signingKey in memory)", async () => {
