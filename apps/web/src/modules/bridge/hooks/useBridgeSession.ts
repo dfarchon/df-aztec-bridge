@@ -1,3 +1,4 @@
+import { listPreparedDeposits } from "../../../lib/prepared-deposit.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatEther, formatUnits } from "viem";
 import {
@@ -320,10 +321,10 @@ export function useBridgeSession(initialWallet: ConnectedWallet | null = null) {
     if (!recoveryCheckPending || !shellReady || !ethSessionOk || !dfPxeAccount ||
         busy || progress?.runState === "running" || !isVaultUnlocked()) return;
     let cancelled = false;
-    void refreshSessions().then((sessions) => {
+    void Promise.all([refreshSessions(), listPreparedDeposits(networkId)]).then(([sessions, deposits]) => {
       if (cancelled || !isVaultUnlocked()) return;
       setRecoveryCheckPending(false);
-      if (sessions.length > 0 && path !== ROUTES.recover) setRecoveryPromptOpen(true);
+      if ((sessions.length > 0 || deposits.length > 0) && path !== ROUTES.recover) setRecoveryPromptOpen(true);
     }).catch(() => {
       if (!cancelled) setRecoveryCheckPending(false);
     });

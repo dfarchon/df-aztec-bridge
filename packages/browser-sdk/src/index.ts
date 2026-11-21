@@ -31,6 +31,7 @@ export {
 export {
   bridgeFromConnectedWallet,
   resumePendingBridge,
+  findPreparedDeposit,
   type BridgeProgressPhase,
   type L1BridgeBackend,
 } from "./bridge.ts";
