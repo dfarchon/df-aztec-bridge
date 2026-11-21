@@ -1,14 +1,19 @@
-import { useEffect, useState } from "react";
-import { findPreparedDeposit, resumePendingBridge } from "@df-bridge/browser-sdk";
+import { useEffect, useRef, useState } from "react";
+import { findPreparedDeposit, resumePendingBridge, type ConnectedWallet } from "@df-bridge/browser-sdk";
 import type { Hex } from "viem";
 import type { WebNetworkConfig } from "../../../config/networks.ts";
-import { listPreparedDeposits, removePreparedDeposit, type PreparedDepositFile } from "../../../lib/prepared-deposit.ts";
+import { listPreparedDeposits, removePreparedDeposit } from "../../../lib/prepared-deposit.ts";
 import { currentVaultGuard, isVaultUnlocked } from "../../../lib/vault.ts";
 import { upsertSession } from "../../../lib/bridge-session.ts";
 import { shortHash } from "../../../lib/claim-recovery.ts";
+import { continueSequentialDeposit } from "../../../lib/sequential-deposit.ts";
+import { BRIDGE_FEE_RECIPIENT } from "../config.ts";
 
-function PreparedRow({ file, network, onRecovered }: {
-  file: PreparedDepositFile;
+type Preparation = Awaited<ReturnType<typeof listPreparedDeposits>>[number];
+
+function PreparedRow({ file, network, wallet, onRecovered }: {
+  file: Preparation;
+  wallet: ConnectedWallet | null;
   network: WebNetworkConfig;
   onRecovered: () => Promise<unknown>;
 }) {
@@ -18,8 +23,35 @@ function PreparedRow({ file, network, onRecovered }: {
   const [message, setMessage] = useState("");
   const [checking, setChecking] = useState(true);
   const [finished, setFinished] = useState(false);
+  const [signing, setSigning] = useState(false);
+  const [paymentMessage, setPaymentMessage] = useState("");
+  const signingRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => signingRequest.current?.abort(), [network, wallet]);
+  async function continuePayment() {
+    if (!wallet || signingRequest.current) return;
+    const controller = new AbortController();
+    signingRequest.current = controller;
+    setSigning(true);
+    setPaymentMessage("Verifying earlier Ethereum payments…");
+    try {
+      const tx = await continueSequentialDeposit({
+        network, wallet, feeRecipient: BRIDGE_FEE_RECIPIENT as Hex, secretHash: file.deposit.claimSecretHash,
+        signal: controller.signal, progress: (_phase, detail) => setPaymentMessage(detail),
+      });
+      if (!controller.signal.aborted) {
+        setPaymentMessage("");
+        setManualHash(tx);
+        setRetry(i => i + 1);
+      }
+    } catch (cause) {
+      if (!controller.signal.aborted) setPaymentMessage(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      signingRequest.current = null;
+      setSigning(false);
+    }
+  }
   useEffect(() => {
-    if (finished || !isVaultUnlocked()) return;
+    if (signing || finished || !isVaultUnlocked()) return;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let fromBlock = BigInt(file.deposit.fromBlock);
@@ -43,7 +75,9 @@ function PreparedRow({ file, network, onRecovered }: {
       }
       signal.throwIfAborted();
       if (!tx) {
-        setMessage("Waiting for a matching Ethereum deposit. Checking again in 15 seconds.");
+        setMessage(file.paymentSender
+          ? "No deposit receipt yet. Continue the saved payment to finish any remaining steps."
+          : "Waiting for a matching Ethereum deposit. Checking again in 15 seconds.");
         timer = setTimeout(run, 15_000);
         return;
       }
@@ -68,21 +102,27 @@ function PreparedRow({ file, network, onRecovered }: {
     }
     run();
     return () => { controller.abort(); clearTimeout(timer); };
-  }, [file, network, onRecovered, manualHash, retry, finished]);
+  }, [file, network, onRecovered, manualHash, retry, finished, signing]);
   if (finished) return null;
   return <div className="recovery-session-item">
     <strong>Prepared deposit to {shortHash(file.deposit.recipient)}</strong>
-    <p className="hint" role="status">{message}</p>
-    <button disabled={checking} onClick={() => { setManualHash(null); setRetry(i => i + 1); }}>Check Ethereum again</button>
+    <p className="hint" role="status">{paymentMessage || message}</p>
+    {file.paymentSender && <>
+      <p className="hint">Continue with {shortHash(file.paymentSender)}. Confirmed fees are checked on Ethereum before the next wallet request.</p>
+      <button disabled={signing || checking || wallet?.address.toLowerCase() !== file.paymentSender.toLowerCase()}
+        onClick={() => void continuePayment()}>Continue L1 payment</button>
+    </>}
+    <button disabled={checking || signing} onClick={() => { setPaymentMessage(""); setManualHash(null); setRetry(i => i + 1); }}>Check Ethereum again</button>
     <details>
       <summary>Use a deposit transaction hash</summary>
       <input aria-label="Ethereum deposit transaction hash" value={hash} onChange={e => setHash(e.target.value.trim())} />
-      <button disabled={!/^0x[0-9a-f]{64}$/i.test(hash)} onClick={() => {
+      <button disabled={signing || !/^0x[0-9a-f]{64}$/i.test(hash)} onClick={() => {
+        setPaymentMessage("");
         setManualHash(hash as Hex);
         setRetry(i => i + 1);
       }}>Verify receipt</button>
     </details>
-    <button className="ghost" disabled={checking} onClick={async () => {
+    <button className="ghost" disabled={checking || signing} onClick={async () => {
       if (!window.confirm("Delete the saved claim secret? If a deposit was submitted, you may permanently lose the ability to claim it.")) return;
       try {
         await removePreparedDeposit(file.deposit.claimSecretHash);
@@ -94,12 +134,13 @@ function PreparedRow({ file, network, onRecovered }: {
   </div>;
 }
 
-export function PreparedDepositRecovery({ network, onRecovered, importRequest }: {
+export function PreparedDepositRecovery({ network, wallet, onRecovered, importRequest }: {
+  wallet: ConnectedWallet | null;
   network: WebNetworkConfig;
   onRecovered: () => Promise<unknown>;
   importRequest: number;
 }) {
-  const [files, setFiles] = useState<PreparedDepositFile[]>([]);
+  const [files, setFiles] = useState<Preparation[]>([]);
   const [error, setError] = useState("");
   useEffect(() => {
     let ignore = false;
@@ -108,6 +149,6 @@ export function PreparedDepositRecovery({ network, onRecovered, importRequest }:
     return () => { ignore = true; };
   }, [network.id, importRequest]);
   return <>{error && <p role="alert">{error}</p>}{files.map(file =>
-    <PreparedRow key={file.deposit.claimSecretHash} file={file} network={network} onRecovered={onRecovered} />
+    <PreparedRow key={file.deposit.claimSecretHash} file={file} network={network} wallet={wallet} onRecovered={onRecovered} />
   )}</>;
 }

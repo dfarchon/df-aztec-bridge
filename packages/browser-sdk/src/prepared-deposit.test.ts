@@ -5,7 +5,7 @@ import type { PreparedDeposit } from "./types.ts";
 
 const mocks = vi.hoisted(() => ({
   getL1Clients: vi.fn(), getLogs: vi.fn(), getBlockNumber: vi.fn(), getChainId: vi.fn(),
-  getTransactionReceipt: vi.fn(), sendCalls: vi.fn(), waitForCallsStatus: vi.fn(), writeContract: vi.fn(),
+  getTransactionReceipt: vi.fn(), sendCalls: vi.fn(), waitForCallsStatus: vi.fn(), sendTransaction: vi.fn(), writeContract: vi.fn(),
 }));
 vi.mock("./clients.ts", async importOriginal => ({
   ...await importOriginal<typeof import("./clients.ts")>(),
@@ -30,7 +30,7 @@ beforeEach(() => {
   mocks.getBlockNumber.mockResolvedValue(10n);
   mocks.getL1Clients.mockResolvedValue({
     publicClient: { readContract: async () => 0n },
-    walletClient: { writeContract: mocks.writeContract }, account: portal, chain: { id: 31337 },
+    walletClient: { writeContract: mocks.writeContract, sendTransaction: mocks.sendTransaction }, account: portal, chain: { id: 31337 },
   });
 });
 
@@ -44,6 +44,24 @@ describe("deposit preparation", () => {
     expect(mocks.writeContract).not.toHaveBeenCalled();
   });
 
+  it("journals individual confirmations when the wallet cannot guarantee an atomic batch", async () => {
+    mocks.sendCalls.mockRejectedValue({ cause: { code: 5760 } });
+    const executeSequential = vi.fn(async () => { throw new Error("checkpoint written"); });
+    await expect(bridgeFromConnectedWallet({ ...params, executeSequential })).rejects.toThrow("checkpoint written");
+    expect(mocks.sendCalls).toHaveBeenCalledTimes(1);
+    expect(mocks.sendCalls.mock.calls[0][1].forceAtomic).toBe(true);
+    expect(executeSequential.mock.calls[0]).toEqual([
+      expect.objectContaining({ sender: portal, grossAmount: "100", ethServiceFee: "0" }), expect.any(Function),
+    ]);
+  });
+
+  it("does not start separate payments after an ambiguous batch response", async () => {
+    mocks.sendCalls.mockRejectedValue(new Error("wallet_sendCalls timed out"));
+    const executeSequential = vi.fn();
+    await expect(bridgeFromConnectedWallet({ ...params, executeSequential })).rejects.toThrow("timed out");
+    expect(executeSequential).not.toHaveBeenCalled();
+  });
+
   it.each(["batch", "sequential"])("keeps the secret before the first %s wallet confirmation", async mode => {
     let saved: PreparedDeposit | undefined;
     let release!: () => void;
@@ -55,7 +73,7 @@ describe("deposit preparation", () => {
       return { id: "0x01" };
     });
     mocks.waitForCallsStatus.mockRejectedValue(new Error("Tab closed before batch receipt"));
-    mocks.writeContract.mockImplementation(async () => {
+    mocks.sendTransaction.mockImplementation(async () => {
       expect(saved?.claimSecret).toMatch(/7b$/);
       throw new Error("Tab closed before transaction hash");
     });
@@ -66,7 +84,7 @@ describe("deposit preparation", () => {
     await expect(result).rejects.toThrow("Tab closed");
     expect(saved).toMatchObject({ fromBlock: "10", chainId: 31337, portal });
     expect(saved!.claimSecretHash).toMatch(/1c8$/);
-    expect(mocks.writeContract).toHaveBeenCalledTimes(mode === "batch" ? 0 : 1);
+    expect(mocks.sendTransaction).toHaveBeenCalledTimes(mode === "batch" ? 0 : 1);
 
     const hash = "0x" + "aa".repeat(32);
     mocks.getBlockNumber.mockResolvedValue(1500n);

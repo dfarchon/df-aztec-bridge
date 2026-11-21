@@ -53,7 +53,7 @@ import {
   MIN_BRIDGE_FJ,
   parseBridgeAmount,
 } from "../../../lib/bridge-amount.ts";
-import { parseClaimCredentialsFile } from "../../../lib/claim-credentials-import.ts";
+import { importPendingClaimFile, parseClaimCredentialsFile } from "../../../lib/claim-credentials-import.ts";
 import { checkImportedClaimStatus, describeClaimImport } from "../../../lib/claim-import-status.ts";
 import { recordHistory } from "../../../lib/operation-history.ts";
 import {
@@ -100,7 +100,8 @@ import {
 import { LEGACY_WALLET_RDNS } from "@df-bridge/browser-sdk";
 import { ROUTES } from "../../../app/routes.ts";
 import { assertSafeClaimApiBase } from "../../../lib/api-base.ts";
-import { savePreparedDeposit, removePreparedDeposit, parsePreparedDeposit } from "../../../lib/prepared-deposit.ts";
+import { continueSequentialDeposit } from "../../../lib/sequential-deposit.ts";
+import { listPreparedDeposits, savePreparedDeposit, removePreparedDeposit, parsePreparedDeposit } from "../../../lib/prepared-deposit.ts";
 import { currentVaultGuard, getVaultAddress, isVaultUnlocked } from "../../../lib/vault.ts";
 import {
   API_BASE,
@@ -202,6 +203,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
               setProgress(startProgress("resume-l1", "receipt"));
             }
             try {
+              const guard = currentVaultGuard();
               const result = await resumePendingBridge({
                 pending: {
                   ...session.pending,
@@ -212,6 +214,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
                 l1RpcUrl: networkMeta.l1RpcUrl,
               });
               if (cancelled) return;
+              guard();
               await upsertSession(networkId, {
                 l1TxHash: result.l1TxHash,
               phase: "ready-to-claim",
@@ -219,6 +222,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
               claimAmount: result.credentials.claimAmount,
               credentials: result.credentials,
               makeActive: false,
+              preserveExisting: true,
             });
             downloadClaimCredentials(result.credentials.recipient, result.credentials, {
               l1TxHash: result.l1TxHash,
@@ -627,6 +631,18 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
       if (getVaultAddress()?.toLowerCase() !== dfPxeAccount?.address.toLowerCase()) {
         throw new Error("Unlock the active Aztec account before preparing this deposit.");
       }
+      const grossAmount = amount.wei.toString();
+      const unfinished = (await listPreparedDeposits(networkId)).some(file =>
+        file.paymentSender?.toLowerCase() === wallet.address.toLowerCase() &&
+        file.deposit.recipient.toLowerCase() === recipient.trim().toLowerCase() && file.grossAmount === grossAmount);
+      guard();
+      if (unfinished) {
+        setProgress(null);
+        setSelectedRecoveryHash(null);
+        setRecoveryPromptOpen(false);
+        navigate(ROUTES.recover);
+        return;
+      }
       const mint = networkMeta.l1Addresses.feeAssetHandler !== null;
       const backend = l1Backend;
       if (!BRIDGE_FEE_RECIPIENT || !/^0x[0-9a-fA-F]{40}$/.test(BRIDGE_FEE_RECIPIENT)) {
@@ -639,6 +655,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
           "Sponsored FPC is a contract — turn off auto-claim. Bridge Fee Juice to the FPC address only.",
         );
       }
+      let sequential = false;
       const result = await bridgeFromConnectedWallet({
         provider: wallet.provider,
         chainId: networkMeta.l1ChainId,
@@ -667,6 +684,14 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
           }
           guard();
         },
+        executeSequential: (plan, progress) => {
+          guard();
+          sequential = true;
+          return continueSequentialDeposit({
+            network: networkMeta, wallet, feeRecipient: BRIDGE_FEE_RECIPIENT as Hex,
+            secretHash: plan.claimSecretHash, initialPlan: plan, progress,
+          });
+        },
         onPending: async (pending: PendingBridge) => {
           setL1TxHash(pending.l1TxHash);
           setShowBridgeResult(true);
@@ -687,7 +712,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
               pending,
             });
             guard();
-            await removePreparedDeposit(pending.claimSecretHash);
+            if (!sequential) await removePreparedDeposit(pending.claimSecretHash);
             await refreshSessions();
           } catch (storageError: unknown) {
             downloadJson(`claim-pending-${shortHash(pending.l1TxHash)}.json`, {
@@ -829,6 +854,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
     networkId,
     refreshSessions,
     refreshBalancesAfterAction,
+    navigate,
     endFlowFromError,
   ]);
 
@@ -870,6 +896,22 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
           if (!await ensureUnlocked("secrets")) throw new Error("Unlock the vault to import this deposit.");
           await savePreparedDeposit(networkId, backup.deposit);
           setCredentialsImportNotice("Prepared deposit imported. Check Ethereum for its receipt.");
+          return;
+        }
+        if (raw?.pending !== undefined && !raw.credentials && !raw.claimCredentials) {
+          if (!networkMeta || networkMeta.id !== networkId) throw new Error("Select the deposit network before importing.");
+          if (!await ensureUnlocked("secrets")) throw new Error("Unlock the vault to import this pending claim.");
+          setBusy(true);
+          try {
+            const entry = await importPendingClaimFile(raw, networkMeta);
+            await refreshSessions();
+            const id = shortHash(entry.l1TxHash);
+            setCredentialsImportNotice(entry.phase === "l1-pending"
+              ? `Pending deposit ${id} is saved. Select it to check the Ethereum receipt and recover the claim.`
+              : `Deposit ${id} is already saved. Select it to see its current claim status.`);
+          } finally {
+            setBusy(false);
+          }
           return;
         }
         const parsed = parseClaimCredentialsFile(raw);
@@ -940,6 +982,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
       setBridgePhase(`Resuming L1 bridge ${shortHash(session.l1TxHash)}…`);
       setProgress(startProgress("resume-l1", "receipt"));
       try {
+        const guard = currentVaultGuard();
         const result = await resumePendingBridge({
           pending: {
             ...session.pending,
@@ -948,6 +991,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
           chainId: networkMeta.l1ChainId,
           l1RpcUrl: networkMeta.l1RpcUrl,
         });
+        guard();
         setProgress((prev) =>
           advanceProgress(prev, { track: "resume-l1", stepKey: "credentials" }),
         );
@@ -958,6 +1002,7 @@ connectDetail, onConnectWalletConnect, onConnect, closeWalletPicker, onDisconnec
           claimAmount: result.credentials.claimAmount,
           credentials: result.credentials,
           makeActive: false,
+          preserveExisting: true,
         });
         downloadClaimCredentials(result.credentials.recipient, result.credentials, {
           l1TxHash: result.l1TxHash,

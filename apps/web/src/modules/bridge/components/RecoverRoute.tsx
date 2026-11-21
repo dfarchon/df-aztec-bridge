@@ -186,7 +186,7 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
           <>
             <p className="wallet-manager-pane-title">Which claim</p>
             {networkMeta && session.secretsVisible && <PreparedDepositRecovery
-              key={networkId + session.dfPxeAccount?.address} network={networkMeta}
+              key={networkId + session.dfPxeAccount?.address} network={networkMeta} wallet={session.wallet}
               onRecovered={session.refreshSessions} importRequest={importRevision} />}
             <ImportFeedback error={null} notice={credentialsImportNotice} />
             {storageReady === false ? (
@@ -228,8 +228,8 @@ export function RecoverRoute({ session, flows }: { session: BridgeSession; flows
         <section className="bridge-layout recovery-import-card" aria-labelledby="recovery-import-title">
           <p id="recovery-import-title" className="wallet-manager-pane-title">Import claim</p>
           <p className="hint">
-            Choose the claim-*.json downloaded after the L1 deposit. It must be for an Aztec
-            account already in this browser; a file for another account is not saved.
+            Choose a claim JSON or a pending deposit backup (claim-pending-*.json)
+            for an Aztec account in this browser. Select the original deposit network before importing.
           </p>
           <ClaimFileButton inputRef={claimFileRef} busy={busy} label="Import claim" onFile={pickClaimFile} />
           <ImportFeedback error={credentialsImportError} notice={null} />

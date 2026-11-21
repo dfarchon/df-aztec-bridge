@@ -1,7 +1,7 @@
 import { DfAccountDropZone } from "../ui/DfAccountDropZone.tsx";
 import { useEffect, useRef, useState } from "react";
 import { readVaultClaimsForExport } from "../../lib/bridge-session.ts";
-import { listPreparedDeposits } from "../../lib/prepared-deposit.ts";
+import { listPreparedDeposits, parsePreparedDeposit } from "../../lib/prepared-deposit.ts";
 import { readAccountFile, type ImportedAztecAccount } from "../../lib/account-import.ts";
 import { downloadClaimCredentials, downloadJson } from "../../lib/claim-credentials-store.ts";
 import { exportableClaimId, type ExportableClaim } from "../../lib/claim-copy.ts";
@@ -17,7 +17,7 @@ async function download(claim: ExportableClaim) {
 async function readUnlockedClaims(address: string): Promise<ExportableClaim[]> {
   const entries = await readVaultClaimsForExport(address);
   const prepared = await listPreparedDeposits();
-  return [...entries, ...prepared.map(file => ({ networkId: file.networkId, prepared: file }))];
+  return [...entries, ...prepared.map(file => ({ networkId: file.networkId, prepared: parsePreparedDeposit(file) }))];
 }
 
 export function ClaimJsonExport({ address, account, disabled, unlocked, autoDownloads, onChecking }: {

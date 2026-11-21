@@ -1,4 +1,4 @@
-import type { PreparedDeposit } from "@df-bridge/browser-sdk";
+import type { PortalSequence, PreparedDeposit } from "@df-bridge/browser-sdk";
 import { currentVaultGuard, vaultDeleteJson, vaultGetJson, vaultListDocs, vaultSetJson } from "./vault.ts";
 
 export interface PreparedDepositFile {
@@ -44,14 +44,17 @@ export async function savePreparedDeposit(networkId: string, deposit: PreparedDe
 
 export async function listPreparedDeposits(networkId?: string) {
   const guard = currentVaultGuard();
-  const files: PreparedDepositFile[] = [];
+  const files: (PreparedDepositFile & { paymentSender?: string; grossAmount?: string })[] = [];
   for (const id of await vaultListDocs()) {
     if (!id.startsWith("deposit:")) continue;
     guard();
-    const value = await vaultGetJson(id);
+    const value = await vaultGetJson<PreparedDepositFile & { sequence?: PortalSequence }>(id);
     if (!value) continue;
     const file = parsePreparedDeposit(value);
-    if (!networkId || file.networkId === networkId) files.push(file);
+    if (!networkId || file.networkId === networkId) {
+      const plan = value.sequence?.plan;
+      files.push(plan ? { ...file, paymentSender: plan.sender, grossAmount: plan.grossAmount } : file);
+    }
   }
   guard();
   return files;
