@@ -21,12 +21,12 @@ export type VaultBackend = {
   putMeta(meta: VaultProfileMeta): Promise<void>;
   listMeta(): Promise<VaultProfileMeta[]>;
   getDoc(address: string, docId: string): Promise<VaultEnvelope | null>;
-  putDoc(address: string, docId: string, envelope: VaultEnvelope): Promise<void>;
-  deleteDoc(address: string, docId: string): Promise<void>;
+  putDoc(address: string, docId: string, envelope: VaultEnvelope, expectedSalt?: string, expectedIv?: string): Promise<void>;
+  deleteDoc(address: string, docId: string, expectedSalt?: string): Promise<void>;
   listDocIds(address: string): Promise<string[]>;
   deleteProfile(address: string): Promise<void>;
   /** Write meta and that address's docs in one transaction. Replaces the doc set. */
-  commitProfile(meta: VaultProfileMeta, docs: Record<string, VaultEnvelope>): Promise<void>;
+  commitProfile(meta: VaultProfileMeta, docs: Record<string, VaultEnvelope>, expectedSalt?: string | null): Promise<void>;
 };
 
 type EncMetaBlob = {
@@ -93,18 +93,16 @@ function txDone(tx: IDBTransaction): Promise<void> {
 }
 
 async function getOrCreateDeviceKey(db: IDBDatabase): Promise<CryptoKey> {
+  const read = db.transaction(DEVICE_STORE, "readonly");
+  const existing = await idbReq(read.objectStore(DEVICE_STORE).get(DEVICE_KEY_ID));
+  if (existing instanceof CryptoKey) return existing;
+  const candidate = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, [
+    "encrypt", "decrypt",
+  ]);
   const tx = db.transaction(DEVICE_STORE, "readwrite");
   const store = tx.objectStore(DEVICE_STORE);
-  const existing = await idbReq(store.get(DEVICE_KEY_ID));
-  if (existing instanceof CryptoKey) {
-    await txDone(tx);
-    return existing;
-  }
-  const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, [
-    "encrypt",
-    "decrypt",
-  ]);
-  store.put(key, DEVICE_KEY_ID);
+  const key = await idbReq(store.get(DEVICE_KEY_ID)) ?? candidate;
+  if (key === candidate) store.put(key, DEVICE_KEY_ID);
   await txDone(tx);
   return key;
 }
@@ -159,6 +157,26 @@ async function decodeStoredMeta(
     return { meta: raw, needsRewrite: true };
   }
   return { meta: null, needsRewrite: false };
+}
+
+// Compare the encrypted record again inside the write transaction. Crypto must run outside it.
+async function snapshotProfile(db: IDBDatabase, profileKey: string, expectedSalt?: string | null) {
+  if (expectedSalt === undefined) return;
+  const key = await getOrCreateDeviceKey(db);
+  const read = db.transaction(META_STORE, "readonly");
+  const raw = await idbReq(read.objectStore(META_STORE).get(profileKey));
+  const { meta } = await decodeStoredMeta(key, raw);
+  if ((raw && !meta) || (meta?.salt ?? null) !== expectedSalt) {
+    throw new Error("Vault changed. Reopen the wallet and try again.");
+  }
+  return raw;
+}
+
+async function assertProfileSnapshot(tx: IDBTransaction, profileKey: string, snapshot: unknown) {
+  const current = await idbReq(tx.objectStore(META_STORE).get(profileKey));
+  if (JSON.stringify(current) !== JSON.stringify(snapshot)) {
+    throw new Error("Vault changed. Reopen the wallet and try again.");
+  }
 }
 
 export function createIdbVaultBackend(): VaultBackend {
@@ -229,21 +247,30 @@ export function createIdbVaultBackend(): VaultBackend {
       }
     },
 
-    async putDoc(address, docId, envelope) {
+    async putDoc(address, docId, envelope, expectedSalt, expectedIv) {
       const db = await openDb();
       try {
-        const tx = db.transaction(DOCS_STORE, "readwrite");
-        tx.objectStore(DOCS_STORE).put(envelope, docKey(address, docId));
+        const profileKey = metaKey(address);
+        const snapshot = await snapshotProfile(db, profileKey, expectedSalt);
+        const tx = db.transaction([META_STORE, DOCS_STORE], "readwrite");
+        if (expectedSalt !== undefined) await assertProfileSnapshot(tx, profileKey, snapshot);
+        const store = tx.objectStore(DOCS_STORE);
+        const id = docKey(address, docId);
+        if (expectedIv && (await idbReq(store.get(id)))?.iv !== expectedIv) return;
+        store.put(envelope, id);
         await txDone(tx);
       } finally {
         db.close();
       }
     },
 
-    async deleteDoc(address, docId) {
+    async deleteDoc(address, docId, expectedSalt) {
       const db = await openDb();
       try {
-        const tx = db.transaction(DOCS_STORE, "readwrite");
+        const profileKey = metaKey(address);
+        const snapshot = await snapshotProfile(db, profileKey, expectedSalt);
+        const tx = db.transaction([META_STORE, DOCS_STORE], "readwrite");
+        if (expectedSalt !== undefined) await assertProfileSnapshot(tx, profileKey, snapshot);
         tx.objectStore(DOCS_STORE).delete(docKey(address, docId));
         await txDone(tx);
       } finally {
@@ -284,24 +311,36 @@ export function createIdbVaultBackend(): VaultBackend {
       }
     },
 
-    async commitProfile(meta, docs) {
+    async commitProfile(meta, docs, expectedSalt) {
       const db = await openDb();
       try {
         const key = await getOrCreateDeviceKey(db);
         const blob = await encryptMeta(key, meta);
         const prefix = `${meta.aztecAddress.trim().toLowerCase()}:`;
+        const profileKey = metaKey(meta.aztecAddress);
+        const expectedRaw = await snapshotProfile(db, profileKey, expectedSalt);
         const keep = new Set(Object.keys(docs).map((id) => docKey(meta.aztecAddress, id)));
         const tx = db.transaction([META_STORE, DOCS_STORE], "readwrite");
-        tx.objectStore(META_STORE).put(blob, metaKey(meta.aztecAddress));
-        const keys = await idbReq(tx.objectStore(DOCS_STORE).getAllKeys());
-        for (const k of keys) {
-          const name = String(k);
-          if (name.startsWith(prefix) && !keep.has(name)) tx.objectStore(DOCS_STORE).delete(k);
+        const committed = txDone(tx);
+        try {
+          if (expectedSalt !== undefined) {
+            await assertProfileSnapshot(tx, profileKey, expectedRaw);
+          }
+          tx.objectStore(META_STORE).put(blob, profileKey);
+          const keys = await idbReq(tx.objectStore(DOCS_STORE).getAllKeys());
+          for (const k of keys) {
+            const name = String(k);
+            if (name.startsWith(prefix) && !keep.has(name)) tx.objectStore(DOCS_STORE).delete(k);
+          }
+          for (const [id, env] of Object.entries(docs)) {
+            tx.objectStore(DOCS_STORE).put(env, docKey(meta.aztecAddress, id));
+          }
+        } catch (cause) {
+          try { tx.abort(); } catch { /* Already aborted by IndexedDB. */ }
+          await committed.catch(() => {});
+          throw cause;
         }
-        for (const [id, env] of Object.entries(docs)) {
-          tx.objectStore(DOCS_STORE).put(env, docKey(meta.aztecAddress, id));
-        }
-        await txDone(tx);
+        await committed;
       } finally {
         db.close();
       }
@@ -326,10 +365,17 @@ export function createMemoryVaultBackend(): VaultBackend {
     async getDoc(address, docId) {
       return docs.get(docKey(address, docId)) ?? null;
     },
-    async putDoc(address, docId, envelope) {
+    async putDoc(address, docId, envelope, expectedSalt, expectedIv) {
+      if (expectedSalt !== undefined && meta.get(metaKey(address))?.salt !== expectedSalt) {
+        throw new Error("Vault changed. Reopen the wallet and try again.");
+      }
+      if (expectedIv && docs.get(docKey(address, docId))?.iv !== expectedIv) return;
       docs.set(docKey(address, docId), envelope);
     },
-    async deleteDoc(address, docId) {
+    async deleteDoc(address, docId, expectedSalt) {
+      if (expectedSalt !== undefined && meta.get(metaKey(address))?.salt !== expectedSalt) {
+        throw new Error("Vault changed. Reopen the wallet and try again.");
+      }
       docs.delete(docKey(address, docId));
     },
     async listDocIds(address) {
@@ -345,7 +391,10 @@ export function createMemoryVaultBackend(): VaultBackend {
         if (k.startsWith(prefix)) docs.delete(k);
       }
     },
-    async commitProfile(nextMeta, nextDocs) {
+    async commitProfile(nextMeta, nextDocs, expectedSalt) {
+      if (expectedSalt !== undefined && (meta.get(metaKey(nextMeta.aztecAddress))?.salt ?? null) !== expectedSalt) {
+        throw new Error("Vault changed. Start the import again.");
+      }
       meta.set(metaKey(nextMeta.aztecAddress), nextMeta);
       const prefix = `${nextMeta.aztecAddress.trim().toLowerCase()}:`;
       for (const k of [...docs.keys()]) {

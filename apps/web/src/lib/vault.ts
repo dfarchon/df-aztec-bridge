@@ -64,6 +64,7 @@ export type VaultAutoLockReason = "idle" | "tab-hidden";
 type Listener = () => void;
 
 let backend: VaultBackend = createIdbVaultBackend();
+let sessionSalt = "";
 let cek: CryptoKey | null = null;
 let activeAddress: string | null = null;
 let unlocked = false;
@@ -196,7 +197,7 @@ async function upgradeVault(opts: {
   };
   if (cekWrap) nextMeta.cekWrap = cekWrap;
   else delete nextMeta.cekWrap;
-  await backend.commitProfile(nextMeta, nextDocs);
+  await backend.commitProfile(nextMeta, nextDocs, opts.meta.salt);
   return { meta: nextMeta, key: newKey };
 }
 
@@ -251,6 +252,7 @@ export async function setupVault(opts: {
   };
   await backend.putMeta(meta);
 
+  sessionSalt = meta.salt;
   cek = key;
   activeAddress = meta.aztecAddress;
   unlocked = true;
@@ -276,6 +278,7 @@ export async function attachVaultPasskey(
       prfSecret: opts.prfSecret,
       prfSalt: passkey.prfSalt,
     });
+    sessionSalt = upgraded.meta.salt;
     cek = upgraded.key;
     notify();
     return;
@@ -460,6 +463,7 @@ export async function unlockVault(opts: {
     }
   }
 
+  sessionSalt = nextMeta.salt;
   cek = key;
   activeAddress = nextMeta.aztecAddress;
   unlocked = true;
@@ -487,9 +491,9 @@ export function bindVaultAddress(aztecAddress: string | null): void {
   notify();
 }
 
-function requireUnlocked(): { address: string; key: CryptoKey } {
+function requireUnlocked(): { address: string; key: CryptoKey; salt: string } {
   if (!unlocked || !cek || !activeAddress) throw new VaultLockedError();
-  return { address: activeAddress, key: cek };
+  return { address: activeAddress, key: cek, salt: sessionSalt };
 }
 
 export async function vaultGetJson<T>(docId: string): Promise<T | null> {
@@ -500,11 +504,23 @@ export async function vaultGetJson<T>(docId: string): Promise<T | null> {
 }
 
 export async function vaultSetJson(docId: string, value: unknown): Promise<void> {
-  const { address, key } = requireUnlocked();
+  const { address, key, salt } = requireUnlocked();
   // Ensure JSON-only
   JSON.parse(JSON.stringify(value));
   const env = await encryptJson(key, value);
-  await backend.putDoc(address, docId, env);
+  await backend.putDoc(address, docId, env, salt);
+}
+
+export function currentVaultGuard() {
+  const { key } = requireUnlocked();
+  return () => {
+    if (cek !== key || !unlocked) throw new VaultLockedError("The active vault changed. Reopen the original wallet.");
+  };
+}
+
+export async function vaultDeleteJson(id: string) {
+  const { address, salt } = requireUnlocked();
+  await backend.deleteDoc(address, id, salt);
 }
 
 export async function vaultListDocs(): Promise<string[]> {
@@ -564,7 +580,7 @@ export async function vaultImportEncryptedBackup(raw: unknown): Promise<number> 
   }
   const entries = Object.entries(file.docs);
   for (const [id, env] of entries) {
-    if (!VAULT_DOC_ID.test(id) || !isVaultEnvelope(env)) {
+    if ((!VAULT_DOC_ID.test(id) && !/^deposit:[0-9a-f]{64}$/.test(id)) || !isVaultEnvelope(env)) {
       throw new VaultError("Backup file contains an invalid document.");
     }
   }
