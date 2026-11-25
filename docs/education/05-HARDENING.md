@@ -35,7 +35,7 @@ VITE_ENABLE_BROWSER_CLAIM
 VITE_MAINNET_AZTEC_NODE_URL=https://aztec-mainnet.drpc.org
 ```
 
-A keyed node URL is rejected for every `VITE_*` RPC variable. `MAINNET_AZTEC_NODE_URL` is injected into local `pnpm dev` only when it is a pinned public or loopback URL, so a path key never reaches the browser.
+`VITE_MAINNET_AZTEC_NODE_URL` may be the public host or `https://lb.drpc.live/aztec-mainnet/<key>` (`aztec-testnet` is the other allowed network). That path key is compiled into the JS. Other keyed hosts and paths are still rejected. `MAINNET_AZTEC_NODE_URL` is injected into local `pnpm dev` on the same rule.
 
 ## 2) Content Security Policy (CSP)
 

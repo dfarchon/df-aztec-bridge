@@ -40,7 +40,7 @@ An Aztec.nr contract can later:
 Until that contract ships, the web UI links:
 
 - Bridge atlas style: [df-atlas.onchainreality.xyz](https://df-atlas.onchainreality.xyz/)
-- Game entry: [aztec.dfpunk.xyz/play](https://aztec.dfpunk.xyz/play/0x1682cd593daddec05d1cb5440bd67af7d1fb7bfb27711ee94ad08c6fc277ece1)
+- Game entry: [dfaztec-s2.dfarchon.xyz](https://dfaztec-s2.dfarchon.xyz)
 - Tx / block analysis: [aztecscan.xyz](https://aztecscan.xyz/) (see [NETWORK_INTEGRITY.md](./NETWORK_INTEGRITY.md))
 - Sponsored FPC on Scan: `/address/0x1441…9970c`
 

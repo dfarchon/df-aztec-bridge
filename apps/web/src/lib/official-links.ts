@@ -26,13 +26,13 @@ export const OFFICIAL_HTTPS_HOST_ALLOWLIST = new Set([
   "etherscan.io",
   "sepolia.etherscan.io",
   "df-atlas.onchainreality.xyz",
-  "aztec.dfpunk.xyz",
+  "dfaztec-s2.dfarchon.xyz",
 ]);
 
 /**
  * Public RPC endpoints the UI may select. Hostname alone is not enough:
- * `lb.drpc.live/<path>` is a multi-tenant gateway, so a path can point at
- * someone else's node. No path, query, userinfo, or `lb.drpc.live`.
+ * a path on `lb.drpc.live` selects a tenant. Only the Aztec keyed form below
+ * is accepted, and it is public once compiled into a VITE_ bundle.
  */
 export const PINNED_PUBLIC_RPC_URLS = new Set([
   "https://aztec-mainnet.drpc.org",
@@ -40,6 +40,8 @@ export const PINNED_PUBLIC_RPC_URLS = new Set([
   "https://ethereum-rpc.publicnode.com",
   "https://ethereum-sepolia-rpc.publicnode.com",
 ]);
+
+const KEYED_DRPC_AZTEC_NETWORKS = new Set(["aztec-mainnet", "aztec-testnet"]);
 
 function rpcUrlParts(url: string): URL | null {
   try {
@@ -59,6 +61,27 @@ export function isPinnedPublicRpcUrl(url: string): boolean {
   return PINNED_PUBLIC_RPC_URLS.has(`${u.protocol}//${u.host}`);
 }
 
+/**
+ * `https://lb.drpc.live/aztec-mainnet/<key>` or `aztec-testnet`.
+ * One path segment, no query, userinfo, or other networks.
+ */
+export function isKeyedDrpcAztecRpcUrl(url: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(url.trim());
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "https:") return false;
+  if (u.username || u.password || u.search || u.hash) return false;
+  if (u.hostname.toLowerCase() !== "lb.drpc.live") return false;
+  const parts = u.pathname.split("/").filter(Boolean);
+  if (parts.length !== 2) return false;
+  const [network, key] = parts;
+  if (!KEYED_DRPC_AZTEC_NETWORKS.has(network)) return false;
+  return /^[A-Za-z0-9_-]{16,128}$/.test(key);
+}
+
 /** Loopback RPC for `pnpm dev` / local sandbox. No credentials or query string. */
 export function isLoopbackRpcUrl(url: string): boolean {
   const u = rpcUrlParts(url);
@@ -67,16 +90,17 @@ export function isLoopbackRpcUrl(url: string): boolean {
   return host === "localhost" || host === "127.0.0.1" || host === "::1";
 }
 
-/** Build-time and runtime RPC config: pinned public HTTPS, or loopback. */
+/** Build-time and runtime RPC config: pinned public HTTPS, keyed Aztec dRPC, or loopback. */
 export function isSafeConfiguredRpcUrl(url: string): boolean {
-  return isPinnedPublicRpcUrl(url) || isLoopbackRpcUrl(url);
+  return isPinnedPublicRpcUrl(url) || isKeyedDrpcAztecRpcUrl(url) || isLoopbackRpcUrl(url);
 }
 
 export function assertSafeConfiguredRpcUrl(url: string, label: string): void {
   if (!isSafeConfiguredRpcUrl(url)) {
     throw new Error(
-      `${label} must be a pinned public https RPC with no path, or http(s) loopback. ` +
-        "Keyed lb.drpc.live URLs are rejected in VITE_* (they would ship in the JS bundle).",
+      `${label} must be a pinned public https RPC with no path, http(s) loopback, ` +
+        "or https://lb.drpc.live/aztec-mainnet/<key> (aztec-testnet is allowed). " +
+        "A VITE_ value is compiled into the public JS bundle.",
     );
   }
 }

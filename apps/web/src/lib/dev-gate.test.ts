@@ -10,6 +10,7 @@ describe("isDevGateHost", () => {
 
   it("rejects production kit host", () => {
     expect(isDevGateHost("aztec-dfarchon-kit-v6.netlify.app")).toBe(false);
+    expect(isDevGateHost("bridge.dfarchon.xyz")).toBe(false);
     expect(isDevGateHost("localhost")).toBe(false);
   });
 

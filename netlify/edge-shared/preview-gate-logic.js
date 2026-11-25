@@ -5,6 +5,7 @@
  */
 
 export const PRODUCTION_KIT_HOST = "aztec-dfarchon-kit-v6.netlify.app";
+export const PRODUCTION_PUBLIC_HOST = "bridge.dfarchon.xyz";
 export const PREVIEW_COOKIE = "df_preview_gate";
 export const PREVIEW_COOKIE_TTL_MS = 12 * 60 * 60 * 1000;
 /** Failed POST attempts per client IP before 429 (soft; edge isolate memory). */
@@ -69,7 +70,15 @@ export function clientIpFromHeaders(headers) {
 
 export function isPreviewGateHost(hostname) {
   const h = String(hostname ?? "").trim().toLowerCase();
-  if (!h || h === PRODUCTION_KIT_HOST || h === "localhost" || h === "127.0.0.1") return false;
+  if (
+    !h ||
+    h === PRODUCTION_KIT_HOST ||
+    h === PRODUCTION_PUBLIC_HOST ||
+    h === "localhost" ||
+    h === "127.0.0.1"
+  ) {
+    return false;
+  }
   if (h.endsWith(`--${PRODUCTION_KIT_HOST}`)) return true;
   if (h.endsWith(`.${PRODUCTION_KIT_HOST}`)) return true;
   return false;

@@ -44,7 +44,7 @@ const NETWORKS_BASE: Record<string, WebNetworkConfig> = {
   mainnet: {
     id: "mainnet",
     name: "Aztec Alpha (Mainnet)",
-    // Public endpoint in source. Keyed node URLs are not compiled into the client.
+    // Public default. A keyed dRPC URL is used when VITE_MAINNET_AZTEC_NODE_URL sets one.
     aztecNodeUrl: "https://aztec-mainnet.drpc.org",
     l1RpcUrl: "https://ethereum-rpc.publicnode.com",
     l1ChainId: 1,

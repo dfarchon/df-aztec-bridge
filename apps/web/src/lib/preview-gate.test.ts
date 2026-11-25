@@ -15,6 +15,7 @@ const PASS = "preview-password";
 describe("preview edge gate", () => {
   it("gates preview hosts and leaves production and localhost open", () => {
     expect(isPreviewGateHost("aztec-dfarchon-kit-v6.netlify.app")).toBe(false);
+    expect(isPreviewGateHost("bridge.dfarchon.xyz")).toBe(false);
     expect(isPreviewGateHost("localhost")).toBe(false);
     expect(isPreviewGateHost("127.0.0.1")).toBe(false);
     expect(isPreviewGateHost(HOST)).toBe(true);

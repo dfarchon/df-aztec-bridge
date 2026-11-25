@@ -10,11 +10,12 @@ import {
   getActiveAztecWallet,
   listStoredAztecWallets,
 } from "../../lib/aztec-wallet-store.ts";
+import { DFPUNK_PLAY_URL_DEFAULT } from "../../lib/df-client-links.ts";
 import { isVaultUnlocked } from "../../lib/vault.ts";
 
 const DFPUNK_PLAY_URL =
   (import.meta.env.VITE_DFPUNK_PLAY_URL as string | undefined)?.trim() ||
-  "https://aztec.dfpunk.xyz/play/";
+  DFPUNK_PLAY_URL_DEFAULT;
 const BROWSER_CLAIM = import.meta.env.VITE_ENABLE_BROWSER_CLAIM !== "false";
 
 export function WalletDrawer(props: {

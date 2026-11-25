@@ -7,7 +7,9 @@ import {
   aztecScanBlockUrl,
   aztecScanTxEffectUrl,
   isLocalExplorerOrigin,
+  isKeyedDrpcAztecRpcUrl,
   isOfficialHttpsUrl,
+  isSafeConfiguredRpcUrl,
   l1AddressUrl,
   l1ExplorerLinkLabel,
   l1TxUrl,
@@ -34,6 +36,12 @@ describe("official-links", () => {
     expect(isOfficialHttpsUrl("https://aztecscan.xyz/")).toBe(true);
     expect(isOfficialHttpsUrl("https://aztec-mainnet.drpc.org")).toBe(true);
     expect(isOfficialHttpsUrl("https://lb.drpc.live/aztec-mainnet/x")).toBe(false);
+    const keyed = "https://lb.drpc.live/aztec-mainnet/" + "a".repeat(32);
+    expect(isKeyedDrpcAztecRpcUrl(keyed)).toBe(true);
+    expect(isSafeConfiguredRpcUrl(keyed)).toBe(true);
+    expect(isKeyedDrpcAztecRpcUrl("https://lb.drpc.live/ethereum/" + "a".repeat(32))).toBe(false);
+    expect(isKeyedDrpcAztecRpcUrl(`${keyed}?x=1`)).toBe(false);
+    expect(isSafeConfiguredRpcUrl("https://aztec-mainnet.drpc.org/keyed")).toBe(false);
     expect(isOfficialHttpsUrl("http://aztecscan.xyz/")).toBe(false);
     expect(isOfficialHttpsUrl("https://evil.example/")).toBe(false);
   });

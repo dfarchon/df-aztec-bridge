@@ -1,4 +1,5 @@
 import { assertSafeClaimApiBase } from "../../lib/api-base.ts";
+import { DFPUNK_PLAY_URL_DEFAULT } from "../../lib/df-client-links.ts";
 import { assertPinnedFeeRecipient } from "../../lib/fee-recipient.ts";
 import { assertPinnedSponsoredFpc } from "../../lib/sponsored-fpc.ts";
 
@@ -19,11 +20,11 @@ export const SPONSORED_FPC_ADDRESS = assertPinnedSponsoredFpc(
 
 export const BRIDGE_PUBLIC_URL =
   (import.meta.env.VITE_BRIDGE_PUBLIC_URL as string | undefined)?.trim() ||
-  "https://aztec-dfarchon-kit-v6.netlify.app/";
+  "https://bridge.dfarchon.xyz";
 
 export const DFPUNK_PLAY_URL =
   (import.meta.env.VITE_DFPUNK_PLAY_URL as string | undefined)?.trim() ||
-  "https://aztec.dfpunk.xyz/play/";
+  DFPUNK_PLAY_URL_DEFAULT;
 
 /** Build-time: include / use in-browser PXE claim (heavy chunk). */
 export const BROWSER_CLAIM = import.meta.env.VITE_ENABLE_BROWSER_CLAIM !== "false";

@@ -34,9 +34,11 @@ describe("csp", () => {
     expect(csp).toContain("https://crs.aztec-labs.com");
   });
 
-  it("keeps multi-tenant dRPC out of the production connect-src", () => {
-    expect(buildProductionCsp()).not.toContain("lb.drpc.live");
-    expect(buildDevCsp({ unsafeInlineScripts: false })).not.toContain("lb.drpc.live");
+  it("allows the keyed dRPC gateway as an exact host", () => {
+    expect(buildProductionCsp()).toContain("https://lb.drpc.live");
+    expect(buildDevCsp({ unsafeInlineScripts: false })).toContain("https://lb.drpc.live");
+    expect(buildProductionCsp()).not.toContain("https://*.drpc.live");
+    expect(buildProductionCsp()).not.toContain("https://*.lb.drpc.live");
   });
 
   it("matches netlify.toml Content-Security-Policy (csp.ts is source of truth)", () => {
